@@ -85,3 +85,44 @@ def _parse_response(response: str, with_message: bool) -> Optional[Dict[str, str
     if with_message:
         result["message"] = match.group("message").strip()
     return result
+
+
+# ── Player ─────────────────────────────────────────────────────────────
+
+class SoloMatrixPlayer(Player):
+    def __init__(self, model: Model, role_name: str, own_objects: Set[str]):
+        super().__init__(model)
+        self.role_name = role_name
+        self.own_objects = own_objects
+
+    def _custom_response(self, context):
+        # Used by clemcore's mock player; emit a deterministic valid-format move.
+        first = sorted(self.own_objects)[0]
+        return f"reason: custom player\nmove: {first} to R1,C1 (down)"
+
+
+# ── Rendering helper ───────────────────────────────────────────────────
+
+def _render_view(board: Board, player: SoloMatrixPlayer, view_mode: str, compact: bool) -> str:
+    """Render `board` from `player`'s perspective.
+
+    view_mode=full   → all letters visible (player.own_objects covers all 6).
+    view_mode=masked → only player.own_objects visible; rest as 'X'.
+    compact          → use Board's compact text representation.
+    """
+    visible = player.own_objects if view_mode == VIEW_MASKED else None
+    if compact:
+        return board.render_compact(visible_objects=visible)
+    if visible is not None:
+        return board.render_for_player(visible)
+    return board.render()
+
+
+def _render_targets_view(board: Board, player: SoloMatrixPlayer, view_mode: str, compact: bool) -> str:
+    """Same as _render_view but for the goal board."""
+    visible = player.own_objects if view_mode == VIEW_MASKED else None
+    if compact:
+        return board.render_targets_compact(visible_objects=visible)
+    if visible is not None:
+        return board.render_targets_for_player(visible)
+    return board.render_targets()
