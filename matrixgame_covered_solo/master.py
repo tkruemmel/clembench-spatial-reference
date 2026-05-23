@@ -126,3 +126,17 @@ def _render_targets_view(board: Board, player: SoloMatrixPlayer, view_mode: str,
     if visible is not None:
         return board.render_targets_for_player(visible)
     return board.render_targets()
+
+
+# ── Validation ─────────────────────────────────────────────────────────
+
+def _validate_move(board: Board, player: SoloMatrixPlayer, parsed: Dict[str, str]) -> Optional[str]:
+    """Return an error string if the move is invalid, else None.
+
+    Wraps Board.validate_move with the player's allowed-objects set.
+    """
+    return board.validate_move(
+        parsed["object"],
+        parsed["direction"],
+        allowed_objects=player.own_objects,
+    )
