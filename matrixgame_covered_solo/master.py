@@ -1,9 +1,6 @@
 """Matrix Game (covered solo): single-LLM grid rearrangement.
 
-Two visibility variants:
-  full   — model sees all 6 objects and owns all 6.
-  masked — model sees only its 3 owned objects; the other 3 appear as X and
-           are static obstacles (counted against move validity, not success).
+Full-view only — the model sees all 6 objects and owns all 6.
 
 Optional 'thinking' axis adds a free-form `message:` line per turn that the
 master logs but does not interpret.
@@ -43,9 +40,6 @@ from utils.board import Board, DIRECTIONS
 logger = logging.getLogger(__name__)
 
 # ── Constants ──────────────────────────────────────────────────────────
-
-VIEW_FULL = "full"
-VIEW_MASKED = "masked"
 
 TURN_MOVES = "Turn Moves"
 MOVE_COUNT = "Move Count"
@@ -103,28 +97,17 @@ class SoloMatrixPlayer(Player):
 
 # ── Rendering helper ───────────────────────────────────────────────────
 
-def _render_view(board: Board, player: SoloMatrixPlayer, view_mode: str, compact: bool) -> str:
-    """Render `board` from `player`'s perspective.
-
-    view_mode=full   → all letters visible (player.own_objects covers all 6).
-    view_mode=masked → only player.own_objects visible; rest as 'X'.
-    compact          → use Board's compact text representation.
-    """
-    visible = player.own_objects if view_mode == VIEW_MASKED else None
+def _render_view(board: Board, compact: bool) -> str:
+    """Render the current board state."""
     if compact:
-        return board.render_compact(visible_objects=visible)
-    if visible is not None:
-        return board.render_for_player(visible)
+        return board.render_compact()
     return board.render()
 
 
-def _render_targets_view(board: Board, player: SoloMatrixPlayer, view_mode: str, compact: bool) -> str:
-    """Same as _render_view but for the goal board."""
-    visible = player.own_objects if view_mode == VIEW_MASKED else None
+def _render_targets_view(board: Board, compact: bool) -> str:
+    """Render the goal board (where each object must end up)."""
     if compact:
-        return board.render_targets_compact(visible_objects=visible)
-    if visible is not None:
-        return board.render_targets_for_player(visible)
+        return board.render_targets_compact()
     return board.render_targets()
 
 
