@@ -127,7 +127,7 @@ Same names and formulas as `_comm`, so existing analysis tooling works without c
 | `METRIC_REQUEST_COUNT` | total model requests |
 | `METRIC_REQUEST_COUNT_PARSED` | requests that parsed successfully |
 | `METRIC_REQUEST_COUNT_VIOLATED` | requests that failed parse or validate |
-| `BENCH_SCORE` | `clamp(1 - max(0, moves_used - astar_optimal) / astar_optimal, 0, 1)`; 0 if aborted or lose |
+| `BENCH_SCORE` | `min(100, round(optimal_moves / max(move_count, 1) * 100, 2))` on success; `0` on lose; `NaN` on abort. Identical to `_comm`'s `MatrixGameScorer.compute_scores`. |
 
 ## 7. Experiment matrix
 
@@ -144,10 +144,11 @@ e.g. `solo_full_S2_silent`, `solo_masked_S3_thinking_compact`.
   "thinking": true,
   "spatial_level": "S2",
   "compact_board": false,
-  "num_objects": 6,
-  "move_multiplier": 3
+  "num_objects": 6
 }
 ```
+
+The per-instance `max_turns` is computed by the instance generator as `max(4 * optimal_moves, 20)`, matching `_comm` exactly — no `move_multiplier` field is needed in the config.
 
 `thinking` is a bool (not a string), matching `_comm`'s convention for binary flags like `use_masking`, `enforce_isolation`, `compact_board`. The naming-convention suffix `_thinking`/`_silent` is just a human-readable label in `name`.
 
@@ -165,12 +166,12 @@ e.g. `solo_full_S2_silent`, `solo_masked_S3_thinking_compact`.
 3. Designate owned set:
    - `view_mode=full` → all 6 owned.
    - `view_mode=masked` → `{A,B,C}` owned, `{D,E,F}` static foreigns.
-4. Pre-compute `astar_optimal`:
-   - `full` → sum of `astar(origin → target)` for all 6 objects, each computed on a board that treats all *other* objects as static obstacles. This is an approximation — true joint-optimal would reorder moves to clear blockers — but it matches `_comm`'s instance-level optimum and keeps `BENCH_SCORE` comparable across the two games.
-   - `masked` → same sum but only over `{A,B,C}`; the 3 `X` foreigns are treated as static obstacles, which they actually are at runtime, so this estimate is tight.
-5. Store per-instance: board layout (walls), origins (per object), targets (per object), owned set, `astar_optimal`, derived `move_cap = ceil(astar_optimal * move_multiplier)`.
+4. Pre-compute `optimal_moves` using `_comm`'s `_verify_reachability` helper (per-object BFS, sums shortest-path lengths). This is a lower bound on the true joint optimum, same as `_comm`.
+   - `view_mode=masked` → BFS over `{A,B,C}` starts/targets, treating the 3 foreign cells as additional walls. Foreigns are static at runtime so this matches their actual blocking behaviour.
+   - `view_mode=full` → BFS over all 6 starts/targets, walls only. Inter-object blocking is ignored (matches `_comm`'s per-player approach).
+5. Store per-instance: `grid_size`, `walls`, `objects` (list of letters), `owned_objects` (list), `foreign_objects` (list, empty in full mode), `start_positions` (dict obj→[r,c]), `target_positions` (dict obj→[r,c]), `optimal_moves` (int), `max_turns = max(4 * optimal_moves, 20)` (matches `_comm`), `max_retries`, `strict`, `view_mode`, `thinking`, `spatial_level`, `compact_board`, `player_prompt` (loaded template string).
 
-**Generator invariant:** every owned object's origin must differ from its target, so `astar_optimal >= num_owned` and the `BENCH_SCORE` denominator is non-zero. Instances violating this are rejected and regenerated.
+**Generator invariant:** every owned object's origin must differ from its target, so `optimal_moves >= num_owned` and the `BENCH_SCORE` denominator is non-zero (it's `max(move_count, 1)` anyway, but we also want a non-trivial task). Instances violating this are rejected and regenerated.
 
 Total instances generated: 32 × 10 = **320**.
 
@@ -203,9 +204,7 @@ Integration smoke test: run one instance per experiment config end-to-end with a
 
 ## 11. Risks & open questions
 
-- **`astar_optimal` is a heuristic, not a strict bound.**
-  - In `view_mode=masked`, the 3 foreigns are static at runtime, so summing per-object A* over the 3 owned objects (with foreigns and other owned objects treated as static) is a tight estimate of the true minimum — the only slack is when one owned object's optimal path passes through another owned object's starting cell, which the generator can detect.
-  - In `view_mode=full`, all 6 objects can move during play, so the per-object-with-others-static sum can over- or under-estimate the true joint-optimum (joint solutions may temporarily reroute a blocker to shorten another path, or be forced to take longer detours). We accept this for cross-game comparability with `_comm`'s formula rather than computing a true joint optimum; `BENCH_SCORE` is therefore an approximate skill index in full mode, not a strict 0–1 efficiency ratio. Document this caveat in the analysis output.
+- **`optimal_moves` is a lower bound, not the true joint optimum** — same caveat as `_comm`. Per-object BFS ignores inter-object blocking; the actual minimum can be higher when objects must clear each other's paths. We accept this for cross-game comparability rather than computing a true joint optimum. `BENCH_SCORE = optimal_moves / move_count * 100` can therefore exceed 100 in theory, which is why `_comm` clamps with `min(100, …)`; we keep the same clamp.
 - **Prompt drift** — keeping four templates means a wording fix in one mode can fall out of sync with the others. Mitigation: a small test that asserts shared phrasing snippets (movement rules, coordinate format) appear in all four.
 - **Foreign `X` blocking in masked mode can make some instances unsolvable for `{A,B,C}`** — the instance generator must verify that an A* path exists for each owned object on the board *with foreigns treated as static obstacles*, not just on an empty board. Captured as a generator invariant in Section 10.
 
