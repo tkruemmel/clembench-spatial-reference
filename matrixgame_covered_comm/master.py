@@ -8,14 +8,15 @@ Three communication protocol variants (plus a no-communication control):
 
 Turn structure for none:
   reason: ...
-  move: OBJECT DIRECTION
+  move: OBJECT to Rr,Cc (DIRECTION)   (or: done: <reason> if all own objects are at targets)
 
 Turn structure for structured / freeform / hybrid:
   message: ...
   reason: ...
-  move: OBJECT DIRECTION
+  move: OBJECT to Rr,Cc (DIRECTION)   (or: done: <reason> if all own objects are at targets)
 
 The game master relays each player's message to the other player before they respond.
+A player who declares "done" (with all their objects at targets) stops receiving turns.
 """
 
 import re
@@ -52,13 +53,23 @@ MOVE_COUNT = "Move Count"
 
 # Used when comm_protocol == "none"
 MOVE_ONLY_PATTERN = re.compile(
-    r"reason:\s*(?P<reason>.+?)\s*\nmove:\s*(?P<object>[A-Z])\s+(?P<direction>up|down|left|right)",
+    r"reason:\s*(?P<reason>.+?)\s*\nmove:\s*(?P<object>[A-Z])\s+to\s+R(?P<target_row>\d+),?C(?P<target_col>\d+)\s*\((?P<direction>up|down|left|right)\)",
     re.IGNORECASE | re.DOTALL,
 )
 
 # Used when comm_protocol is structured / freeform / hybrid
 COMM_MOVE_PATTERN = re.compile(
-    r"message:\s*(?P<message>.+?)\s*\nreason:\s*(?P<reason>.+?)\s*\nmove:\s*(?P<object>[A-Z])\s+(?P<direction>up|down|left|right)",
+    r"message:\s*(?P<message>.+?)\s*\nreason:\s*(?P<reason>.+?)\s*\nmove:\s*(?P<object>[A-Z])\s+to\s+R(?P<target_row>\d+),?C(?P<target_col>\d+)\s*\((?P<direction>up|down|left|right)\)",
+    re.IGNORECASE | re.DOTALL,
+)
+
+# Done declarations — replace "move:" with "done:"
+DONE_ONLY_PATTERN = re.compile(
+    r"reason:\s*(?P<reason>.+?)\s*\ndone:\s*(?P<done_reason>.+)",
+    re.IGNORECASE | re.DOTALL,
+)
+COMM_DONE_PATTERN = re.compile(
+    r"message:\s*(?P<message>.+?)\s*\nreason:\s*(?P<reason>.+?)\s*\ndone:\s*(?P<done_reason>.+)",
     re.IGNORECASE | re.DOTALL,
 )
 
@@ -70,18 +81,33 @@ STRUCTURED_MSG_PATTERN = re.compile(
 
 
 def _parse_response(response: str, with_message: bool) -> Optional[Dict[str, str]]:
-    pattern = COMM_MOVE_PATTERN if with_message else MOVE_ONLY_PATTERN
-    match = pattern.search(response)
-    if not match:
-        return None
-    result = {
-        "reason": match.group("reason").strip(),
-        "object": match.group("object").strip().upper(),
-        "direction": match.group("direction").strip().lower(),
-    }
-    if with_message:
-        result["message"] = match.group("message").strip()
-    return result
+    # Try move pattern first
+    move_pattern = COMM_MOVE_PATTERN if with_message else MOVE_ONLY_PATTERN
+    match = move_pattern.search(response)
+    if match:
+        result = {
+            "reason": match.group("reason").strip(),
+            "object": match.group("object").strip().upper(),
+            "direction": match.group("direction").strip().lower(),
+            "target": f"R{match.group('target_row')},C{match.group('target_col')}",
+        }
+        if with_message:
+            result["message"] = match.group("message").strip()
+        return result
+
+    # Try done pattern
+    done_pattern = COMM_DONE_PATTERN if with_message else DONE_ONLY_PATTERN
+    match = done_pattern.search(response)
+    if match:
+        result: Dict[str, str] = {
+            "is_done": True,
+            "reason": match.group("reason").strip(),
+        }
+        if with_message:
+            result["message"] = match.group("message").strip()
+        return result
+
+    return None
 
 
 # ── Player ─────────────────────────────────────────────────────────────
@@ -94,7 +120,7 @@ class MatrixPlayer(Player):
 
     def _custom_response(self, context):
         first = sorted(self.own_objects)[0]
-        return f"reason: custom player\nmove: {first} down"
+        return f"reason: custom player\nmove: {first} to R1,C1 (down)"
 
 
 # ── Game master ────────────────────────────────────────────────────────
@@ -119,9 +145,11 @@ class MatrixGameMaster(DialogueGameMaster):
         self.use_masking: bool = game_instance.get("use_masking", True)
         self.comm_protocol: str = game_instance.get("comm_protocol", COMM_NONE)
         self.with_message: bool = self.comm_protocol != COMM_NONE
+        self.easy_mode: bool = game_instance.get("easy_mode", False)
+        self.compact_board: bool = game_instance.get("compact_board", False)
 
         for model in self.player_models:
-            model.set_gen_arg("max_tokens", 4096)
+            model.set_gen_arg("max_tokens", 16384)
 
         walls = {tuple(w) for w in game_instance.get("walls", [])}
         self.board = Board(self.grid_size, walls)
@@ -137,8 +165,11 @@ class MatrixGameMaster(DialogueGameMaster):
         self.success = False
         self.aborted = False
         self.reprompt_attempts = 0
+        self.reprompt_pending: bool = False
         self.current_parsed: Optional[Dict[str, str]] = None
         self.seen_states: Dict[str, int] = {self.board.state_key(): 1}
+        self.player_a_done: bool = False
+        self.player_b_done: bool = False
 
         model_a = self.player_models[0]
         model_b = self.player_models[1] if len(self.player_models) > 1 else self.player_models[0]
@@ -153,18 +184,46 @@ class MatrixGameMaster(DialogueGameMaster):
         ctx_a = self._build_initial_context(prompt_template, objs_a, self.player_a)
         ctx_b = self._build_initial_context(prompt_template, objs_b, self.player_b)
 
+        self._prompt_template = prompt_template
+        self._player_b_received_intro = False
+
         self.add_player(self.player_a, initial_context=ctx_a)
         self.add_player(self.player_b, initial_context=ctx_b)
 
     def _build_initial_context(self, template: str, own_objects_str: str, player: Player) -> str:
         prompt = template.replace("$YOUR_OBJECTS$", own_objects_str)
         prompt = prompt.replace("$GRID_SIZE$", str(self.grid_size))
+        if "DONE OPTION" not in prompt:
+            prompt += self._done_instructions_text()
         board_view = self._render_for(player)
-        goal_view = self.board.render_targets()
+        goal_view = self._render_targets_for(player)
         return (
             f"{prompt}\n\n"
             f"CURRENT BOARD:\n{board_view}\n\n"
             f"GOAL BOARD (where each object must end up):\n{goal_view}"
+            f"{self._easy_mode_context(player)}"
+        )
+
+    def _done_instructions_text(self) -> str:
+        if self.with_message:
+            return (
+                "\n\nDONE OPTION:\n"
+                "Once ALL your objects are at their target positions, you may declare done "
+                "instead of making a move:\n"
+                "message: done\n"
+                "reason: <explanation>\n"
+                "done: all my objects are placed\n"
+                "IMPORTANT: Only declare done if ALL your objects are truly at their targets. "
+                "An incorrect done declaration ends the game as a failure."
+            )
+        return (
+            "\n\nDONE OPTION:\n"
+            "Once ALL your objects are at their target positions, you may declare done "
+            "instead of making a move:\n"
+            "reason: <explanation>\n"
+            "done: all my objects are placed\n"
+            "IMPORTANT: Only declare done if ALL your objects are truly at their targets. "
+            "An incorrect done declaration ends the game as a failure."
         )
 
     # ── helpers ────────────────────────────────────────────────────────
@@ -173,20 +232,98 @@ class MatrixGameMaster(DialogueGameMaster):
         return self.player_a_objects if player == self.player_a else self.player_b_objects
 
     def _render_for(self, player: Player) -> str:
-        if self.use_masking:
-            return self.board.render_for_player(self._objects_for(player))
+        visible = self._objects_for(player) if self.use_masking else None
+        if self.compact_board:
+            return self.board.render_compact(visible_objects=visible)
+        if visible is not None:
+            return self.board.render_for_player(visible)
         return self.board.render()
+
+    def _render_targets_for(self, player: Player) -> str:
+        visible = self._objects_for(player) if self.use_masking else None
+        if self.compact_board:
+            return self.board.render_targets_compact(visible_objects=visible)
+        if visible is not None:
+            return self.board.render_targets_for_player(visible)
+        return self.board.render_targets()
+
+    def _render_object_status(self, player: Player) -> str:
+        """Easy-mode: per-object status list with current position, target, and done flag."""
+        player_objs = self._objects_for(player)
+        lines = ["OBJECT STATUS:"]
+        for obj in sorted(player_objs):
+            cur = self.board.object_positions.get(obj)
+            tgt = self.board.target_positions.get(obj)
+            if cur is None or tgt is None:
+                continue
+            cur_str = f"R{cur[0]+1},C{cur[1]+1}"
+            tgt_str = f"R{tgt[0]+1},C{tgt[1]+1}"
+            flag = "✓ DONE" if cur == tgt else "✗ NOT DONE"
+            lines.append(f"  {obj}: at {cur_str} → target {tgt_str}  {flag}")
+        return "\n".join(lines)
+
+    def _render_adjacency(self, player: Player) -> str:
+        """Easy-mode: for each of the player's objects, list what occupies each adjacent cell."""
+        player_objs = self._objects_for(player)
+        lines = ["ADJACENCY (what is in each cell next to your objects):"]
+        for obj in sorted(player_objs):
+            pos = self.board.object_positions.get(obj)
+            if pos is None:
+                continue
+            r, c = pos
+            parts = []
+            for dname, (dr, dc) in [("up", (-1, 0)), ("down", (1, 0)),
+                                     ("left", (0, -1)), ("right", (0, 1))]:
+                nr, nc = r + dr, c + dc
+                if not (0 <= nr < self.grid_size and 0 <= nc < self.grid_size):
+                    label = "OOB"
+                elif (nr, nc) in self.board.walls:
+                    label = "##"
+                else:
+                    cell_obj = self.board.grid[nr][nc]
+                    if cell_obj is None:
+                        label = "empty"
+                    elif cell_obj in player_objs:
+                        label = cell_obj
+                    else:
+                        label = "X"
+                parts.append(f"{dname}={label}")
+            lines.append(f"  {obj} (at R{r+1},C{c+1}): {', '.join(parts)}")
+        return "\n".join(lines)
+
+    def _easy_mode_context(self, player: Player) -> str:
+        """Returns the easy-mode status+adjacency block, or empty string in normal mode."""
+        if not self.easy_mode:
+            return ""
+        return f"\n\n{self._render_object_status(player)}\n\n{self._render_adjacency(player)}"
+
+    def _is_done_player(self, player: Player) -> bool:
+        return (player == self.player_a and self.player_a_done) or \
+               (player == self.player_b and self.player_b_done)
+
+    def _own_objects_at_target(self, player: Player) -> bool:
+        return all(
+            self.board.object_positions.get(obj) == self.board.target_positions.get(obj)
+            for obj in self._objects_for(player)
+        )
 
     def _format_reminder(self) -> str:
         if self.with_message:
             return (
                 "message: <your message to your partner>\n"
                 "reason: <your reasoning>\n"
-                "move: <OBJECT> <DIRECTION>"
+                "move: <OBJECT> to R<row>,C<col> (<DIRECTION>)\n\n"
+                "OR, if ALL your objects are at their target positions:\n"
+                "message: done\n"
+                "reason: <explanation>\n"
+                "done: all my objects are placed"
             )
         return (
             "reason: <your reasoning>\n"
-            "move: <OBJECT> <DIRECTION>"
+            "move: <OBJECT> to R<row>,C<col> (<DIRECTION>)\n\n"
+            "OR, if ALL your objects are at their target positions:\n"
+            "reason: <explanation>\n"
+            "done: all my objects are placed"
         )
 
     # ── game loop ──────────────────────────────────────────────────────
@@ -212,13 +349,33 @@ class MatrixGameMaster(DialogueGameMaster):
                 self.aborted = True
                 self.log_to_self("abort", "Too many invalid responses")
             else:
+                self.reprompt_pending = True
                 self.set_context_for(player, (
                     "Your response could not be parsed. Please respond exactly in this format:\n"
                     f"{self._format_reminder()}\n\n"
                     f"CURRENT BOARD:\n{self._render_for(player)}\n\n"
-                    f"GOAL BOARD:\n{self.board.render_targets()}"
+                    f"GOAL BOARD:\n{self._render_targets_for(player)}"
+                    f"{self._easy_mode_context(player)}"
                 ))
             return False
+
+        if parsed.get("is_done"):
+            if not self._own_objects_at_target(player):
+                self.violated_request_counts += 1
+                self.log_to_self(
+                    "invalid_done",
+                    f"{player.role_name}: declared done but not all their objects are at target positions",
+                )
+                self.aborted = True
+                self.log_to_self(
+                    "abort",
+                    f"{player.role_name} declared done before all their objects reached their targets",
+                )
+                return False
+            self.parsed_request_counts += 1
+            self.current_parsed = parsed
+            self.reprompt_attempts = 0
+            return True
 
         # C1: warn if structured message format not followed (but don't abort)
         if self.comm_protocol == COMM_STRUCTURED:
@@ -246,35 +403,89 @@ class MatrixGameMaster(DialogueGameMaster):
                 self.aborted = True
                 self.log_to_self("abort", "Too many invalid moves")
             else:
+                self.reprompt_pending = True
                 self.set_context_for(player, (
                     f"Invalid move: {error}\nPlease try again.\n\n"
                     f"{self._format_reminder()}\n\n"
                     f"CURRENT BOARD:\n{self._render_for(player)}\n\n"
-                    f"GOAL BOARD:\n{self.board.render_targets()}"
+                    f"GOAL BOARD:\n{self._render_targets_for(player)}"
+                    f"{self._easy_mode_context(player)}"
                 ))
             return False
 
         self.parsed_request_counts += 1
         self.current_parsed = parsed
         self.reprompt_attempts = 0
+        self.reprompt_pending = False
         return True
 
     def _parse_response(self, player: Player, response: str) -> str:
         if self.current_parsed:
-            return f"{self.current_parsed['object']} {self.current_parsed['direction']}"
+            if self.current_parsed.get("is_done"):
+                return "done"
+            target = self.current_parsed.get("target", "?")
+            return f"{self.current_parsed['object']} to {target} ({self.current_parsed['direction']})"
         return response
 
+    def _should_pass_turn(self) -> bool:
+        return not self.reprompt_pending
+
+    def _next_player(self) -> Player:
+        players = self.get_players()
+        n = len(players)
+        for _ in range(n):
+            self._current_player_idx = (self._current_player_idx + 1) % n
+            candidate = players[self._current_player_idx]
+            if not self._is_done_player(candidate):
+                return candidate
+        # All players done — advance anyway (game will end on next _does_game_proceed check)
+        self._current_player_idx = (self._current_player_idx + 1) % n
+        return players[self._current_player_idx]
+
     def _on_valid_player_response(self, player: Player, parsed_response: str) -> None:
-        obj = self.current_parsed["object"]
-        direction = self.current_parsed["direction"]
         reason = self.current_parsed["reason"]
         message = self.current_parsed.get("message")
+
+        if self.current_parsed.get("is_done"):
+            if player == self.player_a:
+                self.player_a_done = True
+            else:
+                self.player_b_done = True
+
+            self.log_to_self("player_done", f"{player.role_name} declared done")
+            if message:
+                self.log_to_self("message", f"{player.role_name}: {message}")
+
+            if self.board.is_solved():
+                self.success = True
+                self.log_to_self("success", "All objects have reached their target positions!")
+                return
+
+            other = self.player_b if player == self.player_a else self.player_a
+            if message and self.with_message:
+                comm_line = f"{player.role_name} says: {message}\n\n"
+            else:
+                comm_line = ""
+            self.set_context_for(other, (
+                f"{comm_line}"
+                f"{player.role_name} has finished — all their objects are at their target positions. "
+                f"Continue alone until all objects are placed.\n\n"
+                f"CURRENT BOARD:\n{self._render_for(other)}\n\n"
+                f"GOAL BOARD:\n{self._render_targets_for(other)}\n\n"
+                f"Your turn. Respond with:\n{self._format_reminder()}"
+                f"{self._easy_mode_context(other)}"
+            ))
+            return
+
+        obj = self.current_parsed["object"]
+        direction = self.current_parsed["direction"]
 
         self.board.apply_move(obj, direction)
         self.move_log.append({
             "player": player.role_name,
             "object": obj,
             "direction": direction,
+            "target": self.current_parsed.get("target", ""),
             "reason": reason,
             "message": message,
         })
@@ -296,27 +507,42 @@ class MatrixGameMaster(DialogueGameMaster):
             return
 
         other = self.player_b if player == self.player_a else self.player_a
-        other_objects = self._objects_for(other)
+        other_done = self._is_done_player(other)
 
         # Move description: hide object identity if other player can't see it
-        if self.use_masking and obj not in other_objects:
+        if self.use_masking and obj not in self._objects_for(other):
             move_desc = f"{player.role_name} moved a blocked object {direction}."
         else:
             move_desc = f"{player.role_name} moved {obj} {direction}."
 
-        # Prepend relayed message if communication is enabled
         if message and self.with_message:
             comm_line = f"{player.role_name} says: {message}\n\n"
         else:
             comm_line = ""
 
-        self.set_context_for(other, (
-            f"{comm_line}"
-            f"{move_desc}\n\n"
-            f"CURRENT BOARD:\n{self._render_for(other)}\n\n"
-            f"GOAL BOARD:\n{self.board.render_targets()}\n\n"
-            f"Your turn. Respond with:\n{self._format_reminder()}"
-        ))
+        if other_done:
+            # Partner finished; current player continues alone
+            self.set_context_for(player, (
+                f"Your partner has finished. Continue placing your remaining objects alone.\n\n"
+                f"You moved {obj} {direction}.\n\n"
+                f"CURRENT BOARD:\n{self._render_for(player)}\n\n"
+                f"GOAL BOARD:\n{self._render_targets_for(player)}\n\n"
+                f"Your turn. Respond with:\n{self._format_reminder()}"
+                f"{self._easy_mode_context(player)}"
+            ))
+        elif not self._player_b_received_intro and other == self.player_b:
+            self._player_b_received_intro = True
+            objs_b = ", ".join(sorted(self.player_b_objects))
+            self.set_context_for(other, self._build_initial_context(self._prompt_template, objs_b, other))
+        else:
+            self.set_context_for(other, (
+                f"{comm_line}"
+                f"{move_desc}\n\n"
+                f"CURRENT BOARD:\n{self._render_for(other)}\n\n"
+                f"GOAL BOARD:\n{self._render_targets_for(other)}\n\n"
+                f"Your turn. Respond with:\n{self._format_reminder()}"
+                f"{self._easy_mode_context(other)}"
+            ))
 
     def _on_after_game(self):
         self.log_key(METRIC_ABORTED, int(self.aborted))
@@ -327,6 +553,8 @@ class MatrixGameMaster(DialogueGameMaster):
         self.log_key(METRIC_REQUEST_COUNT_VIOLATED, self.violated_request_counts)
         self.log_key(MOVE_COUNT, len(self.move_log))
         self.log_key(TURN_MOVES, self.move_log)
+        self.log_key("Player A Done", int(self.player_a_done))
+        self.log_key("Player B Done", int(self.player_b_done))
 
 
 # ── Scorer ─────────────────────────────────────────────────────────────

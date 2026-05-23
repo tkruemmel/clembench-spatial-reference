@@ -106,6 +106,14 @@ class Board:
         }
         return self._render_raw(cell_to_obj)
 
+    def render_targets_for_player(self, player_objects: Set[str]) -> str:
+        """Goal board from a player's perspective: opponent targets appear as 'X'."""
+        cell_to_obj: Dict[Tuple[int, int], str] = {
+            pos: (obj if obj in player_objects else BLOCKED_MARKER)
+            for obj, pos in self.target_positions.items()
+        }
+        return self._render_raw(cell_to_obj)
+
     def _render_grid(self, visible_objects: Optional[Set[str]]) -> str:
         n = self.grid_size
         cell_contents: Dict[Tuple[int, int], str] = {}
@@ -118,6 +126,28 @@ class Board:
                     else:
                         cell_contents[(r, c)] = BLOCKED_MARKER
         return self._render_raw(cell_contents)
+
+    def render_compact(self, visible_objects: Optional[Set[str]] = None) -> str:
+        """Compact representation: objects as Label@RxCy, walls listed on a second line."""
+        parts = []
+        for obj in sorted(self.object_positions):
+            r, c = self.object_positions[obj]
+            label = obj if (visible_objects is None or obj in visible_objects) else BLOCKED_MARKER
+            parts.append(f"{label}@R{r+1}C{c+1}")
+        lines = ["Objects: " + " ".join(parts)]
+        if self.walls:
+            wall_parts = [f"R{r+1}C{c+1}" for r, c in sorted(self.walls)]
+            lines.append("Walls: " + " ".join(wall_parts))
+        return "\n".join(lines)
+
+    def render_targets_compact(self, visible_objects: Optional[Set[str]] = None) -> str:
+        """Compact representation of target positions: Label->RxCy."""
+        parts = []
+        for obj in sorted(self.target_positions):
+            r, c = self.target_positions[obj]
+            label = obj if (visible_objects is None or obj in visible_objects) else BLOCKED_MARKER
+            parts.append(f"{label}->R{r+1}C{c+1}")
+        return "Targets: " + " ".join(parts)
 
     def _render_raw(self, cell_contents: Dict[Tuple[int, int], str]) -> str:
         n = self.grid_size

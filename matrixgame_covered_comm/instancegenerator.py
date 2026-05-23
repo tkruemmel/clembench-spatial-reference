@@ -13,10 +13,11 @@ S3  Dead-end corridor + length-3 chain [A←B←C←D] with cross-agent
     alternation. Secondary length-1 chain [E←F]. ~2× Manhattan ratio.
     Player A: {D, B, E}; Player B: {C, A, F}.
 
-S4  Wall line across the grid (single-cell gate). Dead-end pocket
-    adjacent to the gate. PARKED (Player A) and PASSER (Player B) must
-    both cross the gate; PARKED retreats into the pocket to let PASSER
-    through (non-monotonic trajectory). Two additional length-1 chains.
+S4  Same map as S3 (dead-end corridor + ~2× Manhattan walls, 2-connected).
+    INNER (Player B) starts at the corridor dead end; OUTER (Player A) starts
+    at the adjacent interior cell targeting the dead end. OUTER must retreat
+    out of the corridor to let INNER exit, then re-enter — forced non-monotonic
+    trajectory. Two additional length-1 chains.
 
 Experiment 3 coordination isolation check
 ──────────────────────────────────────────
@@ -55,6 +56,8 @@ class MatrixGameInstanceGenerator(GameInstanceGenerator):
         comm_protocol = variant_config["comm_protocol"]
         use_masking = variant_config.get("use_masking", True)
         enforce_isolation = variant_config.get("enforce_isolation", False)
+        easy_mode = variant_config.get("easy_mode", False)
+        compact_board = variant_config.get("compact_board", False)
 
         objects = all_objects[:num_objects]
         prompt_template = self.load_template(
@@ -66,6 +69,10 @@ class MatrixGameInstanceGenerator(GameInstanceGenerator):
         experiment_name = f"{spatial_level}_{comm_protocol}"
         if enforce_isolation:
             experiment_name += "_isolated"
+        if easy_mode:
+            experiment_name += "_easy"
+        if compact_board:
+            experiment_name += "_compact"
 
         experiment = self.add_experiment(experiment_name)
         experiment["common_config"] = common_config
@@ -118,6 +125,8 @@ class MatrixGameInstanceGenerator(GameInstanceGenerator):
             game_instance["use_masking"] = use_masking
             game_instance["spatial_level"] = spatial_level
             game_instance["comm_protocol"] = comm_protocol
+            game_instance["easy_mode"] = easy_mode
+            game_instance["compact_board"] = compact_board
             game_instance["player_prompt"] = prompt_template
 
 
@@ -707,136 +716,72 @@ def _generate_s4(
     grid_size: int,
     objects: List[str],
     rng: random.Random,
-    max_retries: int = 30,
+    max_retries: int = 25,
 ) -> Tuple[Dict, Dict, List, int, List[str], List[str]]:
-    """S4: wall-line gate + dead-end pocket requiring non-monotonic trajectory.
+    """S4: corridor swap forcing non-monotonic trajectory; same map as S3.
 
-    A horizontal wall divides the grid at a random row. A single-cell gap
-    (GATE_CELL) is the only crossing. A 2-cell dead-end pocket branches
-    right from the cell directly above the gate.
+    Dead-end corridor (length ≥ 2) + walls for ~2× Manhattan ratio, 2-connected.
+    No wall-line gate — difficulty comes purely from object placement in the corridor.
 
-    PARKED (obj_A, Player A): start top-left, target bottom-left.
-      Path goes through GATE_CELL. When PASSER occupies the gate from
-      below, PARKED retreats right into the pocket, then re-emerges.
+    INNER (obj_B, Player B): starts at the corridor dead end, targets outside.
+      Must exit through the adjacent cell, which OUTER initially occupies.
+    OUTER (obj_A, Player A): starts at the corridor cell adjacent to the dead end,
+      targets the dead end. Must retreat out of the corridor to let INNER exit,
+      then re-enter — forced non-monotonic trajectory.
+    Cross-agent: OUTER cannot finish until INNER exits; INNER cannot exit until
+      OUTER retreats. Neither player resolves this without coordinating.
 
-    PASSER (obj_B, Player B): start bottom-right, target top-right.
-      Also goes through GATE_CELL — triggers PARKED's retreat.
-
-    Remaining objects C,D,E,F form two length-1 chains:
+    Remaining 4 objects form two length-1 chains:
       D.start = C.target  (D→Player B must move before C→Player A)
       F.start = E.target  (F→Player B must move before E→Player A)
 
-    Player A: [PARKED, C, E]; Player B: [PASSER, D, F]
+    Player A: [OUTER, C, E]; Player B: [INNER, D, F]
     """
-    if grid_size < 7:
-        return _generate_s3(grid_size, objects, rng)
+    if grid_size < 6:
+        return _generate_s1(grid_size, objects, rng)
 
-    obj_PARKED = objects[0]
-    obj_PASSER = objects[1]
+    obj_OUTER = objects[0]
+    obj_INNER = objects[1]
     obj_C, obj_D, obj_E, obj_F = objects[2], objects[3], objects[4], objects[5]
 
+    dirs = [(-1, 0), (1, 0), (0, -1), (0, 1)]
+
     for _ in range(max_retries):
-        # Random wall row: leave ≥2 rows above and ≥2 rows below for object placement
-        wall_row = rng.randint(2, grid_size - 4)
+        corridor = _random_dead_end_corridor(
+            grid_size, rng, excluded=set(), min_length=3, max_length=4
+        )
+        if corridor is None:
+            continue
+        entrance, dead_end, corridor_cells, corridor_walls = corridor
 
-        # Random gate column: leave room for the 2-cell pocket to the right
-        gate_col = rng.randint(1, grid_size - 4)
-        gate_cell = (wall_row, gate_col)
-
-        # Horizontal wall line with gap at gate_col
-        wall_line: Set[Tuple[int, int]] = {
-            (wall_row, c) for c in range(grid_size) if c != gate_col
-        }
-
-        # Dead-end pocket: 2 cells in the row directly above the gate, going right
-        # Pocket entrance: (wall_row-1, gate_col+1); dead end: (wall_row-1, gate_col+2)
-        pocket_row = wall_row - 1
-        p_col1, p_col2 = gate_col + 1, gate_col + 2
-
-        if pocket_row < 0 or p_col2 >= grid_size:
+        # Find the corridor cell adjacent to the dead end (OUTER's start).
+        # Dead end has exactly one corridor-cell neighbour by construction.
+        inner_adjacent: Optional[Tuple[int, int]] = None
+        for dr, dc in dirs:
+            nr, nc = dead_end[0] + dr, dead_end[1] + dc
+            if (nr, nc) in corridor_cells:
+                inner_adjacent = (nr, nc)
+                break
+        if inner_adjacent is None:
             continue
 
-        pocket_cells = {(pocket_row, p_col1), (pocket_row, p_col2)}
+        blocked = corridor_cells | corridor_walls | {entrance}
+        used: Set[Tuple[int, int]] = set(blocked)
+        starts: Dict[str, List[int]] = {}
+        targets: Dict[str, List[int]] = {}
 
-        # Walls flanking the pocket: above and to the right
-        pocket_walls: Set[Tuple[int, int]] = set()
-        if pocket_row - 1 >= 0:
-            pocket_walls.add((pocket_row - 1, p_col1))
-            pocket_walls.add((pocket_row - 1, p_col2))
-        if p_col2 + 1 < grid_size:
-            pocket_walls.add((pocket_row, p_col2 + 1))
+        # Corridor swap: INNER at dead end blocks OUTER's target;
+        # OUTER at inner_adjacent blocks INNER's only exit.
+        starts[obj_INNER] = list(dead_end)
+        starts[obj_OUTER] = list(inner_adjacent)
+        targets[obj_OUTER] = list(dead_end)
 
-        all_walls = wall_line | pocket_walls
-
-        # Sanity: pocket cells must not overlap with the wall line
-        if pocket_cells & all_walls:
+        INNER_target = _pick(grid_size, rng, used)
+        if INNER_target is None:
             continue
+        used.add(INNER_target)
+        targets[obj_INNER] = list(INNER_target)
 
-        excluded = all_walls | pocket_cells
-
-        # Available cells by region
-        top_left = [
-            (r, c) for r in range(wall_row) for c in range(gate_col)
-            if (r, c) not in excluded
-        ]
-        bottom_left = [
-            (r, c) for r in range(wall_row + 1, grid_size) for c in range(gate_col + 1)
-            if (r, c) not in excluded
-        ]
-        bottom_right = [
-            (r, c) for r in range(wall_row + 1, grid_size)
-            for c in range(gate_col + 1, grid_size)
-            if (r, c) not in excluded
-        ]
-        top_right = [
-            (r, c) for r in range(wall_row) for c in range(gate_col + 1, grid_size)
-            if (r, c) not in excluded
-        ]
-
-        if not top_left or not bottom_left or not bottom_right or not top_right:
-            continue
-
-        used: Set[Tuple[int, int]] = set(excluded)
-
-        parked_start = rng.choice(top_left)
-        used.add(parked_start)
-
-        candidates = [c for c in bottom_left if c not in used]
-        if not candidates:
-            continue
-        parked_target = rng.choice(candidates)
-        used.add(parked_target)
-
-        candidates = [c for c in bottom_right if c not in used]
-        if not candidates:
-            continue
-        passer_start = rng.choice(candidates)
-        used.add(passer_start)
-
-        candidates = [c for c in top_right if c not in used]
-        if not candidates:
-            continue
-        passer_target = rng.choice(candidates)
-        used.add(passer_target)
-
-        starts: Dict[str, List[int]] = {
-            obj_PARKED: list(parked_start),
-            obj_PASSER: list(passer_start),
-        }
-        targets: Dict[str, List[int]] = {
-            obj_PARKED: list(parked_target),
-            obj_PASSER: list(passer_target),
-        }
-
-        # Both PARKED and PASSER must route through the gate
-        parked_path = _bfs_path(grid_size, all_walls, parked_start, parked_target)
-        passer_path = _bfs_path(grid_size, all_walls, passer_start, passer_target)
-        if not parked_path or not passer_path:
-            continue
-        if gate_cell not in parked_path or gate_cell not in passer_path:
-            continue
-
-        # Two length-1 dependency chains in remaining cells
         # Chain 1: D.start = C.target  (D→Player B must move first)
         C_target = _pick(grid_size, rng, used)
         if C_target is None:
@@ -877,29 +822,43 @@ def _generate_s4(
         used.add(E_start)
         starts[obj_E] = list(E_start)
 
-        if not _is_2connected(grid_size, all_walls):
+        protected: Set[Tuple[int, int]] = (
+            {tuple(p) for p in list(starts.values()) + list(targets.values())}  # type: ignore
+            | corridor_cells
+        )
+        walls: Set[Tuple[int, int]] = set(corridor_walls)
+        for obj in objects:
+            walls = _carve_for_ratio(
+                grid_size, walls,
+                tuple(starts[obj]), tuple(targets[obj]),  # type: ignore
+                target_ratio=2.0, rng=rng,
+                protected=protected, allow_dead_ends=False,
+                extra_walls_for_2conn=corridor_cells,
+            )
+
+        if not _is_2connected(grid_size, walls | corridor_cells):
             continue
 
-        ok, optimal = _verify(grid_size, all_walls, starts, targets)
+        ok, optimal = _verify_reachability(grid_size, walls, starts, targets)
         if not ok:
             continue
 
-        # Player A: PARKED, C, E; Player B: PASSER, D, F
-        player_a = [obj_PARKED, obj_C, obj_E]
-        player_b = [obj_PASSER, obj_D, obj_F]
-        return starts, targets, sorted(all_walls), optimal, player_a, player_b
+        player_a = [obj_OUTER, obj_C, obj_E]
+        player_b = [obj_INNER, obj_D, obj_F]
+        return starts, targets, sorted(walls), optimal, player_a, player_b
 
-    return _generate_s3(grid_size, objects, rng)
+    return _generate_s1(grid_size, objects, rng)
 
 
 # ── Entry point ────────────────────────────────────────────────────────
 #
 # Usage:
-#   python instancegenerator.py             # generate everything (Exp2 + Exp3)
-#   python instancegenerator.py exp2        # Exp2 only
-#   python instancegenerator.py exp3        # Exp3 only
-#   python instancegenerator.py exp2 exp3   # explicit selection
-#   python instancegenerator.py exp3 --n 10 # override instance count
+#   python instancegenerator.py                          # generate everything (Exp2 + Exp3)
+#   python instancegenerator.py exp2                     # Exp2 only
+#   python instancegenerator.py exp3                     # Exp3 only
+#   python instancegenerator.py exp3 --n 10              # override instance count
+#   python instancegenerator.py exp3 --levels s1 s2 s3  # only levels S1-S3
+#   python instancegenerator.py --levels s2              # only S2 across all experiments
 
 if __name__ == "__main__":
     import argparse
@@ -916,20 +875,67 @@ if __name__ == "__main__":
         "--n", type=int, default=50,
         help="Number of instances per condition (default: 50)",
     )
+    easy_group = parser.add_mutually_exclusive_group()
+    easy_group.add_argument(
+        "--easy", dest="easy_mode", action="store_true", default=None,
+        help="Generate only easy-mode variants",
+    )
+    easy_group.add_argument(
+        "--no-easy", dest="easy_mode", action="store_false",
+        help="Generate only normal (non-easy) variants",
+    )
+    compact_group = parser.add_mutually_exclusive_group()
+    compact_group.add_argument(
+        "--compact", dest="compact_board", action="store_true",
+        help="Generate only compact-board variants",
+    )
+    compact_group.add_argument(
+        "--no-compact", dest="compact_board", action="store_false",
+        help="Generate only full-grid (non-compact) variants",
+    )
+    parser.add_argument(
+        "--levels",
+        nargs="+",
+        choices=["s1", "s2", "s3", "s4"],
+        default=["s1", "s2", "s3", "s4"],
+        metavar="LEVEL",
+        help="Spatial levels to include (default: all). E.g. --levels s1 s2 s3",
+    )
+    parser.set_defaults(easy_mode=None, compact_board=False)
     args = parser.parse_args()
+    selected_levels = set(args.levels)
+
+    # easy: None → both; True → easy only; False → normal only
+    if args.easy_mode is True:
+        easy_opts = ["_easy"]
+    elif args.easy_mode is False:
+        easy_opts = [""]
+    else:
+        easy_opts = ["", "_easy"]
+
+    # compact: True → compact only; False (default) → normal only; None → both
+    if args.compact_board is True:
+        compact_opts = ["_compact"]
+    elif args.compact_board is False:
+        compact_opts = [""]
+    else:
+        compact_opts = ["", "_compact"]
+
+    suffixes = [e + c for e in easy_opts for c in compact_opts]
 
     gen = MatrixGameInstanceGenerator()
     N = args.n
 
-    if "exp2" in args.experiments:
+    if "exp2" in args.experiments and "s2" in selected_levels:
         # Fixed S2, all four protocol conditions.
         # Same seed → identical boards across conditions, isolating protocol effect.
         EXP2_SEED = 42
         for protocol in ["none", "structured", "freeform", "hybrid"]:
-            variant = f"exp2_s2_{protocol}"
-            gen.generate(filename="instances.json", seed=EXP2_SEED,
-                         variant=variant, num_instances=N)
-            print(f"Generated: {variant} (n={N})")
+            for suffix in suffixes:
+                variant = f"exp2_s2_{protocol}{suffix}"
+                gen.generate(filename="instances.json", seed=EXP2_SEED,
+                             variant=variant, num_instances=N)
+                print(f"Generated: {variant} (n={N})")
 
     if "exp3" in args.experiments:
         # All four spatial levels × all three communication protocols.
@@ -937,8 +943,11 @@ if __name__ == "__main__":
         # isolating spatial difficulty from protocol choice.
         EXP3_SEEDS = {"s1": 100, "s2": 200, "s3": 300, "s4": 400}
         for level, seed in EXP3_SEEDS.items():
-            for protocol in ["structured", "freeform", "hybrid"]:
-                variant = f"exp3_{level}_{protocol}"
-                gen.generate(filename="instances.json", seed=seed,
-                             variant=variant, num_instances=N)
-                print(f"Generated: {variant} (n={N})")
+            if level not in selected_levels:
+                continue
+            for protocol in ["none", "structured", "freeform", "hybrid"]:
+                for suffix in suffixes:
+                    variant = f"exp3_{level}_{protocol}{suffix}"
+                    gen.generate(filename="instances.json", seed=seed,
+                                 variant=variant, num_instances=N)
+                    print(f"Generated: {variant} (n={N})")
