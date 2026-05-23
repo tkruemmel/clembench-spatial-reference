@@ -96,3 +96,102 @@ def test_initial_context_substitutes_placeholders():
     assert "grid=4" in ctx
     assert "CURRENT BOARD:" in ctx
     assert "GOAL BOARD" in ctx
+
+
+# ── Turn loop ──────────────────────────────────────────────────────────
+
+def test_invalid_format_triggers_reprompt_then_abort():
+    master = _make_master(thinking=False)
+    # 1st bad response → reprompt
+    assert master._validate_player_response(master.player, "garbage") is False
+    assert master.reprompt_pending is True
+    assert master.aborted is False
+    # 2nd bad response → reprompt
+    assert master._validate_player_response(master.player, "garbage") is False
+    assert master.aborted is False
+    # 3rd bad response (over max_retries=2) → abort
+    assert master._validate_player_response(master.player, "garbage") is False
+    assert master.aborted is True
+
+
+def test_valid_move_applies_and_does_not_end_episode():
+    master = _make_master(thinking=False)
+    # A is at (0,0), all targets at (2,*); moving A down once is valid and not solving.
+    ok = master._validate_player_response(master.player, "reason: down\nmove: A to R1,C0 (down)")
+    assert ok is True
+    master._on_valid_player_response(master.player, "A to R1,C0 (down)")
+    assert master.board.object_positions["A"] == (1, 0)
+    assert master.success is False
+    assert master.aborted is False
+
+
+def test_success_triggers_when_all_objects_at_targets():
+    """Auto-success when every object reaches its target."""
+    master = _make_master(thinking=False)
+    # Hand-craft the board so only one move is needed to solve.
+    # Starts: A,B,C @ row 0; D,E,F @ row 3. Targets: A,B,C @ row 2; D,E,F @ row 1.
+    # Move every object except F to its target manually via board.apply_move,
+    # then issue the final move (F up) through the master so it triggers the check.
+    b = master.board
+    # A: (0,0)->(2,0): down twice
+    b.apply_move("A", "down"); b.apply_move("A", "down")
+    # B: (0,1)->(2,1)
+    b.apply_move("B", "down"); b.apply_move("B", "down")
+    # C: (0,2)->(2,2)
+    b.apply_move("C", "down"); b.apply_move("C", "down")
+    # D: (3,0)->(1,0)
+    b.apply_move("D", "up"); b.apply_move("D", "up")
+    # E: (3,1)->(1,1)
+    b.apply_move("E", "up"); b.apply_move("E", "up")
+    # F: (3,2)->(2,2) is blocked — but F target is (1,2), so:
+    # F at (3,2): up to (2,2) — occupied by C. So move sequence is more complex.
+    # Simpler approach: jiggle starts so the final state is one move away from solved.
+    # Instead, reset: hand-place everything except F one step from its target.
+    # Just override positions directly via board internals for test purposes:
+    b.object_positions = {
+        "A": (2, 0), "B": (2, 1), "C": (2, 2),
+        "D": (1, 0), "E": (1, 1), "F": (2, 2),  # F intentionally off-target
+    }
+    # Rebuild the grid array to match
+    for r in range(b.grid_size):
+        for c in range(b.grid_size):
+            b.grid[r][c] = None
+    for obj, (r, c) in b.object_positions.items():
+        if b.grid[r][c] is None:
+            b.grid[r][c] = obj
+    # F is "stuck" on top of C at (2,2) — that's an invalid board state for the test.
+    # Cleaner: just place F at (2,2) is wrong; use a free cell instead.
+    # Reset properly: place F at (2,3) — one move LEFT from target (1,2)? No, (2,3)->(1,3) is up, not (1,2).
+    # F's target is (1,2). Place F at (2,2)? C is there. Place F at (1,3)? then move left to (1,2).
+    b.object_positions["F"] = (1, 3)
+    b.grid = [[None] * 4 for _ in range(4)]
+    for obj, (r, c) in b.object_positions.items():
+        b.grid[r][c] = obj
+
+    # Now the only object not on target is F at (1,3); F's target is (1,2). One move left.
+    ok = master._validate_player_response(master.player, "reason: left\nmove: F to R1,C2 (left)")
+    assert ok is True
+    master._on_valid_player_response(master.player, "F to R1,C2 (left)")
+    assert master.success is True
+    assert master.aborted is False
+
+
+def test_does_game_proceed_false_after_max_turns():
+    master = _make_master(thinking=False)
+    master.max_turns = 1
+    # Apply one valid move
+    master._validate_player_response(master.player, "reason: down\nmove: A to R1,C0 (down)")
+    master._on_valid_player_response(master.player, "A to R1,C0 (down)")
+    assert master._does_game_proceed() is False
+    assert master.aborted is True
+
+
+def test_invalid_move_reprompts_with_format_reminder():
+    """Moving into a wall is rejected; reprompt context is set."""
+    master = _make_master(thinking=False)
+    # Place a wall directly below A's start so moving A down hits it.
+    master.board.walls.add((1, 0))
+    ok = master._validate_player_response(master.player, "reason: down\nmove: A to R1,C0 (down)")
+    assert ok is False
+    assert master.reprompt_pending is True
+    assert master.aborted is False

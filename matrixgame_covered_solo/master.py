@@ -199,10 +199,128 @@ class SoloMatrixGameMaster(DialogueGameMaster):
             "move: <OBJECT> to R<row>,C<col> (<DIRECTION>)"
         )
 
-    # ── turn loop (filled in Task 8) ──────────────────────────────────
+    # ── helpers ────────────────────────────────────────────────────────
 
-    def _validate_player_response(self, player: "Player", response: str) -> bool:
-        raise NotImplementedError("Implemented in Task 8 (turn loop)")
+    def _all_objects_at_target(self) -> bool:
+        return all(
+            self.board.object_positions.get(obj) == self.board.target_positions.get(obj)
+            for obj in self.objects
+        )
 
-    def _on_valid_player_response(self, player: "Player", parsed_response: str) -> None:
-        raise NotImplementedError("Implemented in Task 8 (turn loop)")
+    def _render_board(self) -> str:
+        return _render_view(self.board, self.compact_board)
+
+    def _render_goal(self) -> str:
+        return _render_targets_view(self.board, self.compact_board)
+
+    # ── game loop ──────────────────────────────────────────────────────
+
+    def _does_game_proceed(self) -> bool:
+        if self.success or self.aborted:
+            return False
+        if len(self.move_log) >= self.max_turns:
+            self.aborted = True
+            self.log_to_self("abort", f"Max turns ({self.max_turns}) reached")
+            return False
+        return True
+
+    def _validate_player_response(self, player: Player, response: str) -> bool:
+        self.request_counts += 1
+        parsed = _parse_response(response, self.with_message)
+
+        if parsed is None:
+            self.violated_request_counts += 1
+            self.log_to_self("invalid_format", f"{player.role_name}: could not parse response")
+            self.reprompt_attempts += 1
+            if self.reprompt_attempts > self.max_retries:
+                self.aborted = True
+                self.log_to_self("abort", "Too many invalid responses")
+            else:
+                self.reprompt_pending = True
+                self.set_context_for(player, (
+                    "Your response could not be parsed. Please respond exactly in this format:\n"
+                    f"{self._format_reminder()}\n\n"
+                    f"CURRENT BOARD:\n{self._render_board()}\n\n"
+                    f"GOAL BOARD:\n{self._render_goal()}"
+                ))
+            return False
+
+        # Validate the move
+        error = _validate_move(self.board, self.player, parsed)
+        if error:
+            self.violated_request_counts += 1
+            self.log_to_self("invalid_move", f"{player.role_name}: {error}")
+            if self.strict:
+                self.aborted = True
+                self.log_to_self("abort", "Strict: illegal move")
+                return False
+            self.reprompt_attempts += 1
+            if self.reprompt_attempts > self.max_retries:
+                self.aborted = True
+                self.log_to_self("abort", "Too many invalid moves")
+            else:
+                self.reprompt_pending = True
+                self.set_context_for(player, (
+                    f"Invalid move: {error}\nPlease try again.\n\n"
+                    f"{self._format_reminder()}\n\n"
+                    f"CURRENT BOARD:\n{self._render_board()}\n\n"
+                    f"GOAL BOARD:\n{self._render_goal()}"
+                ))
+            return False
+
+        self.parsed_request_counts += 1
+        self.current_parsed = parsed
+        self.reprompt_attempts = 0
+        self.reprompt_pending = False
+        return True
+
+    def _parse_response(self, player: Player, response: str) -> str:
+        if self.current_parsed:
+            target = self.current_parsed.get("target", "?")
+            return f"{self.current_parsed['object']} to {target} ({self.current_parsed['direction']})"
+        return response
+
+    def _should_pass_turn(self) -> bool:
+        return not self.reprompt_pending
+
+    def _next_player(self) -> Player:
+        return self.player
+
+    def _on_valid_player_response(self, player: Player, parsed_response: str) -> None:
+        reason = self.current_parsed["reason"]
+        message = self.current_parsed.get("message")
+        obj = self.current_parsed["object"]
+        direction = self.current_parsed["direction"]
+
+        self.board.apply_move(obj, direction)
+        self.move_log.append({
+            "object": obj,
+            "direction": direction,
+            "target": self.current_parsed.get("target", ""),
+            "reason": reason,
+            "message": message,
+        })
+        self.log_to_self("move", f"{player.role_name} moved {obj} {direction}")
+        self.log_to_self("reason", reason)
+        if message:
+            self.log_to_self("message", f"{player.role_name}: {message}")
+
+        state = self.board.state_key()
+        self.seen_states[state] = self.seen_states.get(state, 0) + 1
+        if self.seen_states[state] >= 3:
+            self.aborted = True
+            self.log_to_self("abort", "Board state repeated 3 times — model is in a cycle")
+            return
+
+        if self._all_objects_at_target():
+            self.success = True
+            self.log_to_self("success", "All objects have reached their targets")
+            return
+
+        # Build next-turn context
+        self.set_context_for(player, (
+            f"You moved {obj} {direction}.\n\n"
+            f"CURRENT BOARD:\n{self._render_board()}\n\n"
+            f"GOAL BOARD:\n{self._render_goal()}\n\n"
+            f"Your turn. Respond with:\n{self._format_reminder()}"
+        ))
