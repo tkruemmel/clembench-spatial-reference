@@ -1,17 +1,18 @@
-"""Instance generator for matrixgame_covered_solo.
+"""Instance generator for matrixgame_covered_solo (full-view only).
 
-Reuses _comm's per-spatial-level board generators (S1–S4) unchanged; only
-the experiment fan-out and per-instance fields differ:
+Reuses _comm's per-spatial-level board generators (S1–S4) and helpers
+unchanged. The single solo player owns all 6 objects; there is no
+masked-view variant in this game (the masked variant was dropped during
+brainstorming because _comm's S2/S3/S4 levels build cross-agent dependency
+chains that become unreachable when half the chain is static).
 
-- Two axes (view_mode, thinking) replace _comm's comm_protocol axis.
-- For view_mode=masked, the player_a_objects from _comm's per-level generator
-  become 'owned_objects' and player_b_objects become 'foreign_objects'
-  (static obstacles).
-- For view_mode=full, owned_objects = all 6 letters; foreign_objects = [].
-- optimal_moves uses _verify_reachability:
-    masked → over owned only, with foreign cells added to the wall set.
-    full   → over all 6, walls only.
-- max_turns = max(4 * optimal_moves, 20), same as _comm.
+Per-instance fields:
+- objects, start_positions, target_positions, walls (from _generate_s*)
+- optimal_moves: per-object BFS sum via _verify_reachability (lower bound;
+  matches _comm's optimal_moves formula)
+- max_turns = max(4 * optimal_moves, 20)
+- thinking, spatial_level, compact_board (from config.json)
+- player_prompt: the loaded template string for the (thinking) variant
 """
 
 import math
@@ -23,10 +24,6 @@ from typing import Dict, List, Optional, Set, Tuple
 from clemcore.clemgame import GameInstanceGenerator
 
 from utils.board import Board
-
-
-VIEW_FULL = "full"
-VIEW_MASKED = "masked"
 
 
 class SoloMatrixGameInstanceGenerator(GameInstanceGenerator):
@@ -53,17 +50,13 @@ class SoloMatrixGameInstanceGenerator(GameInstanceGenerator):
         }
 
         for variant_key, variant_config in configs.items():
-            view_mode = variant_config["view_mode"]
             thinking = variant_config["thinking"]
             spatial_level = variant_config["spatial_level"]
             compact_board = variant_config.get("compact_board", False)
             num_objects = variant_config["num_objects"]
 
             objects = all_objects[:num_objects]
-            template_name = (
-                f"player_prompt_{view_mode}_"
-                f"{'thinking' if thinking else 'silent'}"
-            )
+            template_name = f"player_prompt_{'thinking' if thinking else 'silent'}"
             prompt_template = self.load_template(
                 f"resources/initial_prompts/en/{template_name}"
             )
@@ -77,42 +70,24 @@ class SoloMatrixGameInstanceGenerator(GameInstanceGenerator):
             for idx in range(num_instances):
                 game_instance = self.add_game_instance(experiment, idx + 1)
                 starts = targets = walls = None
-                player_a_objects = player_b_objects = None
                 optimal = 0
 
                 for _attempt in range(80):
                     result = gen_fn(grid_size, objects, rng)
-                    starts, targets, walls, _optimal_combined, player_a_objects, player_b_objects = result
+                    starts, targets, walls, _optimal_combined, _player_a, _player_b = result
 
                     if spatial_level != "S1" and len(walls) == 0:
                         continue
 
-                    # Solo-specific reachability + optimal_moves
-                    if view_mode == VIEW_MASKED:
-                        owned = list(player_a_objects)
-                        foreign = list(player_b_objects)
-                        wall_set = set(map(tuple, walls)) | {
-                            tuple(starts[obj]) for obj in foreign
-                        }
-                        owned_starts = {o: starts[o] for o in owned}
-                        owned_targets = {o: targets[o] for o in owned}
-                        ok, optimal = _verify_reachability(
-                            grid_size, wall_set, owned_starts, owned_targets,
-                        )
-                        if not ok:
-                            continue
-                    else:  # VIEW_FULL
-                        owned = list(objects)
-                        foreign = []
-                        wall_set = set(map(tuple, walls))
-                        ok, optimal = _verify_reachability(
-                            grid_size, wall_set, starts, targets,
-                        )
-                        if not ok:
-                            continue
+                    wall_set = set(map(tuple, walls))
+                    ok, optimal = _verify_reachability(
+                        grid_size, wall_set, starts, targets,
+                    )
+                    if not ok:
+                        continue
 
-                    # Invariant: every owned object's origin differs from its target
-                    if any(tuple(starts[o]) == tuple(targets[o]) for o in owned):
+                    # Invariant: every object's origin differs from its target
+                    if any(tuple(starts[o]) == tuple(targets[o]) for o in objects):
                         continue
 
                     break
@@ -124,15 +99,12 @@ class SoloMatrixGameInstanceGenerator(GameInstanceGenerator):
                 game_instance["grid_size"] = grid_size
                 game_instance["walls"] = walls
                 game_instance["objects"] = objects
-                game_instance["owned_objects"] = sorted(owned)
-                game_instance["foreign_objects"] = sorted(foreign)
                 game_instance["start_positions"] = starts
                 game_instance["target_positions"] = targets
                 game_instance["optimal_moves"] = optimal
                 game_instance["max_turns"] = max(4 * optimal, 20)
                 game_instance["max_retries"] = max_retries
                 game_instance["strict"] = strict
-                game_instance["view_mode"] = view_mode
                 game_instance["thinking"] = thinking
                 game_instance["spatial_level"] = spatial_level
                 game_instance["compact_board"] = compact_board
