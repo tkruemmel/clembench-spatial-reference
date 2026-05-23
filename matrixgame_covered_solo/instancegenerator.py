@@ -23,7 +23,6 @@ from typing import Dict, List, Optional, Set, Tuple
 
 from clemcore.clemgame import GameInstanceGenerator
 
-from utils.board import Board
 
 
 class SoloMatrixGameInstanceGenerator(GameInstanceGenerator):
@@ -844,91 +843,12 @@ def _generate_s4(
 if __name__ == "__main__":
     import argparse
 
-    parser = argparse.ArgumentParser()
-    parser.add_argument(
-        "experiments",
-        nargs="*",
-        choices=["exp2", "exp3"],
-        default=["exp2", "exp3"],
-        help="Which experiments to generate (default: both)",
-    )
-    parser.add_argument(
-        "--n", type=int, default=50,
-        help="Number of instances per condition (default: 50)",
-    )
-    easy_group = parser.add_mutually_exclusive_group()
-    easy_group.add_argument(
-        "--easy", dest="easy_mode", action="store_true", default=None,
-        help="Generate only easy-mode variants",
-    )
-    easy_group.add_argument(
-        "--no-easy", dest="easy_mode", action="store_false",
-        help="Generate only normal (non-easy) variants",
-    )
-    compact_group = parser.add_mutually_exclusive_group()
-    compact_group.add_argument(
-        "--compact", dest="compact_board", action="store_true",
-        help="Generate only compact-board variants",
-    )
-    compact_group.add_argument(
-        "--no-compact", dest="compact_board", action="store_false",
-        help="Generate only full-grid (non-compact) variants",
-    )
-    parser.add_argument(
-        "--levels",
-        nargs="+",
-        choices=["s1", "s2", "s3", "s4"],
-        default=["s1", "s2", "s3", "s4"],
-        metavar="LEVEL",
-        help="Spatial levels to include (default: all). E.g. --levels s1 s2 s3",
-    )
-    parser.set_defaults(easy_mode=None, compact_board=False)
+    parser = argparse.ArgumentParser(description="Generate solo instances.")
+    parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument("--num-instances", type=int, default=10)
+    parser.add_argument("--out", default="in/instances.json")
     args = parser.parse_args()
-    selected_levels = set(args.levels)
 
-    # easy: None → both; True → easy only; False → normal only
-    if args.easy_mode is True:
-        easy_opts = ["_easy"]
-    elif args.easy_mode is False:
-        easy_opts = [""]
-    else:
-        easy_opts = ["", "_easy"]
-
-    # compact: True → compact only; False (default) → normal only; None → both
-    if args.compact_board is True:
-        compact_opts = ["_compact"]
-    elif args.compact_board is False:
-        compact_opts = [""]
-    else:
-        compact_opts = ["", "_compact"]
-
-    suffixes = [e + c for e in easy_opts for c in compact_opts]
-
-    gen = MatrixGameInstanceGenerator()
-    N = args.n
-
-    if "exp2" in args.experiments and "s2" in selected_levels:
-        # Fixed S2, all four protocol conditions.
-        # Same seed → identical boards across conditions, isolating protocol effect.
-        EXP2_SEED = 42
-        for protocol in ["none", "structured", "freeform", "hybrid"]:
-            for suffix in suffixes:
-                variant = f"exp2_s2_{protocol}{suffix}"
-                gen.generate(filename="instances.json", seed=EXP2_SEED,
-                             variant=variant, num_instances=N)
-                print(f"Generated: {variant} (n={N})")
-
-    if "exp3" in args.experiments:
-        # All four spatial levels × all three communication protocols.
-        # Same seed per spatial level → identical boards across protocols,
-        # isolating spatial difficulty from protocol choice.
-        EXP3_SEEDS = {"s1": 100, "s2": 200, "s3": 300, "s4": 400}
-        for level, seed in EXP3_SEEDS.items():
-            if level not in selected_levels:
-                continue
-            for protocol in ["none", "structured", "freeform", "hybrid"]:
-                for suffix in suffixes:
-                    variant = f"exp3_{level}_{protocol}{suffix}"
-                    gen.generate(filename="instances.json", seed=seed,
-                                 variant=variant, num_instances=N)
-                    print(f"Generated: {variant} (n={N})")
+    gen = SoloMatrixGameInstanceGenerator()
+    gen.generate(filename=args.out, seed=args.seed, num_instances=args.num_instances)
+    print(f"Wrote instances to {args.out}")
