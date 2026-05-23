@@ -195,3 +195,57 @@ def test_invalid_move_reprompts_with_format_reminder():
     assert ok is False
     assert master.reprompt_pending is True
     assert master.aborted is False
+
+
+# ── Scorer ─────────────────────────────────────────────────────────────
+
+import math
+from clemcore.clemgame.metrics import BENCH_SCORE
+from matrixgame_covered_solo.master import SoloMatrixGameScorer
+
+
+def _episode(aborted=0, success=0, move_count=0) -> dict:
+    return {
+        "Aborted": aborted,
+        "Success": success,
+        "Move Count": move_count,
+    }
+
+
+def _scorer(optimal=10) -> SoloMatrixGameScorer:
+    return SoloMatrixGameScorer(
+        game_name="matrixgame_covered_solo",
+        experiment={"name": "test"},
+        game_instance={"optimal_moves": optimal},
+    )
+
+
+def _episode_score(scorer: SoloMatrixGameScorer, key: str):
+    """Get the most recent value logged via log_episode_score for `key`."""
+    # clemcore's GameScorer keeps scores in self.scores under 'episode scores'.
+    return scorer.scores["episode scores"].get(key)
+
+
+def test_bench_score_nan_on_abort():
+    s = _scorer()
+    s.compute_scores(_episode(aborted=1))
+    value = _episode_score(s, BENCH_SCORE)
+    assert isinstance(value, float) and math.isnan(value)
+
+
+def test_bench_score_zero_on_lose():
+    s = _scorer()
+    s.compute_scores(_episode(aborted=0, success=0, move_count=15))
+    assert _episode_score(s, BENCH_SCORE) == 0
+
+
+def test_bench_score_full_on_optimal_success():
+    s = _scorer(optimal=10)
+    s.compute_scores(_episode(aborted=0, success=1, move_count=10))
+    assert _episode_score(s, BENCH_SCORE) == 100
+
+
+def test_bench_score_partial_on_overrun_success():
+    s = _scorer(optimal=10)
+    s.compute_scores(_episode(aborted=0, success=1, move_count=20))
+    assert _episode_score(s, BENCH_SCORE) == 50.0

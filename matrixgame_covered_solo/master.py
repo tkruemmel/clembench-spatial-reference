@@ -324,3 +324,39 @@ class SoloMatrixGameMaster(DialogueGameMaster):
             f"GOAL BOARD:\n{self._render_goal()}\n\n"
             f"Your turn. Respond with:\n{self._format_reminder()}"
         ))
+
+    def _on_after_game(self):
+        self.log_key(METRIC_ABORTED, int(self.aborted))
+        self.log_key(METRIC_SUCCESS, int(self.success))
+        self.log_key(METRIC_LOSE, int(not self.success and not self.aborted))
+        self.log_key(METRIC_REQUEST_COUNT, self.request_counts)
+        self.log_key(METRIC_REQUEST_COUNT_PARSED, self.parsed_request_counts)
+        self.log_key(METRIC_REQUEST_COUNT_VIOLATED, self.violated_request_counts)
+        self.log_key(MOVE_COUNT, len(self.move_log))
+        self.log_key(TURN_MOVES, self.move_log)
+
+
+# ── Scorer ─────────────────────────────────────────────────────────────
+
+class SoloMatrixGameScorer(GameScorer):
+    def __init__(self, game_name: str, experiment: Dict, game_instance: Dict):
+        super().__init__(game_name, experiment, game_instance)
+
+    def compute_scores(self, episode_interactions: Dict) -> None:
+        aborted = episode_interactions.get(METRIC_ABORTED, 0)
+        success = episode_interactions.get(METRIC_SUCCESS, 0)
+        move_count = episode_interactions.get(MOVE_COUNT, 0)
+        optimal = self.game_instance.get("optimal_moves", move_count)
+
+        self.log_episode_score(METRIC_ABORTED, aborted)
+        self.log_episode_score(METRIC_SUCCESS, success)
+        self.log_episode_score(METRIC_LOSE, int(not success and not aborted))
+        self.log_episode_score(MOVE_COUNT, move_count)
+
+        if aborted:
+            self.log_episode_score(BENCH_SCORE, np.nan)
+        elif success:
+            score = min(100, round(optimal / max(move_count, 1) * 100, 2))
+            self.log_episode_score(BENCH_SCORE, score)
+        else:
+            self.log_episode_score(BENCH_SCORE, 0)
