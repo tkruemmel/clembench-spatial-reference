@@ -249,3 +249,33 @@ def test_bench_score_partial_on_overrun_success():
     s = _scorer(optimal=10)
     s.compute_scores(_episode(aborted=0, success=1, move_count=20))
     assert _episode_score(s, BENCH_SCORE) == 50.0
+
+
+# ── End-to-end smoke ──────────────────────────────────────────────────
+
+from matrixgame_covered_solo.master import SoloMatrixGameBenchmark
+
+
+def test_benchmark_creates_master_and_scorer():
+    game_spec = GameSpec(
+        allow_underspecified=True,
+        game_name="matrixgame_covered_solo",
+        main_game="matrixgame_covered_solo",
+        game_path=str(Path(__file__).parent.parent),
+        players=1,
+    )
+    bench = SoloMatrixGameBenchmark(game_spec)
+    master = bench.create_game_master({"name": "x"}, [_StubModel()])
+    assert isinstance(master, SoloMatrixGameMaster)
+    scorer = bench.create_game_scorer({"name": "x"}, {"optimal_moves": 5})
+    assert isinstance(scorer, SoloMatrixGameScorer)
+
+
+def test_one_turn_smoke():
+    """Run one validate+apply cycle using the stub player's _custom_response."""
+    master = _make_master(thinking=False)
+    response = master.player._custom_response(context=None)
+    ok = master._validate_player_response(master.player, response)
+    # The stub _custom_response targets R1,C1 — may be invalid depending on start position,
+    # but it must at least parse without raising.
+    assert isinstance(ok, bool)

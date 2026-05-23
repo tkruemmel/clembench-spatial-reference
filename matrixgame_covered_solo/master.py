@@ -360,3 +360,16 @@ class SoloMatrixGameScorer(GameScorer):
             self.log_episode_score(BENCH_SCORE, score)
         else:
             self.log_episode_score(BENCH_SCORE, 0)
+
+
+# ── Benchmark entry point ──────────────────────────────────────────────
+
+class SoloMatrixGameBenchmark(GameBenchmark):
+    def __init__(self, game_spec: GameSpec):
+        super().__init__(game_spec)
+
+    def create_game_master(self, experiment: Dict, player_models: List[Model]) -> SoloMatrixGameMaster:
+        return SoloMatrixGameMaster(self.game_spec, experiment, player_models)
+
+    def create_game_scorer(self, experiment: Dict, game_instance: Dict) -> SoloMatrixGameScorer:
+        return SoloMatrixGameScorer(self.game_name, experiment, game_instance)
