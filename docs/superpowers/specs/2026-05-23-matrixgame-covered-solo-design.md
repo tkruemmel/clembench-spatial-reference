@@ -94,14 +94,15 @@ Expected master size: ~250 lines (vs `_comm`'s 596), because message-relay, two-
   move: <OBJECT> to R<row>,C<col> (<direction>)
   ```
 
-`<OBJECT>` ∈ `{A,B,C,D,E,F}`; `<direction>` ∈ `{up, down, left, right}`; coordinates are 0-indexed.
+`<OBJECT>` ∈ `{A,B,C,D,E,F}`; `<direction>` ∈ `{up, down, left, right}`; coordinates in the response use 1-indexed `R{row},C{col}` rendering to match `_comm`'s prompt convention; under the hood, board positions are 0-indexed tuples.
 
 **No `done:` declaration.** The master has full ground truth and auto-detects completion after every successful `_apply_move`. This differs from `_comm`, where `done:` exists for two-player reasons that don't apply in solo.
 
-**Episode ends in exactly three ways:**
-1. **success** — `_check_done()` returns true after a move
-2. **lose** — `moves_used >= max_turns` without success
-3. **abort** — parse or validate failures exhaust `max_retries` on a single turn
+**Episode termination** matches `_comm`: each episode ends as either **success** or **abort**.
+1. **success** — `_check_done()` returns true after a move; `METRIC_SUCCESS=1`.
+2. **abort** — happens in any of: parse/validate failures exhaust `max_retries`; `move_count >= max_turns`; the same board state recurs 3 times (cycle detection). All three set `METRIC_ABORTED=1`.
+
+`METRIC_LOSE` is also emitted (= `1 if not success and not aborted else 0`) for parity with `_comm`'s metric schema, but in practice it is always 0 — there is no episode-end path that produces lose=1 in either game. The slot exists so result-analysis tooling that expects all three keys keeps working.
 
 ## 6. Metrics
 
