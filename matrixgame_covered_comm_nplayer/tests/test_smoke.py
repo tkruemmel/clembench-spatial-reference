@@ -111,3 +111,87 @@ def test_instance_generator_module_imports():
     from instancegenerator import MatrixGameNPlayerInstanceGenerator
     gen = MatrixGameNPlayerInstanceGenerator()
     assert gen is not None
+
+
+import json
+
+
+@pytest.fixture(scope="module")
+def generated_instances(tmp_path_factory):
+    out_dir = tmp_path_factory.mktemp("nplayer_in")
+    import sys
+    sys.path.insert(0, str(PKG))
+    from instancegenerator import MatrixGameNPlayerInstanceGenerator
+
+    gen = MatrixGameNPlayerInstanceGenerator()
+    gen.generate(filename=str(out_dir / "instances.json"), seed=42, num_instances=2)
+    with open(out_dir / "instances.json") as f:
+        return json.load(f)
+
+
+def test_generator_emits_all_32_experiments(generated_instances):
+    experiments = generated_instances["experiments"]
+    assert len(experiments) == 32, f"expected 32 experiments, got {len(experiments)}"
+
+
+def test_instance_schema(generated_instances):
+    required = (
+        "grid_size", "walls", "objects",
+        "num_players", "player_objects",
+        "start_positions", "target_positions",
+        "optimal_moves", "max_turns", "max_retries", "strict",
+        "use_masking", "spatial_level", "comm_protocol",
+        "compact_board", "player_prompt",
+    )
+    for exp in generated_instances["experiments"]:
+        for inst in exp["game_instances"]:
+            for field in required:
+                assert field in inst, f"missing {field} in {exp['name']} instance {inst.get('game_id')}"
+
+
+def test_player_partition_3p(generated_instances):
+    for exp in generated_instances["experiments"]:
+        if "_3p" not in exp["name"].lower():
+            continue
+        for inst in exp["game_instances"]:
+            assert inst["num_players"] == 3
+            po = inst["player_objects"]
+            assert len(po) == 3, f"3p should have 3 groups, got {len(po)}"
+            assert all(len(g) == 2 for g in po), f"3p: every group must own 2 objects, got {po}"
+            flat = [obj for group in po for obj in group]
+            assert sorted(flat) == ["A", "B", "C", "D", "E", "F"]
+            # Static-by-index partition
+            assert po == [["A", "B"], ["C", "D"], ["E", "F"]]
+
+
+def test_player_partition_6p(generated_instances):
+    for exp in generated_instances["experiments"]:
+        if "_6p" not in exp["name"].lower():
+            continue
+        for inst in exp["game_instances"]:
+            assert inst["num_players"] == 6
+            po = inst["player_objects"]
+            assert len(po) == 6
+            assert all(len(g) == 1 for g in po)
+            flat = [obj for group in po for obj in group]
+            assert sorted(flat) == ["A", "B", "C", "D", "E", "F"]
+            assert po == [["A"], ["B"], ["C"], ["D"], ["E"], ["F"]]
+
+
+def test_compact_board_always_true(generated_instances):
+    for exp in generated_instances["experiments"]:
+        for inst in exp["game_instances"]:
+            assert inst["compact_board"] is True
+
+
+def test_experiment_naming(generated_instances):
+    names = {exp["name"] for exp in generated_instances["experiments"]}
+    # 32 unique names of form "S<level>_<protocol>_<n>p"
+    assert len(names) == 32
+    for name in names:
+        parts = name.split("_")
+        assert len(parts) == 3, f"unexpected experiment name shape: {name}"
+        level, protocol, mode = parts
+        assert level in ("S1", "S2", "S3", "S4")
+        assert protocol.lower() in ("none", "structured", "freeform", "hybrid")
+        assert mode in ("3p", "6p")

@@ -28,7 +28,81 @@ class MatrixGameNPlayerInstanceGenerator(GameInstanceGenerator):
         super().__init__(os.path.dirname(__file__))
 
     def on_generate(self, seed: int, **kwargs):
-        raise NotImplementedError("on_generate is rewritten in Task 6")
+        all_variant_configs = self.load_json("resources/config")
+        common_config = self.load_json("resources/common_config")
+
+        grid_size = common_config["grid_size"]
+        max_retries = common_config["max_retries"]
+        strict = common_config.get("strict", False)
+        all_objects = common_config["objects"]
+
+        num_instances = kwargs.get("num_instances", 10)
+
+        generators = {
+            "S1": _generate_s1,
+            "S2": _generate_s2,
+            "S3": _generate_s3,
+            "S4": _generate_s4,
+        }
+
+        rng = random.Random(seed)
+
+        for variant_key, variant_config in all_variant_configs.items():
+            num_players = variant_config["num_players"]
+            spatial_level = variant_config["spatial_level"]
+            comm_protocol = variant_config["comm_protocol"]
+            use_masking = variant_config.get("use_masking", True)
+            compact_board = variant_config.get("compact_board", True)
+
+            objects = all_objects[:]                       # always 6 objects
+            assert len(objects) % num_players == 0, (
+                f"{variant_key}: {len(objects)} objects not divisible by {num_players} players"
+            )
+            objs_per_player = len(objects) // num_players
+            player_objects = [
+                objects[i * objs_per_player:(i + 1) * objs_per_player]
+                for i in range(num_players)
+            ]
+
+            prompt_template = self.load_template(
+                f"resources/initial_prompts/en/player_prompt_{comm_protocol}"
+            )
+
+            experiment_name = f"{spatial_level}_{comm_protocol}_{num_players}p"
+            experiment = self.add_experiment(experiment_name)
+            experiment["common_config"] = common_config
+            experiment["variant_config"] = variant_config
+
+            gen_fn = generators[spatial_level]
+
+            for idx in range(num_instances):
+                game_instance = self.add_game_instance(experiment, idx + 1)
+
+                starts = targets = walls = None
+                optimal = 0
+                for _outer in range(40):
+                    result = gen_fn(grid_size, objects, rng)
+                    starts, targets, walls, optimal, _pa, _pb = result
+                    if spatial_level != "S1" and len(walls) == 0:
+                        continue
+                    break
+
+                game_instance["grid_size"] = grid_size
+                game_instance["walls"] = walls
+                game_instance["objects"] = objects
+                game_instance["num_players"] = num_players
+                game_instance["player_objects"] = player_objects
+                game_instance["start_positions"] = starts
+                game_instance["target_positions"] = targets
+                game_instance["optimal_moves"] = optimal
+                game_instance["max_turns"] = max(4 * optimal, 20)
+                game_instance["max_retries"] = max_retries
+                game_instance["strict"] = strict
+                game_instance["use_masking"] = use_masking
+                game_instance["spatial_level"] = spatial_level
+                game_instance["comm_protocol"] = comm_protocol
+                game_instance["compact_board"] = compact_board
+                game_instance["player_prompt"] = prompt_template
 
 
 # ── Shared utilities ───────────────────────────────────────────────────
@@ -763,4 +837,4 @@ def _generate_s4(
 
 if __name__ == "__main__":
     gen = MatrixGameNPlayerInstanceGenerator()
-    gen.generate(filename="instances.json", seed=42)
+    gen.generate(filename="instances.json", seed=42, num_instances=10)
