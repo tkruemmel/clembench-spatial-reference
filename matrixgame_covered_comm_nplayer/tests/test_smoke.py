@@ -195,3 +195,32 @@ def test_experiment_naming(generated_instances):
         assert level in ("S1", "S2", "S3", "S4")
         assert protocol.lower() in ("none", "structured", "freeform", "hybrid")
         assert mode in ("3p", "6p")
+
+
+def test_master_module_imports():
+    from master import (
+        NPlayerMatrixGameMaster,
+        NPlayerMatrixGameScorer,
+        NPlayerMatrixGameBenchmark,
+        MatrixPlayer,
+        _parse_response,
+    )
+    assert NPlayerMatrixGameMaster is not None
+    assert MatrixPlayer is not None
+
+
+def test_parse_response_move_only():
+    from master import _parse_response
+    text = "reason: heading down\nmove: A to R3,C5 (down)"
+    parsed = _parse_response(text, with_message=False)
+    assert parsed["object"] == "A"
+    assert parsed["direction"] == "down"
+    assert parsed["target"] == "R3,C5"
+
+
+def test_parse_response_with_message():
+    from master import _parse_response
+    text = "message: moving A\nreason: heading down\nmove: A to R3,C5 (down)"
+    parsed = _parse_response(text, with_message=True)
+    assert parsed["message"] == "moving A"
+    assert parsed["object"] == "A"
