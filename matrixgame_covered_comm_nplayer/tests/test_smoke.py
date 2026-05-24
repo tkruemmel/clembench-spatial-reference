@@ -5,9 +5,9 @@ def test_board_module_imports():
     from utils.board import Board, DIRECTIONS
     assert DIRECTIONS  # non-empty dict/list
     board = Board(grid_size=8, walls=set())
-    assert board is not None
+    assert board.grid_size == 8
 
 
 def test_astar_module_imports():
     from utils import astar
-    assert astar is not None
+    assert any(callable(getattr(astar, n)) for n in dir(astar) if not n.startswith("_"))
