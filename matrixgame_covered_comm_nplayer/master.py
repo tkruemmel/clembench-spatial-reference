@@ -311,7 +311,6 @@ class NPlayerMatrixGameMaster(DialogueGameMaster):
                     f"{self._format_reminder()}\n\n"
                     f"CURRENT BOARD:\n{self._render_for(player)}\n\n"
                     f"GOAL BOARD:\n{self._render_targets_for(player)}"
-                    f"{self._easy_mode_context(player)}"
                 ))
             return False
 
@@ -365,7 +364,6 @@ class NPlayerMatrixGameMaster(DialogueGameMaster):
                     f"{self._format_reminder()}\n\n"
                     f"CURRENT BOARD:\n{self._render_for(player)}\n\n"
                     f"GOAL BOARD:\n{self._render_targets_for(player)}"
-                    f"{self._easy_mode_context(player)}"
                 ))
             return False
 

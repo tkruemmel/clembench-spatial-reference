@@ -368,3 +368,50 @@ def test_render_for_masks_other_players_objects():
     rendered_a = master._render_for(players[0])
     assert "B" not in rendered_a, "Player A should not see B"
     assert "X" in rendered_a, "other players' objects should be masked as X"
+
+
+def test_validate_response_accepts_valid_move():
+    from master import NPlayerMatrixGameMaster
+    instance = _make_game_instance(num_players=6, comm_protocol="none")
+    models = [_DummyModel() for _ in range(6)]
+    master = NPlayerMatrixGameMaster(
+        game_spec=_make_game_spec() if "_make_game_spec" in globals() else None,
+        experiment={"variant_config": {"comm_protocol": "none"}},
+        player_models=models,
+    )
+    master._on_setup(**instance)
+    players = master.get_players()
+    # Player A starts at (0, 0). Moving down means row index +1 → final position (1, 0)
+    # which in 1-indexed is R2,C1.
+    resp = "reason: heading down\nmove: A to R2,C1 (down)"
+    assert master._validate_player_response(players[0], resp)
+
+
+def test_validate_response_rejects_unowned_object():
+    from master import NPlayerMatrixGameMaster
+    instance = _make_game_instance(num_players=6, comm_protocol="none")
+    models = [_DummyModel() for _ in range(6)]
+    master = NPlayerMatrixGameMaster(
+        game_spec=_make_game_spec() if "_make_game_spec" in globals() else None,
+        experiment={"variant_config": {"comm_protocol": "none"}},
+        player_models=models,
+    )
+    master._on_setup(**instance)
+    players = master.get_players()
+    # Player A tries to move B (owned by Player B in 6p mode)
+    resp = "reason: trying B\nmove: B to R2,C2 (down)"
+    assert not master._validate_player_response(players[0], resp)
+
+
+def test_validate_response_rejects_invalid_format():
+    from master import NPlayerMatrixGameMaster
+    instance = _make_game_instance(num_players=3, comm_protocol="none")
+    models = [_DummyModel() for _ in range(3)]
+    master = NPlayerMatrixGameMaster(
+        game_spec=_make_game_spec(num_players=3),
+        experiment={"variant_config": {"comm_protocol": "none"}},
+        player_models=models,
+    )
+    master._on_setup(**instance)
+    players = master.get_players()
+    assert not master._validate_player_response(players[0], "no move here")
