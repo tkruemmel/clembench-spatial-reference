@@ -224,3 +224,113 @@ def test_parse_response_with_message():
     parsed = _parse_response(text, with_message=True)
     assert parsed["message"] == "moving A"
     assert parsed["object"] == "A"
+
+
+def _make_game_instance(num_players=3, comm_protocol="freeform"):
+    """Build a minimal game_instance dict suitable for setup tests."""
+    objs = ["A", "B", "C", "D", "E", "F"]
+    objs_per = len(objs) // num_players
+    player_objects = [objs[i*objs_per:(i+1)*objs_per] for i in range(num_players)]
+    return {
+        "grid_size": 8,
+        "walls": [],
+        "objects": objs,
+        "num_players": num_players,
+        "player_objects": player_objects,
+        "start_positions": {o: [0, i] for i, o in enumerate(objs)},
+        "target_positions": {o: [7, i] for i, o in enumerate(objs)},
+        "optimal_moves": 42,
+        "max_turns": 100,
+        "max_retries": 2,
+        "strict": False,
+        "use_masking": True,
+        "spatial_level": "S1",
+        "comm_protocol": comm_protocol,
+        "compact_board": True,
+        "player_prompt": (
+            "You are $YOUR_ROLE$. You control $YOUR_OBJECTS$ on a $GRID_SIZE$x$GRID_SIZE$ "
+            "grid with $N_OTHER_PLAYERS$ teammates."
+        ),
+    }
+
+
+class _DummyModel:
+    """Stand-in for clemcore.backends.Model with the methods setup touches."""
+    def __init__(self, name="dummy"):
+        self.name = name
+        self._gen_args = {}
+
+    def set_gen_arg(self, key, value):
+        self._gen_args[key] = value
+
+    def generate_response(self, *_args, **_kwargs):
+        return "reason: stub\nmove: A to R1,C1 (down)"
+
+
+def _make_game_spec(num_players=6):
+    """Build a minimal GameSpec suitable for NPlayerMatrixGameMaster constructor."""
+    from clemcore.clemgame.registry import GameSpec
+    return GameSpec(
+        game_name="matrixgame_covered_comm_nplayer",
+        game_path="matrixgame_covered_comm_nplayer",
+        players=num_players,
+    )
+
+
+@pytest.mark.parametrize("num_players", [3, 6])
+def test_master_setup_builds_n_players(num_players):
+    from master import NPlayerMatrixGameMaster
+    instance = _make_game_instance(num_players=num_players)
+    models = [_DummyModel(f"m{i}") for i in range(num_players)]
+    master = NPlayerMatrixGameMaster(
+        game_spec=_make_game_spec(num_players=num_players),
+        experiment={"variant_config": {"comm_protocol": instance["comm_protocol"]}},
+        player_models=models,
+    )
+    master._on_setup(**instance)
+    assert master.num_players == num_players
+    assert len(master.player_objects) == num_players
+    assert len(master.player_done) == num_players
+    assert all(d is False for d in master.player_done)
+    assert len(master.last_message) == num_players
+    assert all(v is None for v in master.last_message.values())
+
+
+def test_master_setup_single_model_self_play():
+    """If only one model is supplied for N>1, every player shares it."""
+    from master import NPlayerMatrixGameMaster
+    instance = _make_game_instance(num_players=6)
+    one_model = _DummyModel("solo")
+    master = NPlayerMatrixGameMaster(
+        game_spec=_make_game_spec(num_players=6),
+        experiment={"variant_config": {"comm_protocol": instance["comm_protocol"]}},
+        player_models=[one_model],
+    )
+    master._on_setup(**instance)
+    players = master.get_players()
+    assert len(players) == 6
+    assert all(p.model is one_model for p in players)
+
+
+def test_master_setup_initial_context_substitutions():
+    from master import NPlayerMatrixGameMaster
+    instance = _make_game_instance(num_players=3)
+    models = [_DummyModel(f"m{i}") for i in range(3)]
+    master = NPlayerMatrixGameMaster(
+        game_spec=_make_game_spec(num_players=3),
+        experiment={"variant_config": {"comm_protocol": instance["comm_protocol"]}},
+        player_models=models,
+    )
+    master._on_setup(**instance)
+    players = master.get_players()
+    # In 3p mode, $N_OTHER_PLAYERS$ should equal 2
+    for p in players:
+        # get_context_for returns a dict with "content" key
+        ctx_dict = master.get_context_for(p)
+        ctx = ctx_dict["content"] if ctx_dict is not None else ""
+        assert "$YOUR_ROLE$" not in ctx, "role placeholder not substituted"
+        assert "$N_OTHER_PLAYERS$" not in ctx, "n_other placeholder not substituted"
+        assert "$YOUR_OBJECTS$" not in ctx
+        assert "$GRID_SIZE$" not in ctx
+        # And the substituted role/objects should appear
+        assert p.role_name in ctx
