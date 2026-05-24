@@ -533,3 +533,21 @@ def test_scorer_abort_returns_nan():
         MOVE_COUNT: 5,
     })
     assert np.isnan(captured[BENCH_SCORE])
+
+
+def test_clemgame_json_has_both_entries():
+    with open(PKG / "clemgame.json") as f:
+        entries = json.load(f)
+    assert isinstance(entries, list)
+    assert len(entries) == 2
+    names = {e["game_name"] for e in entries}
+    assert names == {"matrixgame_covered_comm_3p", "matrixgame_covered_comm_6p"}
+    by_name = {e["game_name"]: e for e in entries}
+    assert by_name["matrixgame_covered_comm_3p"]["players"] == 3
+    assert by_name["matrixgame_covered_comm_6p"]["players"] == 6
+    assert by_name["matrixgame_covered_comm_3p"]["roles"] == ["Player A", "Player B", "Player C"]
+    assert by_name["matrixgame_covered_comm_6p"]["roles"] == [
+        "Player A", "Player B", "Player C", "Player D", "Player E", "Player F"
+    ]
+    for e in entries:
+        assert e["main_game"] == "matrixgame_covered_comm_nplayer"
