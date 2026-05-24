@@ -39,6 +39,7 @@ class SoloMatrixGameInstanceGenerator(GameInstanceGenerator):
         all_objects = common_config["objects"]
 
         num_instances = kwargs.get("num_instances", 10)
+        compact_only = kwargs.get("compact_only", False)
         rng = random.Random(seed)
 
         generators = {
@@ -47,6 +48,13 @@ class SoloMatrixGameInstanceGenerator(GameInstanceGenerator):
             "S3": _generate_s3,
             "S4": _generate_s4,
         }
+
+        if compact_only:
+            configs = {
+                k: v for k, v in configs.items() if v.get("compact_board", False)
+            }
+            if not configs:
+                raise RuntimeError("--compact-only selected but no compact variants in config.json")
 
         for variant_key, variant_config in configs.items():
             thinking = variant_config["thinking"]
@@ -844,9 +852,19 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Generate solo instances.")
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--num-instances", type=int, default=10)
-    parser.add_argument("--out", default="in/instances.json")
+    parser.add_argument("--out", default="instances.json")
+    parser.add_argument(
+        "--compact-only",
+        action="store_true",
+        help="Only generate variants with compact_board=true in config.json",
+    )
     args = parser.parse_args()
 
     gen = SoloMatrixGameInstanceGenerator()
-    gen.generate(filename=args.out, seed=args.seed, num_instances=args.num_instances)
+    gen.generate(
+        filename=args.out,
+        seed=args.seed,
+        num_instances=args.num_instances,
+        compact_only=args.compact_only,
+    )
     print(f"Wrote instances to {args.out}")
