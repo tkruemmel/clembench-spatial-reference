@@ -311,59 +311,6 @@ def _is_2connected(grid_size: int, walls: Set[Tuple[int, int]]) -> bool:
     return len(ap) == 0
 
 
-# ── Coordination isolation check (Experiment 3) ────────────────────────
-
-def _coordination_isolation_check(
-    grid_size: int,
-    walls: Set[Tuple[int, int]],
-    starts: Dict[str, List[int]],
-    targets: Dict[str, List[int]],
-    player_a_objs: List[str],
-    player_b_objs: List[str],
-) -> bool:
-    """Return True if no shared single-cell bottleneck exists between agents.
-
-    Rejects instances where a cell appears in both agents' optimal path sets
-    and has corridor width ≤ 1 (only one adjacent path cell), which would
-    indicate a coordination demand increase rather than a spatial one.
-    """
-    dirs = [(-1, 0), (1, 0), (0, -1), (0, 1)]
-
-    def path_cells(obj: str) -> Set[Tuple[int, int]]:
-        s = tuple(starts[obj])  # type: ignore
-        t = tuple(targets[obj])  # type: ignore
-        path = _bfs_path(grid_size, walls, s, t)
-        return set(path) if path else set()
-
-    a_cells: Set[Tuple[int, int]] = set()
-    for obj in player_a_objs:
-        a_cells |= path_cells(obj)
-
-    b_cells: Set[Tuple[int, int]] = set()
-    for obj in player_b_objs:
-        b_cells |= path_cells(obj)
-
-    shared = a_cells & b_cells
-    all_path_cells = a_cells | b_cells
-
-    for cell in shared:
-        r, c = cell
-        adjacent_path = [
-            (r + dr, c + dc)
-            for dr, dc in dirs
-            if (
-                0 <= r + dr < grid_size
-                and 0 <= c + dc < grid_size
-                and (r + dr, c + dc) not in walls
-                and (r + dr, c + dc) in all_path_cells
-            )
-        ]
-        if len(adjacent_path) <= 1:
-            return False
-
-    return True
-
-
 # ── S1 ─────────────────────────────────────────────────────────────────
 
 def _generate_s1(

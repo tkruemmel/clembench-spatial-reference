@@ -26,7 +26,7 @@ from clemcore.clemgame.metrics import (
     METRIC_REQUEST_COUNT_PARSED, BENCH_SCORE,
 )
 
-from utils.board import Board, DIRECTIONS
+from utils.board import Board
 
 logger = logging.getLogger(__name__)
 
@@ -251,7 +251,7 @@ class NPlayerMatrixGameMaster(DialogueGameMaster):
     def _format_reminder(self) -> str:
         if self.with_message:
             return (
-                "message: <your message to your partner>\n"
+                "message: <your message to your teammates>\n"
                 "reason: <your reasoning>\n"
                 "move: <OBJECT> to R<row>,C<col> (<DIRECTION>)\n\n"
                 "OR, if ALL your objects are at their target positions:\n"
@@ -377,7 +377,9 @@ class NPlayerMatrixGameMaster(DialogueGameMaster):
             candidate = players[self._current_player_idx]
             if not self._is_done_player(candidate):
                 return candidate
-        # All players done — advance anyway (game will end on next _does_game_proceed check)
+        # All players done — structurally unreachable when objects partition cleanly,
+        # since board.is_solved() fires before the last player can declare done.
+        # Defensive fallback: advance anyway.
         self._current_player_idx = (self._current_player_idx + 1) % n
         return players[self._current_player_idx]
 
