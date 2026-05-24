@@ -233,19 +233,11 @@ class NPlayerMatrixGameMaster(DialogueGameMaster):
 
     def _render_for(self, player: Player) -> str:
         visible = self._objects_for(player) if self.use_masking else None
-        if self.compact_board:
-            return self.board.render_compact(visible_objects=visible)
-        if visible is not None:
-            return self.board.render_for_player(visible)
-        return self.board.render()
+        return self.board.render_compact(visible_objects=visible)
 
     def _render_targets_for(self, player: Player) -> str:
         visible = self._objects_for(player) if self.use_masking else None
-        if self.compact_board:
-            return self.board.render_targets_compact(visible_objects=visible)
-        if visible is not None:
-            return self.board.render_targets_for_player(visible)
-        return self.board.render_targets()
+        return self.board.render_targets_compact(visible_objects=visible)
 
     def _render_object_status(self, player: Player) -> str:
         # Stubbed — will be removed in T10/T11.

@@ -334,3 +334,37 @@ def test_master_setup_initial_context_substitutions():
         assert "$GRID_SIZE$" not in ctx
         # And the substituted role/objects should appear
         assert p.role_name in ctx
+
+
+def test_render_for_uses_compact():
+    from master import NPlayerMatrixGameMaster
+    instance = _make_game_instance(num_players=6)
+    models = [_DummyModel() for _ in range(6)]
+    master = NPlayerMatrixGameMaster(
+        game_spec=_make_game_spec() if "_make_game_spec" in globals() else None,
+        experiment={"variant_config": {"comm_protocol": "freeform"}},
+        player_models=models,
+    )
+    master._on_setup(**instance)
+    players = master.get_players()
+    rendered = master._render_for(players[0])
+    # Compact rendering produces a single-line-per-row format; just check it's a string
+    assert isinstance(rendered, str)
+    assert len(rendered) > 0
+
+
+def test_render_for_masks_other_players_objects():
+    from master import NPlayerMatrixGameMaster
+    instance = _make_game_instance(num_players=6)
+    models = [_DummyModel() for _ in range(6)]
+    master = NPlayerMatrixGameMaster(
+        game_spec=_make_game_spec() if "_make_game_spec" in globals() else None,
+        experiment={"variant_config": {"comm_protocol": "freeform"}},
+        player_models=models,
+    )
+    master._on_setup(**instance)
+    players = master.get_players()
+    # Player A (index 0) owns only "A". B-F's objects should be rendered as X.
+    rendered_a = master._render_for(players[0])
+    assert "B" not in rendered_a, "Player A should not see B"
+    assert "X" in rendered_a, "other players' objects should be masked as X"
