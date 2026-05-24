@@ -26,3 +26,52 @@ def test_common_config_shape():
     assert cfg["directions"] == ["up", "down", "left", "right"]
     assert cfg["max_retries"] == 2
     assert cfg["strict"] is False
+
+
+def test_config_has_32_variants():
+    import json
+    from pathlib import Path
+
+    PKG = Path(__file__).parent.parent
+
+    with open(PKG / "resources" / "config.json") as f:
+        cfg = json.load(f)
+    assert len(cfg) == 32, f"expected 32 variants, got {len(cfg)}"
+
+
+def test_every_variant_has_required_fields():
+    import json
+    from pathlib import Path
+
+    PKG = Path(__file__).parent.parent
+
+    with open(PKG / "resources" / "config.json") as f:
+        cfg = json.load(f)
+    for key, variant in cfg.items():
+        for field in ("name", "num_players", "spatial_level", "comm_protocol", "use_masking", "compact_board"):
+            assert field in variant, f"variant {key} missing {field}"
+        assert variant["num_players"] in (3, 6), f"{key}: num_players must be 3 or 6"
+        assert variant["spatial_level"] in ("S1", "S2", "S3", "S4"), f"{key}: invalid spatial_level"
+        assert variant["comm_protocol"] in ("none", "structured", "freeform", "hybrid"), f"{key}: invalid comm_protocol"
+        assert variant["use_masking"] is True, f"{key}: use_masking must be true"
+        assert variant["compact_board"] is True, f"{key}: compact_board must be true"
+
+
+def test_variants_cover_full_matrix():
+    import json
+    from pathlib import Path
+
+    PKG = Path(__file__).parent.parent
+
+    with open(PKG / "resources" / "config.json") as f:
+        cfg = json.load(f)
+    seen = set()
+    for variant in cfg.values():
+        seen.add((variant["spatial_level"], variant["comm_protocol"], variant["num_players"]))
+    expected = {
+        (s, p, n)
+        for s in ("S1", "S2", "S3", "S4")
+        for p in ("none", "structured", "freeform", "hybrid")
+        for n in (3, 6)
+    }
+    assert seen == expected, f"missing combinations: {expected - seen}"
