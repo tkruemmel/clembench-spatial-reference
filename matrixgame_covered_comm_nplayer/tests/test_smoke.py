@@ -105,3 +105,9 @@ def test_none_template_has_no_message_line():
     path = PKG / "resources" / "initial_prompts" / "en" / "player_prompt_none.template"
     text = path.read_text()
     assert "message:" not in text.lower(), "none template must not include 'message:'"
+
+
+def test_instance_generator_module_imports():
+    from instancegenerator import MatrixGameNPlayerInstanceGenerator
+    gen = MatrixGameNPlayerInstanceGenerator()
+    assert gen is not None
