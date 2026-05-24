@@ -494,3 +494,42 @@ def test_broadcast_with_masking_hides_unseen_object():
     ctx_b = ctx_obj["content"] if isinstance(ctx_obj, dict) else ctx_obj
     assert "Player A moved a blocked object down" in ctx_b
     assert "Player A moved A down" not in ctx_b
+
+
+def test_scorer_success_score_capped():
+    import numpy as np
+    from master import NPlayerMatrixGameScorer, MOVE_COUNT
+    from clemcore.clemgame.metrics import METRIC_ABORTED, METRIC_SUCCESS, BENCH_SCORE
+    scorer = NPlayerMatrixGameScorer(
+        game_name="matrixgame_covered_comm_6p",
+        experiment={},
+        game_instance={"optimal_moves": 20},
+    )
+    captured = {}
+    scorer.log_episode_score = lambda k, v: captured.__setitem__(k, v)
+    scorer.compute_scores({
+        METRIC_ABORTED: 0,
+        METRIC_SUCCESS: 1,
+        MOVE_COUNT: 30,
+    })
+    # 20 / 30 * 100 = 66.67
+    assert captured[BENCH_SCORE] == pytest.approx(66.67, rel=0.01)
+
+
+def test_scorer_abort_returns_nan():
+    import numpy as np
+    from master import NPlayerMatrixGameScorer, MOVE_COUNT
+    from clemcore.clemgame.metrics import METRIC_ABORTED, METRIC_SUCCESS, BENCH_SCORE
+    scorer = NPlayerMatrixGameScorer(
+        game_name="matrixgame_covered_comm_6p",
+        experiment={},
+        game_instance={"optimal_moves": 20},
+    )
+    captured = {}
+    scorer.log_episode_score = lambda k, v: captured.__setitem__(k, v)
+    scorer.compute_scores({
+        METRIC_ABORTED: 1,
+        METRIC_SUCCESS: 0,
+        MOVE_COUNT: 5,
+    })
+    assert np.isnan(captured[BENCH_SCORE])
