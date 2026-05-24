@@ -239,23 +239,8 @@ class NPlayerMatrixGameMaster(DialogueGameMaster):
         visible = self._objects_for(player) if self.use_masking else None
         return self.board.render_targets_compact(visible_objects=visible)
 
-    def _render_object_status(self, player: Player) -> str:
-        # Stubbed — will be removed in T10/T11.
-        return ""
-
-    def _render_adjacency(self, player: Player) -> str:
-        # Stubbed — will be removed in T10/T11.
-        return ""
-
-    def _easy_mode_context(self, player: Player) -> str:
-        # Stubbed — will be removed in T10/T11.
-        return ""
-
     def _is_done_player(self, player: Player) -> bool:
-        idx = self._player_to_index.get(player)
-        if idx is None:
-            return False
-        return self.player_done[idx]
+        return self.player_done[self._player_to_index[player]]
 
     def _own_objects_at_target(self, player: Player) -> bool:
         return all(
@@ -399,13 +384,14 @@ class NPlayerMatrixGameMaster(DialogueGameMaster):
     def _on_valid_player_response(self, player: Player, parsed_response: str) -> None:
         reason = self.current_parsed["reason"]
         message = self.current_parsed.get("message")
+        player_idx = self._player_to_index[player]
+
+        # Cache this player's most recent message for broadcast.
+        # For protocols without a message, this stays None.
+        self.last_message[player_idx] = message if (message and self.with_message) else None
 
         if self.current_parsed.get("is_done"):
-            if player == self.player_a:
-                self.player_a_done = True
-            else:
-                self.player_b_done = True
-
+            self.player_done[player_idx] = True
             self.log_to_self("player_done", f"{player.role_name} declared done")
             if message:
                 self.log_to_self("message", f"{player.role_name}: {message}")
@@ -415,25 +401,19 @@ class NPlayerMatrixGameMaster(DialogueGameMaster):
                 self.log_to_self("success", "All objects have reached their target positions!")
                 return
 
-            other = self.player_b if player == self.player_a else self.player_a
-            if message and self.with_message:
-                comm_line = f"{player.role_name} says: {message}\n\n"
-            else:
-                comm_line = ""
-            self.set_context_for(other, (
-                f"{comm_line}"
-                f"{player.role_name} has finished — all their objects are at their target positions. "
-                f"Continue alone until all objects are placed.\n\n"
-                f"CURRENT BOARD:\n{self._render_for(other)}\n\n"
-                f"GOAL BOARD:\n{self._render_targets_for(other)}\n\n"
-                f"Your turn. Respond with:\n{self._format_reminder()}"
-                f"{self._easy_mode_context(other)}"
-            ))
+            # Broadcast the "X has finished" notice to every other active player.
+            for other_idx, other in enumerate(self.get_players()):
+                if other_idx == player_idx or self.player_done[other_idx]:
+                    continue
+                self.set_context_for(other, self._build_broadcast_context(
+                    other,
+                    move_desc=f"{player.role_name} has finished — all their objects are at their target positions. Continue without them.",
+                ))
             return
 
+        # A regular move.
         obj = self.current_parsed["object"]
         direction = self.current_parsed["direction"]
-
         self.board.apply_move(obj, direction)
         self.move_log.append({
             "player": player.role_name,
@@ -448,6 +428,7 @@ class NPlayerMatrixGameMaster(DialogueGameMaster):
         if message:
             self.log_to_self("message", f"{player.role_name}: {message}")
 
+        # Cycle detection (3 identical board states → abort).
         state = self.board.state_key()
         self.seen_states[state] = self.seen_states.get(state, 0) + 1
         if self.seen_states[state] >= 3:
@@ -460,43 +441,38 @@ class NPlayerMatrixGameMaster(DialogueGameMaster):
             self.log_to_self("success", "All objects have reached their target positions!")
             return
 
-        other = self.player_b if player == self.player_a else self.player_a
-        other_done = self._is_done_player(other)
+        # Broadcast the move (with optional message) to every other active player.
+        for other_idx, other in enumerate(self.get_players()):
+            if other_idx == player_idx or self.player_done[other_idx]:
+                continue
+            # Mask the moved object's identity if the recipient doesn't own it.
+            if self.use_masking and obj not in self._objects_for(other):
+                move_desc = f"{player.role_name} moved a blocked object {direction}."
+            else:
+                move_desc = f"{player.role_name} moved {obj} {direction}."
+            self.set_context_for(other, self._build_broadcast_context(other, move_desc))
 
-        # Move description: hide object identity if other player can't see it
-        if self.use_masking and obj not in self._objects_for(other):
-            move_desc = f"{player.role_name} moved a blocked object {direction}."
-        else:
-            move_desc = f"{player.role_name} moved {obj} {direction}."
+    def _build_broadcast_context(self, recipient: Player, move_desc: str) -> str:
+        """Build the next-turn context for a recipient: all other players' last
+        messages, the just-happened move description, current and goal boards,
+        and the response format reminder."""
+        recipient_idx = self._player_to_index[recipient]
+        message_lines: List[str] = []
+        for other_idx, other in enumerate(self.get_players()):
+            if other_idx == recipient_idx:
+                continue
+            msg = self.last_message[other_idx]
+            if msg:
+                message_lines.append(f"{other.role_name} says: {msg}")
+        comm_block = ("\n".join(message_lines) + "\n\n") if message_lines else ""
 
-        if message and self.with_message:
-            comm_line = f"{player.role_name} says: {message}\n\n"
-        else:
-            comm_line = ""
-
-        if other_done:
-            # Partner finished; current player continues alone
-            self.set_context_for(player, (
-                f"Your partner has finished. Continue placing your remaining objects alone.\n\n"
-                f"You moved {obj} {direction}.\n\n"
-                f"CURRENT BOARD:\n{self._render_for(player)}\n\n"
-                f"GOAL BOARD:\n{self._render_targets_for(player)}\n\n"
-                f"Your turn. Respond with:\n{self._format_reminder()}"
-                f"{self._easy_mode_context(player)}"
-            ))
-        elif not self._player_b_received_intro and other == self.player_b:
-            self._player_b_received_intro = True
-            objs_b = ", ".join(sorted(self.player_b_objects))
-            self.set_context_for(other, self._build_initial_context(self._prompt_template, objs_b, other))
-        else:
-            self.set_context_for(other, (
-                f"{comm_line}"
-                f"{move_desc}\n\n"
-                f"CURRENT BOARD:\n{self._render_for(other)}\n\n"
-                f"GOAL BOARD:\n{self._render_targets_for(other)}\n\n"
-                f"Your turn. Respond with:\n{self._format_reminder()}"
-                f"{self._easy_mode_context(other)}"
-            ))
+        return (
+            f"{comm_block}"
+            f"{move_desc}\n\n"
+            f"CURRENT BOARD:\n{self._render_for(recipient)}\n\n"
+            f"GOAL BOARD:\n{self._render_targets_for(recipient)}\n\n"
+            f"Your turn. Respond with:\n{self._format_reminder()}"
+        )
 
     def _on_after_game(self):
         self.log_key(METRIC_ABORTED, int(self.aborted))
@@ -507,8 +483,9 @@ class NPlayerMatrixGameMaster(DialogueGameMaster):
         self.log_key(METRIC_REQUEST_COUNT_VIOLATED, self.violated_request_counts)
         self.log_key(MOVE_COUNT, len(self.move_log))
         self.log_key(TURN_MOVES, self.move_log)
-        self.log_key("Player A Done", int(self.player_a_done))
-        self.log_key("Player B Done", int(self.player_b_done))
+        for i, done in enumerate(self.player_done):
+            role = f"Player {chr(ord('A') + i)}"
+            self.log_key(f"{role} Done", int(done))
 
 
 # ── Scorer ─────────────────────────────────────────────────────────────

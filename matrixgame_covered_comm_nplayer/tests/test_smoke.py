@@ -415,3 +415,82 @@ def test_validate_response_rejects_invalid_format():
     master._on_setup(**instance)
     players = master.get_players()
     assert not master._validate_player_response(players[0], "no move here")
+
+
+def test_next_player_skips_done():
+    from master import NPlayerMatrixGameMaster
+    instance = _make_game_instance(num_players=6, comm_protocol="none")
+    models = [_DummyModel() for _ in range(6)]
+    master = NPlayerMatrixGameMaster(
+        game_spec=_make_game_spec() if "_make_game_spec" in globals() else None,
+        experiment={"variant_config": {"comm_protocol": "none"}},
+        player_models=models,
+    )
+    master._on_setup(**instance)
+    players = master.get_players()
+    # Mark players B (index 1) and C (index 2) done
+    master.player_done[1] = True
+    master.player_done[2] = True
+    # Current player is at index 0 → next should skip 1, 2 and land on 3
+    master._current_player_idx = 0
+    nxt = master._next_player()
+    assert nxt is players[3]
+
+
+def test_broadcast_after_valid_move_updates_other_contexts():
+    """After Player A makes a valid move with a message, all other active
+    players should see Player A's message in their next context."""
+    from master import NPlayerMatrixGameMaster
+    instance = _make_game_instance(num_players=3, comm_protocol="freeform")
+    models = [_DummyModel() for _ in range(3)]
+    master = NPlayerMatrixGameMaster(
+        game_spec=_make_game_spec(3) if "_make_game_spec" in globals() else None,
+        experiment={"variant_config": {"comm_protocol": "freeform"}},
+        player_models=models,
+    )
+    master._on_setup(**instance)
+    players = master.get_players()
+
+    # Player A produces a valid response with a message
+    resp = (
+        "message: hello teammates\n"
+        "reason: heading down\n"
+        "move: A to R2,C1 (down)"
+    )
+    assert master._validate_player_response(players[0], resp)
+    master._on_valid_player_response(players[0], "A to R2,C1 (down)")
+
+    # last_message[0] should now hold the message
+    assert master.last_message[0] == "hello teammates"
+
+    # Players B and C should have new contexts mentioning the message and the move.
+    # Note: master.get_context_for returns a dict in this clemcore version.
+    for idx in (1, 2):
+        ctx_obj = master.get_context_for(players[idx])
+        ctx = ctx_obj["content"] if isinstance(ctx_obj, dict) else ctx_obj
+        assert "Player A says: hello teammates" in ctx
+        assert "Player A moved A down" in ctx or "Player A moved a blocked object down" in ctx
+
+
+def test_broadcast_with_masking_hides_unseen_object():
+    """In 6p mode (every object owned by a different player), Player B should
+    see Player A's move as 'a blocked object' because B can't see A."""
+    from master import NPlayerMatrixGameMaster
+    instance = _make_game_instance(num_players=6, comm_protocol="none")
+    models = [_DummyModel() for _ in range(6)]
+    master = NPlayerMatrixGameMaster(
+        game_spec=_make_game_spec() if "_make_game_spec" in globals() else None,
+        experiment={"variant_config": {"comm_protocol": "none"}},
+        player_models=models,
+    )
+    master._on_setup(**instance)
+    players = master.get_players()
+    resp = "reason: heading down\nmove: A to R2,C1 (down)"
+    assert master._validate_player_response(players[0], resp)
+    master._on_valid_player_response(players[0], "A to R2,C1 (down)")
+
+    # Player B (index 1) should see masked move
+    ctx_obj = master.get_context_for(players[1])
+    ctx_b = ctx_obj["content"] if isinstance(ctx_obj, dict) else ctx_obj
+    assert "Player A moved a blocked object down" in ctx_b
+    assert "Player A moved A down" not in ctx_b
