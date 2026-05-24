@@ -640,24 +640,25 @@ def _generate_s4(
     rng: random.Random,
     max_retries: int = 25,
 ) -> Tuple[Dict, Dict, List, int, List[str], List[str]]:
-    """S4: corridor swap forcing non-monotonic trajectory; same map as S3.
+    """S4: corridor swap + length-3 dependency chain; ~2× Manhattan, 2-connected.
 
-    Dead-end corridor (length ≥ 2) + walls for ~2× Manhattan ratio, 2-connected.
-    No wall-line gate — difficulty comes purely from object placement in the corridor.
+    Dead-end corridor (length ≥ 2) + walls for ~2× Manhattan ratio.
+    No wall-line gate — difficulty comes purely from object placement.
 
-    INNER (obj_B, Player B): starts at the corridor dead end, targets outside.
+    INNER (obj_B): starts at the corridor dead end, targets outside.
       Must exit through the adjacent cell, which OUTER initially occupies.
-    OUTER (obj_A, Player A): starts at the corridor cell adjacent to the dead end,
+    OUTER (obj_A): starts at the corridor cell adjacent to the dead end,
       targets the dead end. Must retreat out of the corridor to let INNER exit,
       then re-enter — forced non-monotonic trajectory.
-    Cross-agent: OUTER cannot finish until INNER exits; INNER cannot exit until
-      OUTER retreats. Neither player resolves this without coordinating.
 
-    Remaining 4 objects form two length-1 chains:
-      D.start = C.target  (D→Player B must move before C→Player A)
-      F.start = E.target  (F→Player B must move before E→Player A)
+    The other four objects form a single length-3 chain  C ← D ← E ← F:
+      starts[D] = targets[C]  (D must vacate before C can land)
+      starts[E] = targets[D]  (E must vacate before D can land)
+      starts[F] = targets[E]  (F must vacate before E can land)
+    Forced ordering: F moves first, then E, then D, then C.
 
-    Player A: [OUTER, C, E]; Player B: [INNER, D, F]
+    Player split (legacy, discarded by the nplayer instance generator):
+      Player A: [OUTER, D, F]   Player B: [INNER, C, E]
     """
     if grid_size < 6:
         return _generate_s1(grid_size, objects, rng)
@@ -704,7 +705,10 @@ def _generate_s4(
         used.add(INNER_target)
         targets[obj_INNER] = list(INNER_target)
 
-        # Chain 1: D.start = C.target  (D→Player B must move first)
+        # Length-3 chain C ← D ← E ← F:
+        #   starts[D] = targets[C], starts[E] = targets[D], starts[F] = targets[E].
+        # Pick C.target first, then D.target (= E.start), then E.target (= F.start),
+        # then F.target. Finally pick C.start (independent).
         C_target = _pick(grid_size, rng, used)
         if C_target is None:
             continue
@@ -717,14 +721,8 @@ def _generate_s4(
             continue
         used.add(D_target)
         targets[obj_D] = list(D_target)
+        starts[obj_E] = list(D_target)
 
-        C_start = _pick(grid_size, rng, used)
-        if C_start is None:
-            continue
-        used.add(C_start)
-        starts[obj_C] = list(C_start)
-
-        # Chain 2: F.start = E.target  (F→Player B must move first)
         E_target = _pick(grid_size, rng, used)
         if E_target is None:
             continue
@@ -738,11 +736,11 @@ def _generate_s4(
         used.add(F_target)
         targets[obj_F] = list(F_target)
 
-        E_start = _pick(grid_size, rng, used)
-        if E_start is None:
+        C_start = _pick(grid_size, rng, used)
+        if C_start is None:
             continue
-        used.add(E_start)
-        starts[obj_E] = list(E_start)
+        used.add(C_start)
+        starts[obj_C] = list(C_start)
 
         protected: Set[Tuple[int, int]] = (
             {tuple(p) for p in list(starts.values()) + list(targets.values())}  # type: ignore
@@ -765,8 +763,9 @@ def _generate_s4(
         if not ok:
             continue
 
-        player_a = [obj_OUTER, obj_C, obj_E]
-        player_b = [obj_INNER, obj_D, obj_F]
+        # Legacy 2-player split (the nplayer instance generator discards this).
+        player_a = [obj_OUTER, obj_D, obj_F]
+        player_b = [obj_INNER, obj_C, obj_E]
         return starts, targets, sorted(walls), optimal, player_a, player_b
 
     return _generate_s1(grid_size, objects, rng)
