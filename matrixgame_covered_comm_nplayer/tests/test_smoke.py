@@ -1,5 +1,10 @@
 """Smoke tests for matrixgame_covered_comm_nplayer."""
 
+import pytest
+from pathlib import Path
+
+PKG = Path(__file__).parent.parent
+
 
 def test_board_module_imports():
     from utils.board import Board, DIRECTIONS
@@ -75,3 +80,28 @@ def test_variants_cover_full_matrix():
         for n in (3, 6)
     }
     assert seen == expected, f"missing combinations: {expected - seen}"
+
+
+@pytest.mark.parametrize("protocol", ["none", "structured", "freeform", "hybrid"])
+def test_prompt_template_exists(protocol):
+    path = PKG / "resources" / "initial_prompts" / "en" / f"player_prompt_{protocol}.template"
+    assert path.exists(), f"missing template for {protocol}"
+    text = path.read_text()
+    assert "$YOUR_OBJECTS$" in text
+    assert "$GRID_SIZE$" in text
+    assert "$YOUR_ROLE$" in text
+    assert "$N_OTHER_PLAYERS$" in text
+
+
+@pytest.mark.parametrize("protocol", ["structured", "freeform", "hybrid"])
+def test_message_protocols_mention_broadcast(protocol):
+    path = PKG / "resources" / "initial_prompts" / "en" / f"player_prompt_{protocol}.template"
+    text = path.read_text().lower()
+    assert "broadcast" in text or "teammates" in text, \
+        f"{protocol} template should mention teammates/broadcast"
+
+
+def test_none_template_has_no_message_line():
+    path = PKG / "resources" / "initial_prompts" / "en" / "player_prompt_none.template"
+    text = path.read_text()
+    assert "message:" not in text.lower(), "none template must not include 'message:'"
