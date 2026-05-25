@@ -18,12 +18,6 @@ S4  Same map as S3 (dead-end corridor + ~2× Manhattan walls, 2-connected).
     at the adjacent interior cell targeting the dead end. OUTER must retreat
     out of the corridor to let INNER exit, then re-enter — forced non-monotonic
     trajectory. Two additional length-1 chains.
-
-Experiment 3 coordination isolation check
-──────────────────────────────────────────
-When enforce_isolation=True the generator rejects instances where newly
-placed walls create a shared single-cell bottleneck (corridor width ≤ 1)
-that both agents' optimal paths pass through.
 """
 
 import math
@@ -55,8 +49,6 @@ class MatrixGameInstanceGenerator(GameInstanceGenerator):
         spatial_level = variant_config["spatial_level"]
         comm_protocol = variant_config["comm_protocol"]
         use_masking = variant_config.get("use_masking", True)
-        enforce_isolation = variant_config.get("enforce_isolation", False)
-        easy_mode = variant_config.get("easy_mode", False)
         compact_board = variant_config.get("compact_board", False)
 
         objects = all_objects[:num_objects]
@@ -67,10 +59,6 @@ class MatrixGameInstanceGenerator(GameInstanceGenerator):
         num_instances = kwargs.get("num_instances", 10)
 
         experiment_name = f"{spatial_level}_{comm_protocol}"
-        if enforce_isolation:
-            experiment_name += "_isolated"
-        if easy_mode:
-            experiment_name += "_easy"
         if compact_board:
             experiment_name += "_compact"
 
@@ -102,13 +90,6 @@ class MatrixGameInstanceGenerator(GameInstanceGenerator):
                 if spatial_level != "S1" and len(walls) == 0:
                     continue
 
-                if enforce_isolation:
-                    wall_set = set(map(tuple, walls))
-                    if not _coordination_isolation_check(
-                        grid_size, wall_set, starts, targets,
-                        player_a_objects, player_b_objects,
-                    ):
-                        continue
                 break
 
             game_instance["grid_size"] = grid_size
@@ -125,7 +106,6 @@ class MatrixGameInstanceGenerator(GameInstanceGenerator):
             game_instance["use_masking"] = use_masking
             game_instance["spatial_level"] = spatial_level
             game_instance["comm_protocol"] = comm_protocol
-            game_instance["easy_mode"] = easy_mode
             game_instance["compact_board"] = compact_board
             game_instance["player_prompt"] = prompt_template
 
@@ -334,59 +314,6 @@ def _is_2connected(grid_size: int, walls: Set[Tuple[int, int]]) -> bool:
     if len(disc) < len(free):
         return False
     return len(ap) == 0
-
-
-# ── Coordination isolation check (Experiment 3) ────────────────────────
-
-def _coordination_isolation_check(
-    grid_size: int,
-    walls: Set[Tuple[int, int]],
-    starts: Dict[str, List[int]],
-    targets: Dict[str, List[int]],
-    player_a_objs: List[str],
-    player_b_objs: List[str],
-) -> bool:
-    """Return True if no shared single-cell bottleneck exists between agents.
-
-    Rejects instances where a cell appears in both agents' optimal path sets
-    and has corridor width ≤ 1 (only one adjacent path cell), which would
-    indicate a coordination demand increase rather than a spatial one.
-    """
-    dirs = [(-1, 0), (1, 0), (0, -1), (0, 1)]
-
-    def path_cells(obj: str) -> Set[Tuple[int, int]]:
-        s = tuple(starts[obj])  # type: ignore
-        t = tuple(targets[obj])  # type: ignore
-        path = _bfs_path(grid_size, walls, s, t)
-        return set(path) if path else set()
-
-    a_cells: Set[Tuple[int, int]] = set()
-    for obj in player_a_objs:
-        a_cells |= path_cells(obj)
-
-    b_cells: Set[Tuple[int, int]] = set()
-    for obj in player_b_objs:
-        b_cells |= path_cells(obj)
-
-    shared = a_cells & b_cells
-    all_path_cells = a_cells | b_cells
-
-    for cell in shared:
-        r, c = cell
-        adjacent_path = [
-            (r + dr, c + dc)
-            for dr, dc in dirs
-            if (
-                0 <= r + dr < grid_size
-                and 0 <= c + dc < grid_size
-                and (r + dr, c + dc) not in walls
-                and (r + dr, c + dc) in all_path_cells
-            )
-        ]
-        if len(adjacent_path) <= 1:
-            return False
-
-    return True
 
 
 # ── S1 ─────────────────────────────────────────────────────────────────
@@ -851,13 +778,16 @@ def _generate_s4(
 
 # ── Entry point ────────────────────────────────────────────────────────
 #
+# All variants are compact-board only.
+# Exp2 covers S2; Exp3 covers S1/S3/S4.
+#
 # Usage:
 #   python instancegenerator.py                          # generate everything (Exp2 + Exp3)
-#   python instancegenerator.py exp2                     # Exp2 only
-#   python instancegenerator.py exp3                     # Exp3 only
+#   python instancegenerator.py exp2                     # Exp2 only (S2)
+#   python instancegenerator.py exp3                     # Exp3 only (S1/S3/S4)
 #   python instancegenerator.py exp3 --n 10              # override instance count
-#   python instancegenerator.py exp3 --levels s1 s2 s3  # only levels S1-S3
-#   python instancegenerator.py --levels s2              # only S2 across all experiments
+#   python instancegenerator.py exp3 --levels s1 s3      # only levels S1, S3
+#   python instancegenerator.py --levels s2              # only S2 (Exp2 only)
 
 if __name__ == "__main__":
     import argparse
@@ -874,24 +804,6 @@ if __name__ == "__main__":
         "--n", type=int, default=50,
         help="Number of instances per condition (default: 50)",
     )
-    easy_group = parser.add_mutually_exclusive_group()
-    easy_group.add_argument(
-        "--easy", dest="easy_mode", action="store_true", default=None,
-        help="Generate only easy-mode variants",
-    )
-    easy_group.add_argument(
-        "--no-easy", dest="easy_mode", action="store_false",
-        help="Generate only normal (non-easy) variants",
-    )
-    compact_group = parser.add_mutually_exclusive_group()
-    compact_group.add_argument(
-        "--compact", dest="compact_board", action="store_true",
-        help="Generate only compact-board variants",
-    )
-    compact_group.add_argument(
-        "--no-compact", dest="compact_board", action="store_false",
-        help="Generate only full-grid (non-compact) variants",
-    )
     parser.add_argument(
         "--levels",
         nargs="+",
@@ -900,27 +812,8 @@ if __name__ == "__main__":
         metavar="LEVEL",
         help="Spatial levels to include (default: all). E.g. --levels s1 s2 s3",
     )
-    parser.set_defaults(easy_mode=None, compact_board=False)
     args = parser.parse_args()
     selected_levels = set(args.levels)
-
-    # easy: None → both; True → easy only; False → normal only
-    if args.easy_mode is True:
-        easy_opts = ["_easy"]
-    elif args.easy_mode is False:
-        easy_opts = [""]
-    else:
-        easy_opts = ["", "_easy"]
-
-    # compact: True → compact only; False (default) → normal only; None → both
-    if args.compact_board is True:
-        compact_opts = ["_compact"]
-    elif args.compact_board is False:
-        compact_opts = [""]
-    else:
-        compact_opts = ["", "_compact"]
-
-    suffixes = [e + c for e in easy_opts for c in compact_opts]
 
     gen = MatrixGameInstanceGenerator()
     N = args.n
@@ -930,23 +823,21 @@ if __name__ == "__main__":
         # Same seed → identical boards across conditions, isolating protocol effect.
         EXP2_SEED = 42
         for protocol in ["none", "structured", "freeform", "hybrid"]:
-            for suffix in suffixes:
-                variant = f"exp2_s2_{protocol}{suffix}"
-                gen.generate(filename="instances.json", seed=EXP2_SEED,
-                             variant=variant, num_instances=N)
-                print(f"Generated: {variant} (n={N})")
+            variant = f"exp2_s2_{protocol}_compact"
+            gen.generate(filename="instances.json", seed=EXP2_SEED,
+                         variant=variant, num_instances=N)
+            print(f"Generated: {variant} (n={N})")
 
     if "exp3" in args.experiments:
         # All four spatial levels × all three communication protocols.
         # Same seed per spatial level → identical boards across protocols,
         # isolating spatial difficulty from protocol choice.
-        EXP3_SEEDS = {"s1": 100, "s2": 200, "s3": 300, "s4": 400}
+        EXP3_SEEDS = {"s1": 100, "s3": 300, "s4": 400}
         for level, seed in EXP3_SEEDS.items():
             if level not in selected_levels:
                 continue
             for protocol in ["none", "structured", "freeform", "hybrid"]:
-                for suffix in suffixes:
-                    variant = f"exp3_{level}_{protocol}{suffix}"
-                    gen.generate(filename="instances.json", seed=seed,
-                                 variant=variant, num_instances=N)
-                    print(f"Generated: {variant} (n={N})")
+                variant = f"exp3_{level}_{protocol}_compact"
+                gen.generate(filename="instances.json", seed=seed,
+                             variant=variant, num_instances=N)
+                print(f"Generated: {variant} (n={N})")

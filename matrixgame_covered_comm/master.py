@@ -145,7 +145,6 @@ class MatrixGameMaster(DialogueGameMaster):
         self.use_masking: bool = game_instance.get("use_masking", True)
         self.comm_protocol: str = game_instance.get("comm_protocol", COMM_NONE)
         self.with_message: bool = self.comm_protocol != COMM_NONE
-        self.easy_mode: bool = game_instance.get("easy_mode", False)
         self.compact_board: bool = game_instance.get("compact_board", False)
 
         for model in self.player_models:
@@ -201,7 +200,6 @@ class MatrixGameMaster(DialogueGameMaster):
             f"{prompt}\n\n"
             f"CURRENT BOARD:\n{board_view}\n\n"
             f"GOAL BOARD (where each object must end up):\n{goal_view}"
-            f"{self._easy_mode_context(player)}"
         )
 
     def _done_instructions_text(self) -> str:
@@ -246,56 +244,6 @@ class MatrixGameMaster(DialogueGameMaster):
         if visible is not None:
             return self.board.render_targets_for_player(visible)
         return self.board.render_targets()
-
-    def _render_object_status(self, player: Player) -> str:
-        """Easy-mode: per-object status list with current position, target, and done flag."""
-        player_objs = self._objects_for(player)
-        lines = ["OBJECT STATUS:"]
-        for obj in sorted(player_objs):
-            cur = self.board.object_positions.get(obj)
-            tgt = self.board.target_positions.get(obj)
-            if cur is None or tgt is None:
-                continue
-            cur_str = f"R{cur[0]+1},C{cur[1]+1}"
-            tgt_str = f"R{tgt[0]+1},C{tgt[1]+1}"
-            flag = "✓ DONE" if cur == tgt else "✗ NOT DONE"
-            lines.append(f"  {obj}: at {cur_str} → target {tgt_str}  {flag}")
-        return "\n".join(lines)
-
-    def _render_adjacency(self, player: Player) -> str:
-        """Easy-mode: for each of the player's objects, list what occupies each adjacent cell."""
-        player_objs = self._objects_for(player)
-        lines = ["ADJACENCY (what is in each cell next to your objects):"]
-        for obj in sorted(player_objs):
-            pos = self.board.object_positions.get(obj)
-            if pos is None:
-                continue
-            r, c = pos
-            parts = []
-            for dname, (dr, dc) in [("up", (-1, 0)), ("down", (1, 0)),
-                                     ("left", (0, -1)), ("right", (0, 1))]:
-                nr, nc = r + dr, c + dc
-                if not (0 <= nr < self.grid_size and 0 <= nc < self.grid_size):
-                    label = "OOB"
-                elif (nr, nc) in self.board.walls:
-                    label = "##"
-                else:
-                    cell_obj = self.board.grid[nr][nc]
-                    if cell_obj is None:
-                        label = "empty"
-                    elif cell_obj in player_objs:
-                        label = cell_obj
-                    else:
-                        label = "X"
-                parts.append(f"{dname}={label}")
-            lines.append(f"  {obj} (at R{r+1},C{c+1}): {', '.join(parts)}")
-        return "\n".join(lines)
-
-    def _easy_mode_context(self, player: Player) -> str:
-        """Returns the easy-mode status+adjacency block, or empty string in normal mode."""
-        if not self.easy_mode:
-            return ""
-        return f"\n\n{self._render_object_status(player)}\n\n{self._render_adjacency(player)}"
 
     def _is_done_player(self, player: Player) -> bool:
         return (player == self.player_a and self.player_a_done) or \
@@ -355,7 +303,6 @@ class MatrixGameMaster(DialogueGameMaster):
                     f"{self._format_reminder()}\n\n"
                     f"CURRENT BOARD:\n{self._render_for(player)}\n\n"
                     f"GOAL BOARD:\n{self._render_targets_for(player)}"
-                    f"{self._easy_mode_context(player)}"
                 ))
             return False
 
@@ -409,7 +356,6 @@ class MatrixGameMaster(DialogueGameMaster):
                     f"{self._format_reminder()}\n\n"
                     f"CURRENT BOARD:\n{self._render_for(player)}\n\n"
                     f"GOAL BOARD:\n{self._render_targets_for(player)}"
-                    f"{self._easy_mode_context(player)}"
                 ))
             return False
 
@@ -473,7 +419,6 @@ class MatrixGameMaster(DialogueGameMaster):
                 f"CURRENT BOARD:\n{self._render_for(other)}\n\n"
                 f"GOAL BOARD:\n{self._render_targets_for(other)}\n\n"
                 f"Your turn. Respond with:\n{self._format_reminder()}"
-                f"{self._easy_mode_context(other)}"
             ))
             return
 
@@ -528,7 +473,6 @@ class MatrixGameMaster(DialogueGameMaster):
                 f"CURRENT BOARD:\n{self._render_for(player)}\n\n"
                 f"GOAL BOARD:\n{self._render_targets_for(player)}\n\n"
                 f"Your turn. Respond with:\n{self._format_reminder()}"
-                f"{self._easy_mode_context(player)}"
             ))
         elif not self._player_b_received_intro and other == self.player_b:
             self._player_b_received_intro = True
@@ -541,7 +485,6 @@ class MatrixGameMaster(DialogueGameMaster):
                 f"CURRENT BOARD:\n{self._render_for(other)}\n\n"
                 f"GOAL BOARD:\n{self._render_targets_for(other)}\n\n"
                 f"Your turn. Respond with:\n{self._format_reminder()}"
-                f"{self._easy_mode_context(other)}"
             ))
 
     def _on_after_game(self):
