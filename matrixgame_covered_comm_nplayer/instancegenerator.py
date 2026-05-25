@@ -782,5 +782,14 @@ def _generate_s4(
 #   python instancegenerator.py --levels s2              # only S2 across all experiments
 
 if __name__ == "__main__":
+    import argparse
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--n", type=int, default=10,
+        help="Number of instances per condition (default: 10)",
+    )
+    args = parser.parse_args()
+
     gen = MatrixGameNPlayerInstanceGenerator()
-    gen.generate(filename="instances.json", seed=42, num_instances=10)
+    gen.generate(filename="instances.json", seed=42, num_instances=args.n)
