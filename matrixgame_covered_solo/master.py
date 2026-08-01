@@ -6,12 +6,10 @@ Optional 'thinking' axis adds a free-form `message:` line per turn that the
 master logs but does not interpret.
 
 Turn structure (silent):
-  reason: ...
   move: OBJECT to Rr,Cc (DIRECTION)
 
 Turn structure (thinking):
   message: ...
-  reason: ...
   move: OBJECT to Rr,Cc (DIRECTION)
 
 The episode ends automatically when all owned objects are at their target
@@ -46,17 +44,19 @@ MOVE_COUNT = "Move Count"
 
 # ── Response patterns ──────────────────────────────────────────────────
 
-# Used when thinking is off.
-# Anchored with \A to reject responses that prepend other lines (e.g. message:).
+# Solo silent: the response IS the move line (anchored with \A).
 MOVE_ONLY_PATTERN = re.compile(
-    r"\A\s*reason:\s*(?P<reason>.+?)\s*\nmove:\s*(?P<object>[A-Z])\s+to\s+R(?P<target_row>\d+),?C(?P<target_col>\d+)\s*\((?P<direction>up|down|left|right)\)",
-    re.IGNORECASE | re.DOTALL,
+    r"\A\s*move:\s*(?P<object>[A-Z])\s+to\s+R(?P<target_row>\d+),?C(?P<target_col>\d+)\s*\((?P<direction>up|down|left|right)\)",
+    re.IGNORECASE,
 )
 
-# Used when thinking is on.
+# Solo thinking: a private message: scratchpad precedes the move line.
+# NOTE: no re.DOTALL — the message capture must not span the newline before
+# "move:", otherwise a stray extra line inserted between message and move
+# would be silently absorbed into the message instead of failing to parse.
 MESSAGE_MOVE_PATTERN = re.compile(
-    r"\A\s*message:\s*(?P<message>.+?)\s*\nreason:\s*(?P<reason>.+?)\s*\nmove:\s*(?P<object>[A-Z])\s+to\s+R(?P<target_row>\d+),?C(?P<target_col>\d+)\s*\((?P<direction>up|down|left|right)\)",
-    re.IGNORECASE | re.DOTALL,
+    r"\A\s*message:\s*(?P<message>.+?)\s*\nmove:\s*(?P<object>[A-Z])\s+to\s+R(?P<target_row>\d+),?C(?P<target_col>\d+)\s*\((?P<direction>up|down|left|right)\)",
+    re.IGNORECASE,
 )
 
 
@@ -71,7 +71,6 @@ def _parse_response(response: str, with_message: bool) -> Optional[Dict[str, str
     if not match:
         return None
     result: Dict[str, str] = {
-        "reason": match.group("reason").strip(),
         "object": match.group("object").strip().upper(),
         "direction": match.group("direction").strip().lower(),
         "target": f"R{match.group('target_row')},C{match.group('target_col')}",
@@ -92,7 +91,7 @@ class SoloMatrixPlayer(Player):
     def _custom_response(self, context):
         # Used by clemcore's mock player; emit a deterministic valid-format move.
         first = sorted(self.own_objects)[0]
-        return f"reason: custom player\nmove: {first} to R1,C1 (down)"
+        return f"move: {first} to R1,C1 (down)"
 
 
 # ── Rendering helper ───────────────────────────────────────────────────
@@ -191,13 +190,9 @@ class SoloMatrixGameMaster(DialogueGameMaster):
         if self.with_message:
             return (
                 "message: <a brief note to yourself>\n"
-                "reason: <your reasoning>\n"
                 "move: <OBJECT> to R<row>,C<col> (<DIRECTION>)"
             )
-        return (
-            "reason: <your reasoning>\n"
-            "move: <OBJECT> to R<row>,C<col> (<DIRECTION>)"
-        )
+        return "move: <OBJECT> to R<row>,C<col> (<DIRECTION>)"
 
     # ── helpers ────────────────────────────────────────────────────────
 
@@ -287,7 +282,6 @@ class SoloMatrixGameMaster(DialogueGameMaster):
         return self.player
 
     def _on_valid_player_response(self, player: Player, parsed_response: str) -> None:
-        reason = self.current_parsed["reason"]
         message = self.current_parsed.get("message")
         obj = self.current_parsed["object"]
         direction = self.current_parsed["direction"]
@@ -297,11 +291,9 @@ class SoloMatrixGameMaster(DialogueGameMaster):
             "object": obj,
             "direction": direction,
             "target": self.current_parsed.get("target", ""),
-            "reason": reason,
             "message": message,
         })
         self.log_to_self("move", f"{player.role_name} moved {obj} {direction}")
-        self.log_to_self("reason", reason)
         if message:
             self.log_to_self("message", f"{player.role_name}: {message}")
 
