@@ -7,13 +7,11 @@ Three communication protocol variants (plus a no-communication control):
   hybrid     — natural language with a shared coordinate system in the system prompt.
 
 Turn structure for none:
-  reason: ...
-  move: OBJECT to Rr,Cc (DIRECTION)   (or: done: <reason> if all own objects are at targets)
+  move: OBJECT to Rr,Cc (DIRECTION)   (or: done: <explanation> if all own objects are at targets)
 
 Turn structure for structured / freeform / hybrid:
   message: ...
-  reason: ...
-  move: OBJECT to Rr,Cc (DIRECTION)   (or: done: <reason> if all own objects are at targets)
+  move: OBJECT to Rr,Cc (DIRECTION)   (or: done: <explanation> if all own objects are at targets)
 
 The game master relays each player's message to the other player before they respond.
 A player who declares "done" (with all their objects at targets) stops receiving turns.
@@ -60,26 +58,35 @@ MASKED_OBJECT_MOVE_PATTERN = re.compile(
     re.IGNORECASE,
 )
 
-# Used when comm_protocol == "none"
+# Channel-off (comm_protocol == "none"): the response IS the move line.
 MOVE_ONLY_PATTERN = re.compile(
-    r"reason:\s*(?P<reason>.+?)\s*\nmove:\s*(?P<object>[A-Z])\s+to\s+R(?P<target_row>\d+),?C(?P<target_col>\d+)\s*\((?P<direction>up|down|left|right)\)",
-    re.IGNORECASE | re.DOTALL,
+    r"\A\s*move:\s*(?P<object>[A-Z])\s+to\s+R(?P<target_row>\d+),?C(?P<target_col>\d+)\s*\((?P<direction>up|down|left|right)\)",
+    re.IGNORECASE,
 )
 
-# Used when comm_protocol is structured / freeform / hybrid
+# Channel on (structured / freeform / hybrid): message precedes the move.
+# NOTE: no re.DOTALL — the message capture must not span the newline before
+# "move:", otherwise a stray extra line inserted between message and move
+# would be silently absorbed into the message instead of failing to parse.
 COMM_MOVE_PATTERN = re.compile(
-    r"message:\s*(?P<message>.+?)\s*\nreason:\s*(?P<reason>.+?)\s*\nmove:\s*(?P<object>[A-Z])\s+to\s+R(?P<target_row>\d+),?C(?P<target_col>\d+)\s*\((?P<direction>up|down|left|right)\)",
-    re.IGNORECASE | re.DOTALL,
+    r"\A\s*message:\s*(?P<message>.+?)\s*\nmove:\s*(?P<object>[A-Z])\s+to\s+R(?P<target_row>\d+),?C(?P<target_col>\d+)\s*\((?P<direction>up|down|left|right)\)",
+    re.IGNORECASE,
 )
 
-# Done declarations — replace "move:" with "done:"
+# Done declarations — "done:" replaces the move line.
 DONE_ONLY_PATTERN = re.compile(
-    r"reason:\s*(?P<reason>.+?)\s*\ndone:\s*(?P<done_reason>.+)",
+    r"\A\s*done:\s*(?P<done_reason>.+)",
     re.IGNORECASE | re.DOTALL,
 )
+# NOTE: no re.DOTALL here either, for the same reason as COMM_MOVE_PATTERN
+# above — the message capture must stop at the newline before "done:" so a
+# stray extra line in between fails the anchored parse instead of being
+# absorbed into the message. As a consequence done_reason only captures the
+# first line after "done:"; that text is logged only, never parsed further,
+# so this is fine.
 COMM_DONE_PATTERN = re.compile(
-    r"message:\s*(?P<message>.+?)\s*\nreason:\s*(?P<reason>.+?)\s*\ndone:\s*(?P<done_reason>.+)",
-    re.IGNORECASE | re.DOTALL,
+    r"\A\s*message:\s*(?P<message>.+?)\s*\ndone:\s*(?P<done_reason>.+)",
+    re.IGNORECASE,
 )
 
 # Lenient check for C1 structured message format (warn but don't abort on mismatch)
@@ -92,10 +99,9 @@ STRUCTURED_MSG_PATTERN = re.compile(
 def _parse_response(response: str, with_message: bool) -> Optional[Dict[str, str]]:
     # Try move pattern first
     move_pattern = COMM_MOVE_PATTERN if with_message else MOVE_ONLY_PATTERN
-    match = move_pattern.search(response)
+    match = move_pattern.match(response)
     if match:
         result = {
-            "reason": match.group("reason").strip(),
             "object": match.group("object").strip().upper(),
             "direction": match.group("direction").strip().lower(),
             "target": f"R{match.group('target_row')},C{match.group('target_col')}",
@@ -106,11 +112,10 @@ def _parse_response(response: str, with_message: bool) -> Optional[Dict[str, str
 
     # Try done pattern
     done_pattern = COMM_DONE_PATTERN if with_message else DONE_ONLY_PATTERN
-    match = done_pattern.search(response)
+    match = done_pattern.match(response)
     if match:
         result: Dict[str, str] = {
             "is_done": True,
-            "reason": match.group("reason").strip(),
         }
         if with_message:
             result["message"] = match.group("message").strip()
@@ -129,7 +134,7 @@ class MatrixPlayer(Player):
 
     def _custom_response(self, context):
         first = sorted(self.own_objects)[0]
-        return f"reason: custom player\nmove: {first} to R1,C1 (down)"
+        return f"move: {first} to R1,C1 (down)"
 
 
 # ── Game master ────────────────────────────────────────────────────────
@@ -218,7 +223,6 @@ class MatrixGameMaster(DialogueGameMaster):
                 "Once ALL your objects are at their target positions, you may declare done "
                 "instead of making a move:\n"
                 "message: done\n"
-                "reason: <explanation>\n"
                 "done: all my objects are placed\n"
                 "IMPORTANT: Only declare done if ALL your objects are truly at their targets. "
                 "An incorrect done declaration ends the game as a failure."
@@ -227,7 +231,6 @@ class MatrixGameMaster(DialogueGameMaster):
             "\n\nDONE OPTION:\n"
             "Once ALL your objects are at their target positions, you may declare done "
             "instead of making a move:\n"
-            "reason: <explanation>\n"
             "done: all my objects are placed\n"
             "IMPORTANT: Only declare done if ALL your objects are truly at their targets. "
             "An incorrect done declaration ends the game as a failure."
@@ -277,18 +280,14 @@ class MatrixGameMaster(DialogueGameMaster):
         if self.with_message:
             return (
                 "message: <your message to your partner>\n"
-                "reason: <your reasoning>\n"
                 "move: <OBJECT> to R<row>,C<col> (<DIRECTION>)\n\n"
                 "OR, if ALL your objects are at their target positions:\n"
                 "message: done\n"
-                "reason: <explanation>\n"
                 "done: all my objects are placed"
             )
         return (
-            "reason: <your reasoning>\n"
             "move: <OBJECT> to R<row>,C<col> (<DIRECTION>)\n\n"
             "OR, if ALL your objects are at their target positions:\n"
-            "reason: <explanation>\n"
             "done: all my objects are placed"
         )
 
@@ -425,7 +424,6 @@ class MatrixGameMaster(DialogueGameMaster):
         return players[self._current_player_idx]
 
     def _on_valid_player_response(self, player: Player, parsed_response: str) -> None:
-        reason = self.current_parsed["reason"]
         message = self.current_parsed.get("message")
 
         if self.current_parsed.get("is_done"):
@@ -467,11 +465,9 @@ class MatrixGameMaster(DialogueGameMaster):
             "object": obj,
             "direction": direction,
             "target": self.current_parsed.get("target", ""),
-            "reason": reason,
             "message": message,
         })
         self.log_to_self("move", f"{player.role_name} moved {obj} {direction}")
-        self.log_to_self("reason", reason)
         if message:
             self.log_to_self("message", f"{player.role_name}: {message}")
 

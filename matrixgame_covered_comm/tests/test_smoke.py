@@ -53,11 +53,27 @@ def test_validate_move_unowned_object_message_lists_own_objects():
 
 def test_masked_object_move_pattern():
     from master import MASKED_OBJECT_MOVE_PATTERN as P
-    assert P.search("reason: r\nmove: X@R2C3 to R2,C4 (right)")
-    assert P.search("reason: r\nmove: X to R2,C4 (right)")
-    assert P.search("reason: r\nmove: x@r2c3 to r2,c4 (right)")  # case-insensitive
-    assert not P.search("reason: r\nmove: A to R2,C4 (right)")
-    assert not P.search("reason: the X at R2C3 is blocking\nmove: A to R2,C4 (right)")
+    assert P.search("move: X@R2C3 to R2,C4 (right)")
+    assert P.search("move: X to R2,C4 (right)")
+    assert P.search("move: x@r2c3 to r2,c4 (right)")  # case-insensitive
+    assert not P.search("move: A to R2,C4 (right)")
+    assert not P.search("the X at R2C3 is blocking\nmove: A to R2,C4 (right)")
+
+
+def test_grammar_anchored_no_reason():
+    from master import _parse_response
+    # channel off
+    assert _parse_response("move: A to R2,C1 (down)", with_message=False) is not None
+    assert _parse_response("thinking first\nmove: A to R2,C1 (down)", with_message=False) is None
+    assert _parse_response("reason: r\nmove: A to R2,C1 (down)", with_message=False) is None
+    assert _parse_response("done: all my objects are placed", with_message=False)["is_done"] is True
+    # channel on
+    p = _parse_response("message: hi\nmove: A to R2,C1 (down)", with_message=True)
+    assert p["message"] == "hi" and "reason" not in p
+    assert _parse_response("message: hi\nreason: r\nmove: A to R2,C1 (down)", with_message=True) is None
+    d = _parse_response("message: done\ndone: all placed", with_message=True)
+    assert d["is_done"] is True and d["message"] == "done"
+    assert _parse_response("preamble\nmessage: hi\nmove: A to R2,C1 (down)", with_message=True) is None
 
 
 # ── Master-driven ────────────────────────────────────────────────────────
@@ -96,7 +112,7 @@ class _DummyModel:
         self._gen_args[key] = value
 
     def generate_response(self, *_a, **_k):
-        return "reason: stub\nmove: A to R1,C1 (down)"
+        return "move: A to R1,C1 (down)"
 
 
 def _make_game_spec():
@@ -137,7 +153,7 @@ def test_render_targets_for_shows_only_own_targets():
 def test_masked_move_attempt_position_qualified_gives_semantic_hint():
     master = _setup_master()
     accepted = master._validate_player_response(
-        master.player_a, "reason: r\nmove: X@R1C5 to R1,C6 (right)"
+        master.player_a, "move: X@R1C5 to R1,C6 (right)"
     )
     assert accepted is False
     msg = _reprompt_text(master, master.player_a)
@@ -149,7 +165,7 @@ def test_masked_move_attempt_position_qualified_gives_semantic_hint():
 def test_masked_move_attempt_clean_gives_semantic_hint():
     master = _setup_master()
     accepted = master._validate_player_response(
-        master.player_a, "reason: r\nmove: X to R1,C6 (right)"
+        master.player_a, "move: X to R1,C6 (right)"
     )
     assert accepted is False
     msg = _reprompt_text(master, master.player_a)

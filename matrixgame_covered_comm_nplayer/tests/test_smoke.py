@@ -211,7 +211,7 @@ def test_master_module_imports():
 
 def test_parse_response_move_only():
     from master import _parse_response
-    text = "reason: heading down\nmove: A to R3,C5 (down)"
+    text = "move: A to R3,C5 (down)"
     parsed = _parse_response(text, with_message=False)
     assert parsed["object"] == "A"
     assert parsed["direction"] == "down"
@@ -220,10 +220,26 @@ def test_parse_response_move_only():
 
 def test_parse_response_with_message():
     from master import _parse_response
-    text = "message: moving A\nreason: heading down\nmove: A to R3,C5 (down)"
+    text = "message: moving A\nmove: A to R3,C5 (down)"
     parsed = _parse_response(text, with_message=True)
     assert parsed["message"] == "moving A"
     assert parsed["object"] == "A"
+
+
+def test_grammar_anchored_no_reason():
+    from master import _parse_response
+    # channel off
+    assert _parse_response("move: A to R2,C1 (down)", with_message=False) is not None
+    assert _parse_response("thinking first\nmove: A to R2,C1 (down)", with_message=False) is None
+    assert _parse_response("reason: r\nmove: A to R2,C1 (down)", with_message=False) is None
+    assert _parse_response("done: all my objects are placed", with_message=False)["is_done"] is True
+    # channel on
+    p = _parse_response("message: hi\nmove: A to R2,C1 (down)", with_message=True)
+    assert p["message"] == "hi" and "reason" not in p
+    assert _parse_response("message: hi\nreason: r\nmove: A to R2,C1 (down)", with_message=True) is None
+    d = _parse_response("message: done\ndone: all placed", with_message=True)
+    assert d["is_done"] is True and d["message"] == "done"
+    assert _parse_response("preamble\nmessage: hi\nmove: A to R2,C1 (down)", with_message=True) is None
 
 
 def _make_game_instance(num_players=3, comm_protocol="freeform"):
@@ -264,7 +280,7 @@ class _DummyModel:
         self._gen_args[key] = value
 
     def generate_response(self, *_args, **_kwargs):
-        return "reason: stub\nmove: A to R1,C1 (down)"
+        return "move: A to R1,C1 (down)"
 
 
 def _make_game_spec(num_players=6):
@@ -405,7 +421,7 @@ def test_validate_response_accepts_valid_move():
     players = master.get_players()
     # Player A starts at (0, 0). Moving down means row index +1 → final position (1, 0)
     # which in 1-indexed is R2,C1.
-    resp = "reason: heading down\nmove: A to R2,C1 (down)"
+    resp = "move: A to R2,C1 (down)"
     assert master._validate_player_response(players[0], resp)
 
 
@@ -421,7 +437,7 @@ def test_validate_response_rejects_unowned_object():
     master._on_setup(**instance)
     players = master.get_players()
     # Player A tries to move B (owned by Player B in 6p mode)
-    resp = "reason: trying B\nmove: B to R2,C2 (down)"
+    resp = "move: B to R2,C2 (down)"
     assert not master._validate_player_response(players[0], resp)
 
 
@@ -457,7 +473,7 @@ def test_masked_move_attempt_position_qualified_gives_semantic_hint():
     )
     master._on_setup(**instance)
     players = master.get_players()  # Player A owns only "A"
-    accepted = master._validate_player_response(players[0], "reason: r\nmove: X@R1C2 to R1,C3 (right)")
+    accepted = master._validate_player_response(players[0], "move: X@R1C2 to R1,C3 (right)")
     assert accepted is False
     msg = _reprompt_text(master, players[0])
     assert "teammates" in msg, "should explain X marks teammates' objects"
@@ -478,7 +494,7 @@ def test_masked_move_attempt_clean_gives_semantic_hint():
     )
     master._on_setup(**instance)
     players = master.get_players()
-    accepted = master._validate_player_response(players[0], "reason: r\nmove: X to R1,C3 (right)")
+    accepted = master._validate_player_response(players[0], "move: X to R1,C3 (right)")
     assert accepted is False
     msg = _reprompt_text(master, players[0])
     assert "teammates" in msg
@@ -536,7 +552,6 @@ def test_broadcast_after_valid_move_updates_other_contexts():
     # Player A produces a valid response with a message
     resp = (
         "message: hello teammates\n"
-        "reason: heading down\n"
         "move: A to R2,C1 (down)"
     )
     assert master._validate_player_response(players[0], resp)
@@ -567,7 +582,7 @@ def test_broadcast_with_masking_hides_unseen_object():
     )
     master._on_setup(**instance)
     players = master.get_players()
-    resp = "reason: heading down\nmove: A to R2,C1 (down)"
+    resp = "move: A to R2,C1 (down)"
     assert master._validate_player_response(players[0], resp)
     master._on_valid_player_response(players[0], "A to R2,C1 (down)")
 
