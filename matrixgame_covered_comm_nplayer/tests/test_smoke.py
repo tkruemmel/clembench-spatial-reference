@@ -160,8 +160,8 @@ def test_player_partition_3p(generated_instances):
             assert all(len(g) == 2 for g in po), f"3p: every group must own 2 objects, got {po}"
             flat = [obj for group in po for obj in group]
             assert sorted(flat) == ["A", "B", "C", "D", "E", "F"]
-            # Static-by-index partition
-            assert po == [["A", "B"], ["C", "D"], ["E", "F"]]
+            # Round-robin partition: objects[j] -> player j % num_players
+            assert po == [["A", "D"], ["B", "E"], ["C", "F"]]
 
 
 def test_player_partition_6p(generated_instances):
