@@ -26,7 +26,7 @@ from clemcore.clemgame.metrics import (
     METRIC_REQUEST_COUNT_PARSED, BENCH_SCORE,
 )
 
-from utils.board import Board
+from utils.board import Board, BLOCKED_MARKER
 
 logger = logging.getLogger(__name__)
 
@@ -41,6 +41,15 @@ TURN_MOVES = "Turn Moves"
 MOVE_COUNT = "Move Count"
 
 # ── Response patterns ──────────────────────────────────────────────────
+
+# Matches a move line whose object is the masked marker (a teammate's object),
+# in either the bare form `move: X ...` or the position-qualified form models
+# tend to emit, `move: X@R3C4 ...`. Used to give a targeted semantic redirect
+# instead of a generic parse error.
+MASKED_OBJECT_MOVE_PATTERN = re.compile(
+    rf"move:\s*{re.escape(BLOCKED_MARKER)}(?:@R\d+,?C\d+)?\b",
+    re.IGNORECASE,
+)
 
 # Used when comm_protocol == "none"
 MOVE_ONLY_PATTERN = re.compile(
@@ -239,6 +248,15 @@ class NPlayerMatrixGameMaster(DialogueGameMaster):
         visible = self._objects_for(player) if self.use_masking else None
         return self.board.render_targets_compact(visible_objects=visible)
 
+    def _masked_move_message(self, player: Player) -> str:
+        """Targeted redirect for a player that tried to move a masked ('X')
+        object — i.e. one of its teammates' objects, which it cannot control."""
+        own = ", ".join(sorted(self._objects_for(player)))
+        return (
+            f"'{BLOCKED_MARKER}' marks your teammates' objects — you cannot move them. "
+            f"You can only move YOUR objects: {own}. Choose one of yours."
+        )
+
     def _is_done_player(self, player: Player) -> bool:
         return self.player_done[self._player_to_index[player]]
 
@@ -284,15 +302,26 @@ class NPlayerMatrixGameMaster(DialogueGameMaster):
 
         if parsed is None:
             self.violated_request_counts += 1
-            self.log_to_self("invalid_format", f"{player.role_name}: could not parse response")
+            # A common failure: the player tries to move a masked teammate object
+            # (e.g. `move: X@R3C4 ...`), which never matches the move grammar.
+            # Redirect it semantically instead of with a generic format error.
+            masked_attempt = bool(self.use_masking and MASKED_OBJECT_MOVE_PATTERN.search(response))
+            if masked_attempt:
+                self.log_to_self("invalid_move", f"{player.role_name}: attempted to move a masked teammate object")
+            else:
+                self.log_to_self("invalid_format", f"{player.role_name}: could not parse response")
             self.reprompt_attempts += 1
             if self.reprompt_attempts > self.max_retries:
                 self.aborted = True
                 self.log_to_self("abort", "Too many invalid responses")
             else:
                 self.reprompt_pending = True
+                guidance = (
+                    self._masked_move_message(player) if masked_attempt
+                    else "Your response could not be parsed. Please respond exactly in this format:"
+                )
                 self.set_context_for(player, (
-                    "Your response could not be parsed. Please respond exactly in this format:\n"
+                    f"{guidance}\n"
                     f"{self._format_reminder()}\n\n"
                     f"CURRENT BOARD:\n{self._render_for(player)}\n\n"
                     f"GOAL BOARD:\n{self._render_targets_for(player)}"
@@ -344,8 +373,15 @@ class NPlayerMatrixGameMaster(DialogueGameMaster):
                 self.log_to_self("abort", "Too many invalid moves")
             else:
                 self.reprompt_pending = True
+                # `move: X ...` parses as object "X" but X is a masked teammate
+                # object; give the same semantic redirect as the unparsed form.
+                masked_attempt = self.use_masking and obj == BLOCKED_MARKER
+                guidance = (
+                    self._masked_move_message(player) if masked_attempt
+                    else f"Invalid move: {error}\nPlease try again."
+                )
                 self.set_context_for(player, (
-                    f"Invalid move: {error}\nPlease try again.\n\n"
+                    f"{guidance}\n\n"
                     f"{self._format_reminder()}\n\n"
                     f"CURRENT BOARD:\n{self._render_for(player)}\n\n"
                     f"GOAL BOARD:\n{self._render_targets_for(player)}"

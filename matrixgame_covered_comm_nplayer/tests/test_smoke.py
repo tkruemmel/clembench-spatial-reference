@@ -370,6 +370,28 @@ def test_render_for_masks_other_players_objects():
     assert "X" in rendered_a, "other players' objects should be masked as X"
 
 
+def test_render_targets_for_shows_only_own_targets():
+    """The GOAL BOARD must list only the player's own object targets — never
+    teammates' targets (which previously appeared masked as 'X->RxCy' and lured
+    players into submitting moves for objects they cannot control)."""
+    from master import NPlayerMatrixGameMaster
+    instance = _make_game_instance(num_players=6)
+    models = [_DummyModel() for _ in range(6)]
+    master = NPlayerMatrixGameMaster(
+        game_spec=_make_game_spec() if "_make_game_spec" in globals() else None,
+        experiment={"variant_config": {"comm_protocol": "freeform"}},
+        player_models=models,
+    )
+    master._on_setup(**instance)
+    players = master.get_players()
+    # Player A (index 0) owns only "A".
+    rendered_a = master._render_targets_for(players[0])
+    assert "A->" in rendered_a, "Player A should see its own target"
+    assert "X" not in rendered_a, "teammates' targets must be omitted, not masked as X"
+    for other in ("B", "C", "D", "E", "F"):
+        assert f"{other}->" not in rendered_a, f"Player A should not see {other}'s target"
+
+
 def test_validate_response_accepts_valid_move():
     from master import NPlayerMatrixGameMaster
     instance = _make_game_instance(num_players=6, comm_protocol="none")
@@ -415,6 +437,66 @@ def test_validate_response_rejects_invalid_format():
     master._on_setup(**instance)
     players = master.get_players()
     assert not master._validate_player_response(players[0], "no move here")
+
+
+def _reprompt_text(master, player):
+    ctx = master.get_context_for(player)
+    return (ctx.get("content") if isinstance(ctx, dict) else ctx) or ""
+
+
+def test_masked_move_attempt_position_qualified_gives_semantic_hint():
+    """`move: X@RxCy ...` (what models actually emit) must trigger a semantic
+    redirect naming the player's own objects — not a generic 'could not parse'."""
+    from master import NPlayerMatrixGameMaster
+    instance = _make_game_instance(num_players=6, comm_protocol="none")
+    models = [_DummyModel() for _ in range(6)]
+    master = NPlayerMatrixGameMaster(
+        game_spec=_make_game_spec() if "_make_game_spec" in globals() else None,
+        experiment={"variant_config": {"comm_protocol": "none"}},
+        player_models=models,
+    )
+    master._on_setup(**instance)
+    players = master.get_players()  # Player A owns only "A"
+    accepted = master._validate_player_response(players[0], "reason: r\nmove: X@R1C2 to R1,C3 (right)")
+    assert accepted is False
+    msg = _reprompt_text(master, players[0])
+    assert "teammates" in msg, "should explain X marks teammates' objects"
+    assert "A" in msg, "should name the player's own object(s)"
+    assert "could not be parsed" not in msg, "must not fall back to the generic format error"
+
+
+def test_masked_move_attempt_clean_gives_semantic_hint():
+    """`move: X to ...` (parses, but X is a masked object) must also trigger the
+    semantic redirect rather than the confusing 'Unknown object X'."""
+    from master import NPlayerMatrixGameMaster
+    instance = _make_game_instance(num_players=6, comm_protocol="none")
+    models = [_DummyModel() for _ in range(6)]
+    master = NPlayerMatrixGameMaster(
+        game_spec=_make_game_spec() if "_make_game_spec" in globals() else None,
+        experiment={"variant_config": {"comm_protocol": "none"}},
+        player_models=models,
+    )
+    master._on_setup(**instance)
+    players = master.get_players()
+    accepted = master._validate_player_response(players[0], "reason: r\nmove: X to R1,C3 (right)")
+    assert accepted is False
+    msg = _reprompt_text(master, players[0])
+    assert "teammates" in msg
+    assert "A" in msg
+    assert "Unknown object" not in msg
+
+
+def test_validate_move_unowned_object_message_lists_own_objects():
+    """Board-level ownership error must name the player's own objects and must
+    not use the 2-player legacy phrasing 'the other player'."""
+    from utils.board import Board
+    b = Board(grid_size=8, walls=set())
+    b.place_object("A", 0, 0)
+    b.place_object("B", 0, 1)
+    err = b.validate_move("B", "down", allowed_objects={"A"})
+    assert err is not None
+    assert "A" in err, "error should name the player's own objects"
+    assert "other player" not in err, "N-player phrasing must not say 'the other player'"
 
 
 def test_next_player_skips_done():

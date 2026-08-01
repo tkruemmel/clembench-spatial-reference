@@ -68,7 +68,8 @@ class Board:
         if obj not in self.object_positions:
             return f"Unknown object '{obj}'."
         if allowed_objects is not None and obj not in allowed_objects:
-            return f"You cannot move '{obj}' — it belongs to the other player."
+            own = ", ".join(sorted(allowed_objects))
+            return f"You cannot move '{obj}' — it is not one of your objects. You may only move: {own}."
         row, col = self.object_positions[obj]
         dr, dc = DIRECTIONS[direction]
         new_row, new_col = row + dr, col + dc
@@ -107,10 +108,13 @@ class Board:
         return self._render_raw(cell_to_obj)
 
     def render_targets_for_player(self, player_objects: Set[str]) -> str:
-        """Goal board from a player's perspective: opponent targets appear as 'X'."""
+        """Goal board from a player's perspective: only the player's own targets
+        are shown. Teammates' targets are omitted entirely rather than masked
+        as 'X', since a player cannot move teammates' objects."""
         cell_to_obj: Dict[Tuple[int, int], str] = {
-            pos: (obj if obj in player_objects else BLOCKED_MARKER)
+            pos: obj
             for obj, pos in self.target_positions.items()
+            if obj in player_objects
         }
         return self._render_raw(cell_to_obj)
 
@@ -141,12 +145,19 @@ class Board:
         return "\n".join(lines)
 
     def render_targets_compact(self, visible_objects: Optional[Set[str]] = None) -> str:
-        """Compact representation of target positions: Label->RxCy."""
+        """Compact representation of target positions: Label->RxCy.
+
+        When ``visible_objects`` is given (masking enabled), only those objects'
+        targets are shown — teammates' targets are omitted entirely rather than
+        masked as ``X``. A player cannot move teammates' objects, so showing
+        their targets only lured players into submitting illegal moves.
+        """
         parts = []
         for obj in sorted(self.target_positions):
+            if visible_objects is not None and obj not in visible_objects:
+                continue
             r, c = self.target_positions[obj]
-            label = obj if (visible_objects is None or obj in visible_objects) else BLOCKED_MARKER
-            parts.append(f"{label}->R{r+1}C{c+1}")
+            parts.append(f"{obj}->R{r+1}C{c+1}")
         return "Targets: " + " ".join(parts)
 
     def _render_raw(self, cell_contents: Dict[Tuple[int, int], str]) -> str:
