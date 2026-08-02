@@ -5,7 +5,12 @@ instance JSON). Each turn one player moves a single object and may emit
 one broadcast message that is shown to every other not-yet-done player on
 their next turn.
 
-Communication protocols: none, structured, freeform, hybrid.
+Communication protocol variants (same as matrixgame_covered_comm):
+  none       — no inter-agent messages; move-only response format.
+  structured — fixed template: PLAN: move X from (Rr,Cc) to (Rr,Cc) — REQUEST: ...
+  freeform   — unrestricted natural language; the prompt asks for under 100 words (not enforced).
+  hybrid     — free-form messaging plus an explicit shared coordinate frame in the prompt.
+
 Same response formats as matrixgame_covered_comm. The "partner" wording is
 replaced by "teammates" throughout.
 """

@@ -3,8 +3,8 @@
 Three communication protocol variants (plus a no-communication control):
   none       — no inter-agent messages; move-only response format.
   structured — fixed template: PLAN: move X from (Rr,Cc) to (Rr,Cc) — REQUEST: ...
-  freeform   — unrestricted natural language, max 100 tokens per message.
-  hybrid     — natural language with a shared coordinate system in the system prompt.
+  freeform   — unrestricted natural language; the prompt asks for under 100 words (not enforced).
+  hybrid     — free-form messaging plus an explicit shared coordinate frame in the prompt.
 
 Turn structure for none:
   move: OBJECT to Rr,Cc (DIRECTION)   (or: done: <explanation> if all own objects are at targets)
