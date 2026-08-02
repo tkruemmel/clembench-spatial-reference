@@ -31,7 +31,9 @@ def test_validate_rejects_wall():
     parsed = {"object": "B", "direction": "down", "target": "R1,C1"}
     error = _validate_move(_board_with_walls(), _player(), parsed)
     assert error is not None
-    assert "wall" in error.lower()
+    code, msg = error
+    assert code == "wall"
+    assert "wall" in msg.lower()
 
 
 def test_validate_rejects_occupied():
@@ -41,11 +43,15 @@ def test_validate_rejects_occupied():
     parsed = {"object": "A", "direction": "down", "target": "R2,C0"}
     error = _validate_move(b, _player(), parsed)
     assert error is not None
-    assert "occupied" in error.lower()
+    code, msg = error
+    assert code == "occupied"
+    assert "occupied" in msg.lower()
 
 
 def test_validate_rejects_out_of_bounds():
     parsed = {"object": "A", "direction": "up", "target": "R-1,C0"}
     error = _validate_move(_board_with_walls(), _player(), parsed)
     assert error is not None
-    assert "grid" in error.lower()
+    code, msg = error
+    assert code == "off_grid"
+    assert "grid" in msg.lower()

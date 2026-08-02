@@ -19,7 +19,7 @@ failures exhaust max_retries (abort).
 
 import re
 import logging
-from typing import Dict, List, Optional, Set
+from typing import Dict, List, Optional, Set, Tuple
 
 import numpy as np
 
@@ -41,6 +41,9 @@ logger = logging.getLogger(__name__)
 
 TURN_MOVES = "Turn Moves"
 MOVE_COUNT = "Move Count"
+MOVE_ATTEMPTS = "Move Attempts"
+ILLEGAL_ATTEMPTS = "Illegal Attempts"
+BLOCKED_ATTEMPTS = "Blocked Attempts"
 
 # ── Response patterns ──────────────────────────────────────────────────
 
@@ -112,8 +115,8 @@ def _render_targets_view(board: Board, compact: bool) -> str:
 
 # ── Validation ─────────────────────────────────────────────────────────
 
-def _validate_move(board: Board, player: SoloMatrixPlayer, parsed: Dict[str, str]) -> Optional[str]:
-    """Return an error string if the move is invalid, else None.
+def _validate_move(board: Board, player: SoloMatrixPlayer, parsed: Dict[str, str]) -> Optional[Tuple[str, str]]:
+    """Return (code, message) if the move is invalid, else None.
 
     Wraps Board.validate_move with the player's allowed-objects set.
     """
@@ -131,6 +134,9 @@ class SoloMatrixGameMaster(DialogueGameMaster):
     def __init__(self, game_spec: GameSpec, experiment: Dict, player_models: List[Model]):
         super().__init__(game_spec, experiment, player_models)
         self.request_counts = 0
+        self.move_attempts = 0
+        self.illegal_attempts = 0
+        self.blocked_attempts = 0
         self.parsed_request_counts = 0
         self.violated_request_counts = 0
         self.move_log: List[Dict] = []
@@ -240,11 +246,18 @@ class SoloMatrixGameMaster(DialogueGameMaster):
                 ))
             return False
 
+        self.move_attempts += 1
+
         # Validate the move
         error = _validate_move(self.board, self.player, parsed)
         if error:
+            code, err_msg = error
+            if code == "occupied":
+                self.blocked_attempts += 1
+            else:
+                self.illegal_attempts += 1
             self.violated_request_counts += 1
-            self.log_to_self("invalid_move", f"{player.role_name}: {error}")
+            self.log_to_self("invalid_move", f"{player.role_name}: [{code}] {err_msg}")
             if self.strict:
                 self.aborted = True
                 self.log_to_self("abort", "Strict: illegal move")
@@ -256,7 +269,7 @@ class SoloMatrixGameMaster(DialogueGameMaster):
             else:
                 self.reprompt_pending = True
                 self.set_context_for(player, (
-                    f"Invalid move: {error}\nPlease try again.\n\n"
+                    f"Invalid move: {err_msg}\nPlease try again.\n\n"
                     f"{self._format_reminder()}\n\n"
                     f"CURRENT BOARD:\n{self._render_board()}\n\n"
                     f"GOAL BOARD:\n{self._render_goal()}"
@@ -286,11 +299,15 @@ class SoloMatrixGameMaster(DialogueGameMaster):
         obj = self.current_parsed["object"]
         direction = self.current_parsed["direction"]
 
+        from_row, from_col = self.board.object_positions[obj]
+        dr, dc = DIRECTIONS[direction]
         self.board.apply_move(obj, direction)
         self.move_log.append({
             "object": obj,
             "direction": direction,
             "target": self.current_parsed.get("target", ""),
+            "from": [from_row, from_col],
+            "to": [from_row + dr, from_col + dc],
             "message": message,
         })
         self.log_to_self("move", f"{player.role_name} moved {obj} {direction}")
@@ -325,6 +342,9 @@ class SoloMatrixGameMaster(DialogueGameMaster):
         self.log_key(METRIC_REQUEST_COUNT_PARSED, self.parsed_request_counts)
         self.log_key(METRIC_REQUEST_COUNT_VIOLATED, self.violated_request_counts)
         self.log_key(MOVE_COUNT, len(self.move_log))
+        self.log_key(MOVE_ATTEMPTS, self.move_attempts)
+        self.log_key(ILLEGAL_ATTEMPTS, self.illegal_attempts)
+        self.log_key(BLOCKED_ATTEMPTS, self.blocked_attempts)
         self.log_key(TURN_MOVES, self.move_log)
 
 

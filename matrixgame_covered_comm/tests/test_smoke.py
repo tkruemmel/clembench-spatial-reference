@@ -45,10 +45,27 @@ def test_validate_move_unowned_object_message_lists_own_objects():
     b = Board(grid_size=8, walls=set())
     b.place_object("A", 0, 0)
     b.place_object("D", 0, 1)
-    err = b.validate_move("D", "down", allowed_objects={"A", "B", "C"})
-    assert err is not None
+    result = b.validate_move("D", "down", allowed_objects={"A", "B", "C"})
+    assert result is not None
+    code, err = result
+    assert code == "not_owner"
     assert "A" in err, "error should name the player's own objects"
     assert "other player" not in err, "legacy 2-player phrasing should be gone"
+
+
+def test_validate_move_returns_typed_codes():
+    from utils.board import Board
+    b = Board(grid_size=8, walls={(0, 3)})
+    b.place_object("A", 0, 0)
+    b.place_object("B", 0, 1)
+    assert b.validate_move("A", "right")[0] == "occupied"   # B is there
+    assert b.validate_move("A", "up")[0] == "off_grid"
+    assert b.validate_move("B", "right", allowed_objects={"A"})[0] == "not_owner"
+    assert b.validate_move("Z", "down")[0] == "unknown_object"
+    b2 = Board(grid_size=8, walls={(1, 0)})
+    b2.place_object("A", 0, 0)
+    assert b2.validate_move("A", "down")[0] == "wall"
+    assert b2.validate_move("A", "right") is None
 
 
 def test_masked_object_move_pattern():
@@ -218,3 +235,24 @@ def test_structured_done_message_exempt():
         master.player_a, "message: done\ndone: all my objects are placed"
     )
     assert ok is True
+
+
+def test_blocked_vs_illegal_counters():
+    master = _setup_master()
+    # A at R1,C1; right into B at R1,C2 -> blocked
+    master._validate_player_response(master.player_a, "move: A to R1,C2 (right)")
+    assert master.blocked_attempts == 1 and master.illegal_attempts == 0
+    # A up leaves the grid -> illegal
+    master._validate_player_response(master.player_a, "move: A to R0,C1 (up)")
+    assert master.illegal_attempts == 1
+    # legal move counts as an attempt but neither illegal nor blocked
+    master._validate_player_response(master.player_a, "move: A to R2,C1 (down)")
+    assert master.move_attempts == 3
+
+
+def test_move_log_has_from_to():
+    master = _setup_master()
+    master._validate_player_response(master.player_a, "move: A to R2,C1 (down)")
+    master._on_valid_player_response(master.player_a, "A to R2,C1 (down)")
+    entry = master.move_log[-1]
+    assert entry["from"] == [0, 0] and entry["to"] == [1, 0]

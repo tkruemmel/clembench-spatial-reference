@@ -61,24 +61,33 @@ class Board:
         obj: str,
         direction: str,
         allowed_objects: Optional[Set[str]] = None,
-    ) -> Optional[str]:
-        """Return an error string if the move is invalid, else None."""
+    ) -> Optional[Tuple[str, str]]:
+        """Return (code, message) if the move is invalid, else None.
+
+        Codes 'bad_direction', 'unknown_object', 'not_owner', 'off_grid',
+        'wall' are ILLEGAL moves (static rule violations that indict the
+        mover alone). Code 'occupied' is a BLOCKED move (locally well-formed,
+        fails only against the current joint state). The scorer builds the
+        illegal-move and blocked-move rates from this distinction.
+        """
         if direction not in DIRECTIONS:
-            return f"Invalid direction '{direction}'. Must be one of: {', '.join(DIRECTIONS)}."
+            return ("bad_direction",
+                    f"Invalid direction '{direction}'. Must be one of: {', '.join(DIRECTIONS)}.")
         if obj not in self.object_positions:
-            return f"Unknown object '{obj}'."
+            return ("unknown_object", f"Unknown object '{obj}'.")
         if allowed_objects is not None and obj not in allowed_objects:
             own = ", ".join(sorted(allowed_objects))
-            return f"You cannot move '{obj}' — it is not one of your objects. You may only move: {own}."
+            return ("not_owner",
+                    f"You cannot move '{obj}' — you only control: {own}.")
         row, col = self.object_positions[obj]
         dr, dc = DIRECTIONS[direction]
         new_row, new_col = row + dr, col + dc
         if not (0 <= new_row < self.grid_size and 0 <= new_col < self.grid_size):
-            return f"Cannot move {obj} {direction}: would leave the grid."
+            return ("off_grid", f"Cannot move {obj} {direction}: would leave the grid.")
         if (new_row, new_col) in self.walls:
-            return f"Cannot move {obj} {direction}: (R{new_row + 1},C{new_col + 1}) is a wall."
+            return ("wall", f"Cannot move {obj} {direction}: (R{new_row + 1},C{new_col + 1}) is a wall.")
         if not self.is_cell_empty(new_row, new_col):
-            return f"Cannot move {obj} {direction}: (R{new_row + 1},C{new_col + 1}) is occupied."
+            return ("occupied", f"Cannot move {obj} {direction}: (R{new_row + 1},C{new_col + 1}) is occupied.")
         return None
 
     def apply_move(self, obj: str, direction: str) -> None:

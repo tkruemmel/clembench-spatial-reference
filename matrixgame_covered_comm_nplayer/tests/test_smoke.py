@@ -509,8 +509,10 @@ def test_validate_move_unowned_object_message_lists_own_objects():
     b = Board(grid_size=8, walls=set())
     b.place_object("A", 0, 0)
     b.place_object("B", 0, 1)
-    err = b.validate_move("B", "down", allowed_objects={"A"})
-    assert err is not None
+    result = b.validate_move("B", "down", allowed_objects={"A"})
+    assert result is not None
+    code, err = result
+    assert code == "not_owner"
     assert "A" in err, "error should name the player's own objects"
     assert "other player" not in err, "N-player phrasing must not say 'the other player'"
 

@@ -46,6 +46,9 @@ COMM_HYBRID = "hybrid"
 
 TURN_MOVES = "Turn Moves"
 MOVE_COUNT = "Move Count"
+MOVE_ATTEMPTS = "Move Attempts"
+ILLEGAL_ATTEMPTS = "Illegal Attempts"
+BLOCKED_ATTEMPTS = "Blocked Attempts"
 
 # ── Response patterns ──────────────────────────────────────────────────
 
@@ -145,6 +148,9 @@ class MatrixGameMaster(DialogueGameMaster):
     def __init__(self, game_spec: GameSpec, experiment: Dict, player_models: List[Model]):
         super().__init__(game_spec, experiment, player_models)
         self.request_counts = 0
+        self.move_attempts = 0
+        self.illegal_attempts = 0
+        self.blocked_attempts = 0
         self.parsed_request_counts = 0
         self.violated_request_counts = 0
         self.move_log: List[Dict] = []
@@ -381,14 +387,21 @@ class MatrixGameMaster(DialogueGameMaster):
                     ))
                 return False
 
+        self.move_attempts += 1
+
         obj = parsed["object"]
         direction = parsed["direction"]
         allowed = self._objects_for(player)
         error = self.board.validate_move(obj, direction, allowed_objects=allowed)
 
         if error:
+            code, err_msg = error
+            if code == "occupied":
+                self.blocked_attempts += 1
+            else:
+                self.illegal_attempts += 1
             self.violated_request_counts += 1
-            self.log_to_self("invalid_move", f"{player.role_name}: {error}")
+            self.log_to_self("invalid_move", f"{player.role_name}: [{code}] {err_msg}")
             if self.strict:
                 self.aborted = True
                 self.log_to_self("abort", f"Strict: illegal move by {player.role_name}")
@@ -404,7 +417,7 @@ class MatrixGameMaster(DialogueGameMaster):
                 masked_attempt = self.use_masking and obj == BLOCKED_MARKER
                 guidance = (
                     self._masked_move_message(player) if masked_attempt
-                    else f"Invalid move: {error}\nPlease try again."
+                    else f"Invalid move: {err_msg}\nPlease try again."
                 )
                 self.set_context_for(player, (
                     f"{guidance}\n\n"
@@ -479,12 +492,16 @@ class MatrixGameMaster(DialogueGameMaster):
         obj = self.current_parsed["object"]
         direction = self.current_parsed["direction"]
 
+        from_row, from_col = self.board.object_positions[obj]
+        dr, dc = DIRECTIONS[direction]
         self.board.apply_move(obj, direction)
         self.move_log.append({
             "player": player.role_name,
             "object": obj,
             "direction": direction,
             "target": self.current_parsed.get("target", ""),
+            "from": [from_row, from_col],
+            "to": [from_row + dr, from_col + dc],
             "message": message,
         })
         self.log_to_self("move", f"{player.role_name} moved {obj} {direction}")
@@ -547,6 +564,9 @@ class MatrixGameMaster(DialogueGameMaster):
         self.log_key(METRIC_REQUEST_COUNT_PARSED, self.parsed_request_counts)
         self.log_key(METRIC_REQUEST_COUNT_VIOLATED, self.violated_request_counts)
         self.log_key(MOVE_COUNT, len(self.move_log))
+        self.log_key(MOVE_ATTEMPTS, self.move_attempts)
+        self.log_key(ILLEGAL_ATTEMPTS, self.illegal_attempts)
+        self.log_key(BLOCKED_ATTEMPTS, self.blocked_attempts)
         self.log_key(TURN_MOVES, self.move_log)
         self.log_key("Player A Done", int(self.player_a_done))
         self.log_key("Player B Done", int(self.player_b_done))
