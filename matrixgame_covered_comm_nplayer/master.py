@@ -82,10 +82,11 @@ COMM_DONE_PATTERN = re.compile(
     re.IGNORECASE,
 )
 
-# Lenient check for C1 structured message format (warn but don't abort on mismatch)
+# Structured-protocol message schema, enforced (thesis: the protocol
+# *prescribes* the schema). Anchored: the message must BE the schema.
 STRUCTURED_MSG_PATTERN = re.compile(
-    r"PLAN:\s*move\s+\S+\s+from\s*\(R\d+,C\d+\)\s+to\s*\(R\d+,C\d+\)\s*[—\-]+\s*REQUEST:\s*.+",
-    re.IGNORECASE,
+    r"\A\s*PLAN:\s*move\s+\S+\s+from\s*\(R\d+,C\d+\)\s+to\s*\(R\d+,C\d+\)\s*[—\-]+\s*REQUEST:\s*.+\Z",
+    re.IGNORECASE | re.DOTALL,
 )
 
 
@@ -347,14 +348,33 @@ class NPlayerMatrixGameMaster(DialogueGameMaster):
             self.reprompt_attempts = 0
             return True
 
-        # C1: warn if structured message format not followed (but don't abort)
+        # Structured protocol: the message MUST match the PLAN/REQUEST schema.
+        # A malformed message is a violation like any parse failure: reprompt,
+        # consume the retry budget, abort on exhaustion. Done declarations are
+        # exempt (their message is the "done" marker).
         if self.comm_protocol == COMM_STRUCTURED:
             msg = parsed.get("message", "")
-            if not STRUCTURED_MSG_PATTERN.search(msg):
+            if not STRUCTURED_MSG_PATTERN.match(msg):
+                self.violated_request_counts += 1
                 self.log_to_self(
                     "malformed_message",
-                    f"{player.role_name}: structured format not followed — got: {msg[:80]}"
+                    f"{player.role_name}: structured format not followed — got: {msg[:80]}",
                 )
+                self.reprompt_attempts += 1
+                if self.reprompt_attempts > self.max_retries:
+                    self.aborted = True
+                    self.log_to_self("abort", "Too many malformed structured messages")
+                else:
+                    self.reprompt_pending = True
+                    self.set_context_for(player, (
+                        "Your message did not follow the required structured format. "
+                        "Use exactly:\n"
+                        'message: PLAN: move [OBJECT] from (Rr,Cc) to (Rr,Cc) — REQUEST: [request or "none"]\n\n'
+                        f"{self._format_reminder()}\n\n"
+                        f"CURRENT BOARD:\n{self._render_for(player)}\n\n"
+                        f"GOAL BOARD:\n{self._render_targets_for(player)}"
+                    ))
+                return False
 
         obj = parsed["object"]
         direction = parsed["direction"]

@@ -172,3 +172,49 @@ def test_masked_move_attempt_clean_gives_semantic_hint():
     assert "partner" in msg
     assert "A, B, C" in msg
     assert "Unknown object" not in msg
+
+
+def test_structured_wellformed_message_passes():
+    master = _setup_master("structured")
+    ok = master._validate_player_response(
+        master.player_a,
+        "message: PLAN: move A from (R1,C1) to (R2,C1) — REQUEST: none\nmove: A to R2,C1 (down)",
+    )
+    assert ok is True
+
+
+def test_structured_malformed_message_reprompts():
+    master = _setup_master("structured")
+    ok = master._validate_player_response(
+        master.player_a, "message: let's go team\nmove: A to R2,C1 (down)"
+    )
+    assert ok is False
+    assert master.reprompt_pending is True
+    assert master.aborted is False
+    assert "PLAN:" in _reprompt_text(master, master.player_a)
+
+
+def test_structured_malformed_thrice_aborts():
+    master = _setup_master("structured")
+    for _ in range(3):
+        master._validate_player_response(
+            master.player_a, "message: chatty\nmove: A to R2,C1 (down)"
+        )
+    assert master.aborted is True
+
+
+def test_structured_done_message_exempt():
+    from master import MatrixGameMaster
+    gi = _make_game_instance("structured")
+    for o in ("A", "B", "C"):
+        gi["target_positions"][o] = gi["start_positions"][o]
+    master = MatrixGameMaster(
+        game_spec=_make_game_spec(),
+        experiment={"variant_config": {"comm_protocol": "structured"}},
+        player_models=[_DummyModel("a"), _DummyModel("b")],
+    )
+    master._on_setup(**gi)
+    ok = master._validate_player_response(
+        master.player_a, "message: done\ndone: all my objects are placed"
+    )
+    assert ok is True

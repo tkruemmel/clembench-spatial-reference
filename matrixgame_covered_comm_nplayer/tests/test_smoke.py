@@ -515,6 +515,81 @@ def test_validate_move_unowned_object_message_lists_own_objects():
     assert "other player" not in err, "N-player phrasing must not say 'the other player'"
 
 
+def test_structured_wellformed_message_passes():
+    from master import NPlayerMatrixGameMaster
+    instance = _make_game_instance(num_players=3, comm_protocol="structured")
+    models = [_DummyModel() for _ in range(3)]
+    master = NPlayerMatrixGameMaster(
+        game_spec=_make_game_spec(num_players=3),
+        experiment={"variant_config": {"comm_protocol": "structured"}},
+        player_models=models,
+    )
+    master._on_setup(**instance)
+    players = master.get_players()
+    ok = master._validate_player_response(
+        players[0],
+        "message: PLAN: move A from (R1,C1) to (R2,C1) — REQUEST: none\nmove: A to R2,C1 (down)",
+    )
+    assert ok is True
+
+
+def test_structured_malformed_message_reprompts():
+    from master import NPlayerMatrixGameMaster
+    instance = _make_game_instance(num_players=3, comm_protocol="structured")
+    models = [_DummyModel() for _ in range(3)]
+    master = NPlayerMatrixGameMaster(
+        game_spec=_make_game_spec(num_players=3),
+        experiment={"variant_config": {"comm_protocol": "structured"}},
+        player_models=models,
+    )
+    master._on_setup(**instance)
+    players = master.get_players()
+    ok = master._validate_player_response(
+        players[0], "message: let's go team\nmove: A to R2,C1 (down)"
+    )
+    assert ok is False
+    assert master.reprompt_pending is True
+    assert master.aborted is False
+    assert "PLAN:" in _reprompt_text(master, players[0])
+
+
+def test_structured_malformed_thrice_aborts():
+    from master import NPlayerMatrixGameMaster
+    instance = _make_game_instance(num_players=3, comm_protocol="structured")
+    models = [_DummyModel() for _ in range(3)]
+    master = NPlayerMatrixGameMaster(
+        game_spec=_make_game_spec(num_players=3),
+        experiment={"variant_config": {"comm_protocol": "structured"}},
+        player_models=models,
+    )
+    master._on_setup(**instance)
+    players = master.get_players()
+    for _ in range(3):
+        master._validate_player_response(
+            players[0], "message: chatty\nmove: A to R2,C1 (down)"
+        )
+    assert master.aborted is True
+
+
+def test_structured_done_message_exempt():
+    from master import NPlayerMatrixGameMaster
+    instance = _make_game_instance(num_players=3, comm_protocol="structured")
+    for o in instance["player_objects"][0]:
+        instance["target_positions"][o] = instance["start_positions"][o]
+    models = [_DummyModel() for _ in range(3)]
+    master = NPlayerMatrixGameMaster(
+        game_spec=_make_game_spec(num_players=3),
+        experiment={"variant_config": {"comm_protocol": "structured"}},
+        player_models=models,
+    )
+    master._on_setup(**instance)
+    players = master.get_players()
+    ok = master._validate_player_response(
+        players[0], "message: done\ndone: all my objects are placed"
+    )
+    assert ok is True
+
+
 def test_next_player_skips_done():
     from master import NPlayerMatrixGameMaster
     instance = _make_game_instance(num_players=6, comm_protocol="none")
