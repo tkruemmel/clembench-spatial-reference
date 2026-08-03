@@ -216,7 +216,11 @@ def _scorer(optimal=10) -> SoloMatrixGameScorer:
     return SoloMatrixGameScorer(
         game_name="matrixgame_covered_solo",
         experiment={"name": "test"},
-        game_instance={"optimal_moves": optimal},
+        game_instance={
+            "optimal_moves": optimal,
+            "start_positions": {},
+            "target_positions": {},
+        },
     )
 
 

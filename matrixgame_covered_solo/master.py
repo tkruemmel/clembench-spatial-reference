@@ -28,12 +28,13 @@ from clemcore.clemgame import GameSpec, Player, GameBenchmark
 from clemcore.clemgame.legacy.scorer import GameScorer
 from clemcore.clemgame.legacy.master import DialogueGameMaster
 from clemcore.clemgame.metrics import (
-    METRIC_ABORTED, METRIC_SUCCESS, METRIC_LOSE,
+    METRIC_ABORTED, METRIC_SUCCESS, METRIC_LOSE, METRIC_PLAYED,
     METRIC_REQUEST_COUNT, METRIC_REQUEST_COUNT_VIOLATED,
     METRIC_REQUEST_COUNT_PARSED, BENCH_SCORE,
 )
 
 from utils.board import Board, DIRECTIONS
+from utils.metrics import oscillation_stats, deadlock_flag, path_ratios, message_lengths
 
 logger = logging.getLogger(__name__)
 
@@ -358,11 +359,18 @@ class SoloMatrixGameScorer(GameScorer):
         aborted = episode_interactions.get(METRIC_ABORTED, 0)
         success = episode_interactions.get(METRIC_SUCCESS, 0)
         move_count = episode_interactions.get(MOVE_COUNT, 0)
+        move_log = episode_interactions.get(TURN_MOVES, []) or []
+        attempts = episode_interactions.get(MOVE_ATTEMPTS, 0)
+        illegal = episode_interactions.get(ILLEGAL_ATTEMPTS, 0)
+        blocked = episode_interactions.get(BLOCKED_ATTEMPTS, 0)
         optimal = self.game_instance.get("optimal_moves", move_count)
+        starts = self.game_instance["start_positions"]
+        targets = self.game_instance["target_positions"]
 
         self.log_episode_score(METRIC_ABORTED, aborted)
         self.log_episode_score(METRIC_SUCCESS, success)
         self.log_episode_score(METRIC_LOSE, int(not success and not aborted))
+        self.log_episode_score(METRIC_PLAYED, 1 - aborted)
         self.log_episode_score(MOVE_COUNT, move_count)
 
         if aborted:
@@ -372,6 +380,38 @@ class SoloMatrixGameScorer(GameScorer):
             self.log_episode_score(BENCH_SCORE, score)
         else:
             self.log_episode_score(BENCH_SCORE, 0)
+
+        # Spatial-efficiency family
+        self.log_episode_score(
+            "Move Efficiency",
+            round(optimal / max(move_count, 1), 4) if success else np.nan,
+        )
+        self.log_episode_score(
+            "Illegal Move Rate", round(illegal / attempts, 4) if attempts else 0
+        )
+        self.log_episode_score(
+            "Blocked Move Rate", round(blocked / attempts, 4) if attempts else 0
+        )
+        ratios = path_ratios(move_log, starts, targets)
+        if ratios:
+            vals = list(ratios.values())
+            self.log_episode_score("Path Ratio Mean", round(sum(vals) / len(vals), 4))
+            self.log_episode_score("Path Ratio Max", round(max(vals), 4))
+
+        # Failure-mode family
+        osc_count, osc_flag = oscillation_stats(move_log, k=4)
+        self.log_episode_score("Oscillation Count", osc_count)
+        self.log_episode_score("Oscillation Flag", osc_flag)
+        self.log_episode_score(
+            "Deadlock Flag", deadlock_flag(move_log, starts, targets, k=6)
+        )
+
+        # Communication family (message: is the solo scratchpad / team channel)
+        lengths = message_lengths(move_log)
+        self.log_episode_score("Message Count", len(lengths))
+        if lengths:
+            self.log_episode_score("Message Length Mean", round(sum(lengths) / len(lengths), 2))
+            self.log_episode_score("Message Length Max", max(lengths))
 
 
 # ── Benchmark entry point ──────────────────────────────────────────────

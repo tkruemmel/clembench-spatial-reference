@@ -677,7 +677,7 @@ def test_scorer_success_score_capped():
     scorer = NPlayerMatrixGameScorer(
         game_name="matrixgame_covered_comm_6p",
         experiment={},
-        game_instance={"optimal_moves": 20},
+        game_instance={"optimal_moves": 20, "start_positions": {}, "target_positions": {}},
     )
     captured = {}
     scorer.log_episode_score = lambda k, v: captured.__setitem__(k, v)
@@ -697,7 +697,7 @@ def test_scorer_abort_returns_nan():
     scorer = NPlayerMatrixGameScorer(
         game_name="matrixgame_covered_comm_6p",
         experiment={},
-        game_instance={"optimal_moves": 20},
+        game_instance={"optimal_moves": 20, "start_positions": {}, "target_positions": {}},
     )
     captured = {}
     scorer.log_episode_score = lambda k, v: captured.__setitem__(k, v)
