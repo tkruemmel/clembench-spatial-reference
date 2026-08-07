@@ -157,6 +157,14 @@ def _reprompt_text(master, player):
     return (ctx.get("content") if isinstance(ctx, dict) else ctx) or ""
 
 
+def test_timeout_is_lose_not_abort():
+    master = _setup_master("none")
+    master.move_log = [{}] * master.max_turns
+    assert master._does_game_proceed() is False
+    assert master.lost is True
+    assert master.aborted is False
+
+
 def test_render_targets_for_shows_only_own_targets():
     master = _setup_master()
     rendered = master._render_targets_for(master.player_a)  # owns A, B, C

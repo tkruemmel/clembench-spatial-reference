@@ -183,7 +183,16 @@ def test_does_game_proceed_false_after_max_turns():
     master._validate_player_response(master.player, "move: A to R1,C0 (down)")
     master._on_valid_player_response(master.player, "A to R1,C0 (down)")
     assert master._does_game_proceed() is False
-    assert master.aborted is True
+    assert master.lost is True
+    assert master.aborted is False
+
+
+def test_timeout_is_lose_not_abort():
+    m = _make_master(thinking=False)
+    m.move_log = [{}] * m.max_turns
+    assert m._does_game_proceed() is False
+    assert m.lost is True
+    assert m.aborted is False
 
 
 def test_invalid_move_reprompts_with_format_reminder():
@@ -253,6 +262,17 @@ def test_bench_score_partial_on_overrun_success():
     s = _scorer(optimal=10)
     s.compute_scores(_episode(aborted=0, success=1, move_count=20))
     assert _episode_score(s, BENCH_SCORE) == 50.0
+
+
+def test_lost_episode_scores_zero_and_played():
+    from clemcore.clemgame.metrics import METRIC_LOSE, METRIC_PLAYED
+    s = _scorer()
+    ep = _episode(aborted=0, success=0, move_count=20)
+    ep[METRIC_LOSE] = 1  # METRIC_LOSE == "Lose"
+    s.compute_scores(ep)
+    assert _episode_score(s, BENCH_SCORE) == 0
+    assert _episode_score(s, METRIC_PLAYED) == 1
+    assert _episode_score(s, METRIC_LOSE) == 1
 
 
 # ── End-to-end smoke ──────────────────────────────────────────────────

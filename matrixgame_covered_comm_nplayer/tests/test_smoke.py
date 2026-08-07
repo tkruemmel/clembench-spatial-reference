@@ -293,6 +293,21 @@ def _make_game_spec(num_players=6):
     )
 
 
+def test_timeout_is_lose_not_abort():
+    from master import NPlayerMatrixGameMaster
+    instance = _make_game_instance(num_players=3)
+    master = NPlayerMatrixGameMaster(
+        game_spec=_make_game_spec(num_players=3),
+        experiment={"variant_config": {"comm_protocol": instance["comm_protocol"]}},
+        player_models=[_DummyModel(f"m{i}") for i in range(3)],
+    )
+    master._on_setup(**instance)
+    master.move_log = [{}] * master.max_turns
+    assert master._does_game_proceed() is False
+    assert master.lost is True
+    assert master.aborted is False
+
+
 @pytest.mark.parametrize("num_players", [3, 6])
 def test_master_setup_builds_n_players(num_players):
     from master import NPlayerMatrixGameMaster

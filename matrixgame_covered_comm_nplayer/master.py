@@ -187,6 +187,7 @@ class NPlayerMatrixGameMaster(DialogueGameMaster):
 
         self.success = False
         self.aborted = False
+        self.lost = False
         self.reprompt_attempts = 0
         self.reprompt_pending: bool = False
         self.current_parsed: Optional[Dict[str, str]] = None
@@ -302,11 +303,11 @@ class NPlayerMatrixGameMaster(DialogueGameMaster):
     # ── game loop ──────────────────────────────────────────────────────
 
     def _does_game_proceed(self) -> bool:
-        if self.success or self.aborted:
+        if self.success or self.aborted or self.lost:
             return False
         if len(self.move_log) >= self.max_turns:
-            self.aborted = True
-            self.log_to_self("abort", f"Max turns ({self.max_turns}) reached")
+            self.lost = True
+            self.log_to_self("lose", f"Max turns ({self.max_turns}) reached without success")
             return False
         return True
 
@@ -556,7 +557,7 @@ class NPlayerMatrixGameMaster(DialogueGameMaster):
     def _on_after_game(self):
         self.log_key(METRIC_ABORTED, int(self.aborted))
         self.log_key(METRIC_SUCCESS, int(self.success))
-        self.log_key(METRIC_LOSE, int(not self.success and not self.aborted))
+        self.log_key(METRIC_LOSE, int(self.lost))
         self.log_key(METRIC_REQUEST_COUNT, self.request_counts)
         self.log_key(METRIC_REQUEST_COUNT_PARSED, self.parsed_request_counts)
         self.log_key(METRIC_REQUEST_COUNT_VIOLATED, self.violated_request_counts)
@@ -590,7 +591,8 @@ class NPlayerMatrixGameScorer(GameScorer):
 
         self.log_episode_score(METRIC_ABORTED, aborted)
         self.log_episode_score(METRIC_SUCCESS, success)
-        self.log_episode_score(METRIC_LOSE, int(not success and not aborted))
+        lost = episode_interactions.get(METRIC_LOSE, int(not success and not aborted))
+        self.log_episode_score(METRIC_LOSE, lost)
         self.log_episode_score(METRIC_PLAYED, 1 - aborted)
         self.log_episode_score(MOVE_COUNT, move_count)
 
