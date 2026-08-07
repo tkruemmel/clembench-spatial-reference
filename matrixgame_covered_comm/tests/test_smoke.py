@@ -264,3 +264,23 @@ def test_move_log_has_from_to():
     master._on_valid_player_response(master.player_a, "A to R2,C1 (down)")
     entry = master.move_log[-1]
     assert entry["from"] == [0, 0] and entry["to"] == [1, 0]
+
+
+def test_coordinate_mismatch_is_illegal_and_reprompts():
+    from master import DIRECTIONS
+    master = _setup_master("none")
+    a0 = master.player_a
+    # A legal one-cell move but with a wrong declared destination cell.
+    obj = sorted(master._objects_for(a0))[0]
+    r, c = master.board.object_positions[obj]
+    # choose a legal direction into an empty neighbour, then lie about the cell
+    for direction, (dr, dc) in DIRECTIONS.items():
+        nr, nc = r + dr, c + dc
+        if 0 <= nr < master.grid_size and 0 <= nc < master.grid_size \
+           and (nr, nc) not in master.board.walls and master.board.is_cell_empty(nr, nc):
+            break
+    resp = f"move: {obj} to R9,C9 ({direction})"
+    ok = master._validate_player_response(a0, resp)
+    assert ok is False
+    assert master.illegal_attempts == 1
+    assert master.reprompt_pending is True

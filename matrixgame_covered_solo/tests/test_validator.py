@@ -22,13 +22,15 @@ def _player():
 
 
 def test_validate_accepts_valid_move():
-    parsed = {"object": "A", "direction": "down", "target": "R1,C0"}
+    # A at (0,0) 0-based -> down lands on (1,0) 0-based == R2,C1 1-based.
+    parsed = {"object": "A", "direction": "down", "target": "R2,C1"}
     error = _validate_move(_board_with_walls(), _player(), parsed)
     assert error is None
 
 
 def test_validate_rejects_wall():
-    parsed = {"object": "B", "direction": "down", "target": "R1,C1"}
+    # B at (0,1) 0-based -> down lands on (1,1) 0-based == R2,C2 1-based (a wall).
+    parsed = {"object": "B", "direction": "down", "target": "R2,C2"}
     error = _validate_move(_board_with_walls(), _player(), parsed)
     assert error is not None
     code, msg = error
@@ -40,7 +42,8 @@ def test_validate_rejects_occupied():
     """D sits at (2,0); A trying to land there must fail."""
     b = _board_with_walls()
     b.apply_move("A", "down")
-    parsed = {"object": "A", "direction": "down", "target": "R2,C0"}
+    # A now at (1,0) 0-based -> down lands on (2,0) 0-based == R3,C1 1-based (occupied by D).
+    parsed = {"object": "A", "direction": "down", "target": "R3,C1"}
     error = _validate_move(b, _player(), parsed)
     assert error is not None
     code, msg = error
@@ -55,3 +58,16 @@ def test_validate_rejects_out_of_bounds():
     code, msg = error
     assert code == "off_grid"
     assert "grid" in msg.lower()
+
+
+def test_validate_move_coordinate_mismatch():
+    from utils.board import Board
+    b = Board(8, set())
+    b.place_object("A", 2, 2)  # 0-based -> displayed R3C3
+    # moving A down lands on (3,2) == R4C3; declaring R9C9 (8,8 0-based) is a mismatch
+    err = b.validate_move("A", "down", allowed_objects={"A"}, declared_target=(8, 8))
+    assert err is not None and err[0] == "coordinate_mismatch"
+    # correct declaration passes
+    assert b.validate_move("A", "down", allowed_objects={"A"}, declared_target=(3, 2)) is None
+    # omitting declared_target keeps old behaviour
+    assert b.validate_move("A", "down", allowed_objects={"A"}) is None

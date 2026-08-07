@@ -114,6 +114,14 @@ def _render_targets_view(board: Board, compact: bool) -> str:
     return board.render_targets()
 
 
+def _declared_cell(parsed: Dict[str, str]) -> Optional[Tuple[int, int]]:
+    """0-based (row, col) of the declared 'RrowCcol' target, or None if absent."""
+    m = re.match(r"R(\d+),?C(\d+)", parsed.get("target", ""))
+    if not m:
+        return None
+    return int(m.group(1)) - 1, int(m.group(2)) - 1
+
+
 # ── Validation ─────────────────────────────────────────────────────────
 
 def _validate_move(board: Board, player: SoloMatrixPlayer, parsed: Dict[str, str]) -> Optional[Tuple[str, str]]:
@@ -125,6 +133,7 @@ def _validate_move(board: Board, player: SoloMatrixPlayer, parsed: Dict[str, str
         parsed["object"],
         parsed["direction"],
         allowed_objects=player.own_objects,
+        declared_target=_declared_cell(parsed),
     )
 
 

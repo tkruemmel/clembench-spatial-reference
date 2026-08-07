@@ -117,9 +117,10 @@ def test_invalid_format_triggers_reprompt_then_abort():
 def test_valid_move_applies_and_does_not_end_episode():
     master = _make_master(thinking=False)
     # A is at (0,0), all targets at (2,*); moving A down once is valid and not solving.
-    ok = master._validate_player_response(master.player, "move: A to R1,C0 (down)")
+    # (0,0) 0-based -> down lands on (1,0) 0-based == R2,C1 1-based.
+    ok = master._validate_player_response(master.player, "move: A to R2,C1 (down)")
     assert ok is True
-    master._on_valid_player_response(master.player, "A to R1,C0 (down)")
+    master._on_valid_player_response(master.player, "A to R2,C1 (down)")
     assert master.board.object_positions["A"] == (1, 0)
     assert master.success is False
     assert master.aborted is False
@@ -169,9 +170,10 @@ def test_success_triggers_when_all_objects_at_targets():
         b.grid[r][c] = obj
 
     # Now the only object not on target is F at (1,3); F's target is (1,2). One move left.
-    ok = master._validate_player_response(master.player, "move: F to R1,C2 (left)")
+    # F at (1,3) 0-based -> left lands on (1,2) 0-based == R2,C3 1-based.
+    ok = master._validate_player_response(master.player, "move: F to R2,C3 (left)")
     assert ok is True
-    master._on_valid_player_response(master.player, "F to R1,C2 (left)")
+    master._on_valid_player_response(master.player, "F to R2,C3 (left)")
     assert master.success is True
     assert master.aborted is False
 
@@ -180,8 +182,9 @@ def test_does_game_proceed_false_after_max_turns():
     master = _make_master(thinking=False)
     master.max_turns = 1
     # Apply one valid move
-    master._validate_player_response(master.player, "move: A to R1,C0 (down)")
-    master._on_valid_player_response(master.player, "A to R1,C0 (down)")
+    # A at (0,0) 0-based -> down lands on (1,0) 0-based == R2,C1 1-based.
+    master._validate_player_response(master.player, "move: A to R2,C1 (down)")
+    master._on_valid_player_response(master.player, "A to R2,C1 (down)")
     assert master._does_game_proceed() is False
     assert master.lost is True
     assert master.aborted is False
@@ -200,7 +203,8 @@ def test_invalid_move_reprompts_with_format_reminder():
     master = _make_master(thinking=False)
     # Place a wall directly below A's start so moving A down hits it.
     master.board.walls.add((1, 0))
-    ok = master._validate_player_response(master.player, "move: A to R1,C0 (down)")
+    # A at (0,0) 0-based -> down lands on (1,0) 0-based == R2,C1 1-based (the wall).
+    ok = master._validate_player_response(master.player, "move: A to R2,C1 (down)")
     assert ok is False
     assert master.reprompt_pending is True
     assert master.aborted is False

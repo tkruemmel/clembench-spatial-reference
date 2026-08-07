@@ -19,7 +19,7 @@ A player who declares "done" (with all their objects at targets) stops receiving
 
 import re
 import logging
-from typing import Dict, List, Optional, Set
+from typing import Dict, List, Optional, Set, Tuple
 
 import numpy as np
 
@@ -127,6 +127,14 @@ def _parse_response(response: str, with_message: bool) -> Optional[Dict[str, str
         return result
 
     return None
+
+
+def _declared_cell(parsed: Dict[str, str]) -> Optional[Tuple[int, int]]:
+    """0-based (row, col) of the declared 'RrowCcol' target, or None if absent."""
+    m = re.match(r"R(\d+),?C(\d+)", parsed.get("target", ""))
+    if not m:
+        return None
+    return int(m.group(1)) - 1, int(m.group(2)) - 1
 
 
 # ── Player ─────────────────────────────────────────────────────────────
@@ -394,7 +402,9 @@ class MatrixGameMaster(DialogueGameMaster):
         obj = parsed["object"]
         direction = parsed["direction"]
         allowed = self._objects_for(player)
-        error = self.board.validate_move(obj, direction, allowed_objects=allowed)
+        error = self.board.validate_move(
+            obj, direction, allowed_objects=allowed, declared_target=_declared_cell(parsed)
+        )
 
         if error:
             code, err_msg = error

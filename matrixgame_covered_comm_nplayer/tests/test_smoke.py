@@ -440,6 +440,34 @@ def test_validate_response_accepts_valid_move():
     assert master._validate_player_response(players[0], resp)
 
 
+def test_coordinate_mismatch_is_illegal_and_reprompts():
+    from master import NPlayerMatrixGameMaster, DIRECTIONS
+    instance = _make_game_instance(num_players=6, comm_protocol="none")
+    models = [_DummyModel() for _ in range(6)]
+    master = NPlayerMatrixGameMaster(
+        game_spec=_make_game_spec() if "_make_game_spec" in globals() else None,
+        experiment={"variant_config": {"comm_protocol": "none"}},
+        player_models=models,
+    )
+    master._on_setup(**instance)
+    players = master.get_players()
+    p0 = players[0]
+    # A legal one-cell move but with a wrong declared destination cell.
+    obj = sorted(master._objects_for(p0))[0]
+    r, c = master.board.object_positions[obj]
+    # choose a legal direction into an empty neighbour, then lie about the cell
+    for direction, (dr, dc) in DIRECTIONS.items():
+        nr, nc = r + dr, c + dc
+        if 0 <= nr < master.grid_size and 0 <= nc < master.grid_size \
+           and (nr, nc) not in master.board.walls and master.board.is_cell_empty(nr, nc):
+            break
+    resp = f"move: {obj} to R9,C9 ({direction})"
+    ok = master._validate_player_response(p0, resp)
+    assert ok is False
+    assert master.illegal_attempts == 1
+    assert master.reprompt_pending is True
+
+
 def test_validate_response_rejects_unowned_object():
     from master import NPlayerMatrixGameMaster
     instance = _make_game_instance(num_players=6, comm_protocol="none")
