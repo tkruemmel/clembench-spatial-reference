@@ -538,12 +538,6 @@ class MatrixGameMaster(DialogueGameMaster):
         other = self.player_b if player == self.player_a else self.player_a
         other_done = self._is_done_player(other)
 
-        # Move description: hide object identity if other player can't see it
-        if self.use_masking and obj not in self._objects_for(other):
-            move_desc = f"{player.role_name} moved a blocked object {direction}."
-        else:
-            move_desc = f"{player.role_name} moved {obj} {direction}."
-
         if message and self.with_message:
             comm_line = f"{player.role_name} says: {message}\n\n"
         else:
@@ -553,7 +547,6 @@ class MatrixGameMaster(DialogueGameMaster):
             # Partner finished; current player continues alone
             self.set_context_for(player, (
                 f"Your partner has finished. Continue placing your remaining objects alone.\n\n"
-                f"You moved {obj} {direction}.\n\n"
                 f"CURRENT BOARD:\n{self._render_for(player)}\n\n"
                 f"GOAL BOARD:\n{self._render_targets_for(player)}\n\n"
                 f"Your turn. Respond with:\n{self._format_reminder()}"
@@ -565,7 +558,6 @@ class MatrixGameMaster(DialogueGameMaster):
         else:
             self.set_context_for(other, (
                 f"{comm_line}"
-                f"{move_desc}\n\n"
                 f"CURRENT BOARD:\n{self._render_for(other)}\n\n"
                 f"GOAL BOARD:\n{self._render_targets_for(other)}\n\n"
                 f"Your turn. Respond with:\n{self._format_reminder()}"

@@ -534,21 +534,18 @@ class NPlayerMatrixGameMaster(DialogueGameMaster):
             self.log_to_self("success", "All objects have reached their target positions!")
             return
 
-        # Broadcast the move (with optional message) to every other active player.
+        # Broadcast the move to every other active player. Players learn of the
+        # move only from the board listing, not from master narration.
         for other_idx, other in enumerate(self.get_players()):
             if other_idx == player_idx or self.player_done[other_idx]:
                 continue
-            # Mask the moved object's identity if the recipient doesn't own it.
-            if self.use_masking and obj not in self._objects_for(other):
-                move_desc = f"{player.role_name} moved a blocked object {direction}."
-            else:
-                move_desc = f"{player.role_name} moved {obj} {direction}."
-            self.set_context_for(other, self._build_broadcast_context(other, move_desc))
+            self.set_context_for(other, self._build_broadcast_context(other))
 
-    def _build_broadcast_context(self, recipient: Player, move_desc: str) -> str:
+    def _build_broadcast_context(self, recipient: Player, move_desc: str = "") -> str:
         """Build the next-turn context for a recipient: all other players' last
-        messages, the just-happened move description, current and goal boards,
-        and the response format reminder."""
+        messages, an optional master notice (e.g. a done-notification), current
+        and goal boards, and the response format reminder. Regular moves pass
+        no move_desc — players read moves off the board listings."""
         recipient_idx = self._player_to_index[recipient]
         message_lines: List[str] = []
         for other_idx, other in enumerate(self.get_players()):
@@ -558,10 +555,11 @@ class NPlayerMatrixGameMaster(DialogueGameMaster):
             if msg:
                 message_lines.append(f"{other.role_name} says: {msg}")
         comm_block = ("\n".join(message_lines) + "\n\n") if message_lines else ""
+        move_block = (f"{move_desc}\n\n") if move_desc else ""
 
         return (
             f"{comm_block}"
-            f"{move_desc}\n\n"
+            f"{move_block}"
             f"CURRENT BOARD:\n{self._render_for(recipient)}\n\n"
             f"GOAL BOARD:\n{self._render_targets_for(recipient)}\n\n"
             f"Your turn. Respond with:\n{self._format_reminder()}"

@@ -718,12 +718,13 @@ def test_broadcast_after_valid_move_updates_other_contexts():
         ctx_obj = master.get_context_for(players[idx])
         ctx = ctx_obj["content"] if isinstance(ctx_obj, dict) else ctx_obj
         assert "Player A says: hello teammates" in ctx
-        assert "Player A moved A down" in ctx or "Player A moved a blocked object down" in ctx
+        assert "moved" not in ctx
 
 
 def test_broadcast_with_masking_hides_unseen_object():
-    """In 6p mode (every object owned by a different player), Player B should
-    see Player A's move as 'a blocked object' because B can't see A."""
+    """In 6p mode (every object owned by a different player), Player B learns
+    of Player A's move only from the (masked) board listing — the master
+    narrates neither the object's identity nor the move itself."""
     from master import NPlayerMatrixGameMaster
     instance = _make_game_instance(num_players=6, comm_protocol="none")
     models = [_DummyModel() for _ in range(6)]
@@ -738,11 +739,26 @@ def test_broadcast_with_masking_hides_unseen_object():
     assert master._validate_player_response(players[0], resp)
     master._on_valid_player_response(players[0], "A to R2,C1 (down)")
 
-    # Player B (index 1) should see masked move
+    # Player B (index 1) should not see any move narration at all.
     ctx_obj = master.get_context_for(players[1])
     ctx_b = ctx_obj["content"] if isinstance(ctx_obj, dict) else ctx_obj
-    assert "Player A moved a blocked object down" in ctx_b
-    assert "Player A moved A down" not in ctx_b
+    assert "moved" not in ctx_b
+
+
+def test_move_is_not_narrated_to_recipient():
+    """After a normal move, the recipient's context carries no master
+    narration of the move — only messages + boards."""
+    from master import NPlayerMatrixGameMaster
+    instance = _make_game_instance(num_players=3, comm_protocol="freeform")
+    master = NPlayerMatrixGameMaster(
+        game_spec=_make_game_spec(num_players=3),
+        experiment={"variant_config": {"comm_protocol": "freeform"}},
+        player_models=[_DummyModel(f"m{i}") for i in range(3)],
+    )
+    master._on_setup(**instance)
+    ctx = master._build_broadcast_context(master.get_players()[1])
+    assert "moved" not in ctx
+    assert "CURRENT BOARD:" in ctx
 
 
 def test_scorer_success_score_capped():

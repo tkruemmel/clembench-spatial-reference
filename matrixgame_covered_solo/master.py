@@ -339,7 +339,6 @@ class SoloMatrixGameMaster(DialogueGameMaster):
 
         # Build next-turn context
         self.set_context_for(player, (
-            f"You moved {obj} {direction}.\n\n"
             f"CURRENT BOARD:\n{self._render_board()}\n\n"
             f"GOAL BOARD:\n{self._render_goal()}\n\n"
             f"Your turn. Respond with:\n{self._format_reminder()}"
