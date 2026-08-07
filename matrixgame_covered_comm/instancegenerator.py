@@ -91,6 +91,7 @@ class MatrixGameInstanceGenerator(GameInstanceGenerator):
             game_instance["max_retries"] = max_retries
             game_instance["strict"] = strict
             game_instance["use_masking"] = use_masking
+            game_instance["masking_hints"] = common_config.get("masking_hints", True)
             game_instance["spatial_level"] = spatial_level
             game_instance["comm_protocol"] = comm_protocol
             game_instance["compact_board"] = compact_board

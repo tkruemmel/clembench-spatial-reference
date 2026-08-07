@@ -173,6 +173,7 @@ class MatrixGameMaster(DialogueGameMaster):
         optimal = game_instance.get("optimal_moves", 1)
         self.max_turns = game_instance.get("max_turns", max(50, 5 * optimal))
         self.use_masking: bool = game_instance.get("use_masking", True)
+        self.masking_hints: bool = game_instance.get("masking_hints", True)
         self.comm_protocol: str = game_instance.get("comm_protocol", COMM_NONE)
         self.with_message: bool = self.comm_protocol != COMM_NONE
         self.compact_board: bool = game_instance.get("compact_board", False)
@@ -340,7 +341,8 @@ class MatrixGameMaster(DialogueGameMaster):
             else:
                 self.reprompt_pending = True
                 guidance = (
-                    self._masked_move_message(player) if masked_attempt
+                    self._masked_move_message(player)
+                    if (masked_attempt and self.masking_hints)
                     else "Your response could not be parsed. Please respond exactly in this format:"
                 )
                 self.set_context_for(player, (
@@ -428,7 +430,8 @@ class MatrixGameMaster(DialogueGameMaster):
                 # object; give the same semantic redirect as the unparsed form.
                 masked_attempt = self.use_masking and obj == BLOCKED_MARKER
                 guidance = (
-                    self._masked_move_message(player) if masked_attempt
+                    self._masked_move_message(player)
+                    if (masked_attempt and self.masking_hints)
                     else f"Invalid move: {err_msg}\nPlease try again."
                 )
                 self.set_context_for(player, (

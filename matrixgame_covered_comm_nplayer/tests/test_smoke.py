@@ -545,6 +545,38 @@ def test_masked_move_attempt_clean_gives_semantic_hint():
     assert "Unknown object" not in msg
 
 
+def _setup_master_hints(comm_protocol, masking_hints, num_players=3):
+    from master import NPlayerMatrixGameMaster
+    inst = _make_game_instance(num_players=num_players, comm_protocol=comm_protocol)
+    inst["masking_hints"] = masking_hints
+    models = [_DummyModel(f"m{i}") for i in range(num_players)]
+    master = NPlayerMatrixGameMaster(
+        game_spec=_make_game_spec(num_players=num_players),
+        experiment={"variant_config": {"comm_protocol": comm_protocol}},
+        player_models=models,
+    )
+    master._on_setup(**inst)
+    return master
+
+
+def test_masking_hint_shown_when_flag_on():
+    master = _setup_master_hints("none", masking_hints=True)
+    player0 = master.get_players()[0]
+    ok = master._validate_player_response(player0, "move: X to R1,C1 (down)")
+    assert ok is False
+    assert "marks your teammates'" in _reprompt_text(master, player0)
+    assert master.illegal_attempts == 1  # counting unaffected
+
+
+def test_masking_hint_suppressed_when_flag_off():
+    master = _setup_master_hints("none", masking_hints=False)
+    player0 = master.get_players()[0]
+    ok = master._validate_player_response(player0, "move: X to R1,C1 (down)")
+    assert ok is False
+    assert "marks your teammates'" not in _reprompt_text(master, player0)
+    assert master.illegal_attempts == 1  # counting still identical
+
+
 def test_validate_move_unowned_object_message_lists_own_objects():
     """Board-level ownership error must name the player's own objects and must
     not use the 2-player legacy phrasing 'the other player'."""

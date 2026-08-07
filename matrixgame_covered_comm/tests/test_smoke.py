@@ -266,6 +266,35 @@ def test_move_log_has_from_to():
     assert entry["from"] == [0, 0] and entry["to"] == [1, 0]
 
 
+def _setup_master_hints(comm_protocol, masking_hints):
+    from master import MatrixGameMaster
+    inst = _make_game_instance(comm_protocol)
+    inst["masking_hints"] = masking_hints
+    master = MatrixGameMaster(
+        game_spec=_make_game_spec(),
+        experiment={"variant_config": {"comm_protocol": comm_protocol}},
+        player_models=[_DummyModel("a"), _DummyModel("b")],
+    )
+    master._on_setup(**inst)
+    return master
+
+
+def test_masking_hint_shown_when_flag_on():
+    master = _setup_master_hints("none", masking_hints=True)
+    ok = master._validate_player_response(master.player_a, "move: X to R1,C1 (down)")
+    assert ok is False
+    assert "marks your partner's" in _reprompt_text(master, master.player_a)
+    assert master.illegal_attempts == 1  # counting unaffected
+
+
+def test_masking_hint_suppressed_when_flag_off():
+    master = _setup_master_hints("none", masking_hints=False)
+    ok = master._validate_player_response(master.player_a, "move: X to R1,C1 (down)")
+    assert ok is False
+    assert "marks your partner's" not in _reprompt_text(master, master.player_a)
+    assert master.illegal_attempts == 1  # counting still identical
+
+
 def test_coordinate_mismatch_is_illegal_and_reprompts():
     from master import DIRECTIONS
     master = _setup_master("none")
