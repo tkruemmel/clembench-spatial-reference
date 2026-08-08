@@ -1,5 +1,6 @@
 import random
 from typing import List, Dict
+from dataclasses import dataclass
 
 import numpy as np
 import logging
@@ -9,6 +10,7 @@ from clemcore.backends import Model
 from clemcore.clemgame import GameSpec, Player, GameBenchmark, metrics
 from clemcore.clemgame.legacy.scorer import GameScorer
 from clemcore.clemgame.legacy.master import DialogueGameMaster
+from clemcore.clemgame.master import GameState, Outcome
 
 import re
 
@@ -29,29 +31,26 @@ class InstructionGiver(Player):
         return "Expression: The one that looks like the target."
 
 
-class ReferenceGame:
+@dataclass
+class ReferenceGameGameState(GameState):
+    lang: str = None
+    p1_mode: str = None
+    p2_mode: str = None
+    game_id: str = None
+    player_1_prompt_header: str = None
+    player_2_prompt_header: str = None
+    target_grid_name: str = None
+    player_1_response_pattern: str = None
+    player_2_response_pattern: str = None
+    player_1_target_grid: str = None
+    player_1_second_grid: str = None
+    player_1_third_grid: str = None
+    player_2_first_grid: str = None
+    player_2_second_grid: str = None
+    player_2_third_grid: str = None
 
-    def __init__(self, game_instance: Dict):
-        self.lang = game_instance['lang']
-        self.p1_mode = game_instance['p1_mode']
-        self.p2_mode = game_instance['p2_mode']
-        self.game_id = game_instance['game_id']
-        self.player_1_prompt_header = game_instance['player_1_prompt_header']
-        self.player_2_prompt_header = game_instance['player_2_prompt_header']
-        self.target_grid_name = game_instance['target_grid_name']
-
-        self.player_1_response_pattern = r'{}'.format(game_instance['player_1_response_pattern'])
-        self.player_2_response_pattern = r'{}'.format(game_instance['player_2_response_pattern'])
-
-        self.player_1_target_grid = game_instance['player_1_target_grid']
-        self.player_1_second_grid = game_instance['player_1_second_grid']
-        self.player_1_third_grid = game_instance['player_1_third_grid']
-
-        self.player_2_first_grid = game_instance['player_2_first_grid']
-        self.player_2_second_grid = game_instance['player_2_second_grid']
-        self.player_2_third_grid = game_instance['player_2_third_grid']
-
-        self.terminate = False
+    def __post_init__(self):
+        super().__init__()
 
 
 class ReferenceGameMaster(DialogueGameMaster):
@@ -60,10 +59,28 @@ class ReferenceGameMaster(DialogueGameMaster):
         super().__init__(game_spec, experiment, player_models)
 
     def _on_setup(self, **game_instance):
-        self.game = ReferenceGame(game_instance)
+        self.state = ReferenceGameGameState(
+            lang = game_instance['lang'],
+            p1_mode = game_instance['p1_mode'],
+            p2_mode = game_instance['p2_mode'],
+            game_id = game_instance['game_id'],
+            player_1_prompt_header = game_instance['player_1_prompt_header'],
+            player_2_prompt_header = game_instance['player_2_prompt_header'],
+            target_grid_name = game_instance['target_grid_name'],
+            player_1_response_pattern = r'{}'.format(game_instance['player_1_response_pattern']),
+            player_2_response_pattern = r'{}'.format(game_instance['player_2_response_pattern']),
+            player_1_target_grid = game_instance['player_1_target_grid'],
+            player_1_second_grid = game_instance['player_1_second_grid'],
+            player_1_third_grid = game_instance['player_1_third_grid'],
+            player_2_first_grid = game_instance['player_2_first_grid'],
+            player_2_second_grid = game_instance['player_2_second_grid'],
+            player_2_third_grid = game_instance['player_2_third_grid'],
+
+
+        )
         self.instruction_giver = InstructionGiver(self.player_models[0])
         self.instruction_follower = InstructionFollower(self.player_models[1])
-        p1_initial_prompt = self.game.player_1_prompt_header
+        p1_initial_prompt = self.state.player_1_prompt_header
         self.add_player(self.instruction_giver, initial_context=p1_initial_prompt)
         self.add_player(self.instruction_follower)
 
@@ -78,31 +95,30 @@ class ReferenceGameMaster(DialogueGameMaster):
         Returns:
             True, if the response is fine. Otherwise, False.
         """
+        is_valid = False
         if player == self.instruction_giver:
             # Player 1 response validation
-            p1_match = re.compile(self.game.player_1_response_pattern, re.IGNORECASE).match(response)
+            p1_match = re.compile(self.state.player_1_response_pattern, re.IGNORECASE).match(response)
             if p1_match:
-                if (self.game.p1_mode == "liberal"
-                        or (self.game.p1_mode == "strict" and p1_match.group('remainder') == "")):
-                    # in liberal mode, we don't care how much more the model generated
-                    # in strict mode, the model should not produce more than one paragraph
-                    return True
-            self.game.terminate = True
-            self.log_to_self("invalid format", "Invalid generated expression")
-            return False
+                if (self.state.p1_mode == "liberal"
+                        or (self.state.p1_mode == "strict" and p1_match.group('remainder') == "")):
+                    is_valid = True
+            else:
+                self.log_to_self("invalid format", "Invalid generated expression")
+                self.state.abort()
         elif player == self.instruction_follower:
-            # Game only has one round, so we terminate regardless of the response
-            self.game.terminate = True
             # Player 2 response validation
-            p2_match = re.compile(self.game.player_2_response_pattern, re.IGNORECASE).match(response)
+            p2_match = re.compile(self.state.player_2_response_pattern, re.IGNORECASE).match(response)
             if p2_match:
-                if (self.game.p2_mode == "liberal"
-                        or (self.game.p2_mode == "strict" and p2_match.group('remainder') == "")):
+                if (self.state.p2_mode == "liberal"
+                        or (self.state.p2_mode == "strict" and p2_match.group('remainder') == "")):
                     # in liberal mode, we don't care how much more the model generated (like "grid" or punctuation)
                     # in strict mode, the model should only produce the label
-                    return True
-            self.log_to_self("invalid format", "Invalid generated expression")
-            return False
+                    is_valid = True
+            else:
+                self.log_to_self("invalid format", "Invalid generated expression")
+                self.state.abort()
+        return is_valid
         
     def _parse_response(self, player, response):
         """ Takes a valid player response and parses it.
@@ -115,12 +131,12 @@ class ReferenceGameMaster(DialogueGameMaster):
         """
         if player == self.instruction_giver:
             # Player 1 response parsing
-            p1_match = re.compile(self.game.player_1_response_pattern, re.IGNORECASE).match(response)
+            p1_match = re.compile(self.state.player_1_response_pattern, re.IGNORECASE).match(response)
             if p1_match:
                 return response
         elif player == self.instruction_follower:
             # Player 2 response parsing
-            player_2_pattern = re.compile(self.game.player_2_response_pattern, re.IGNORECASE)
+            player_2_pattern = re.compile(self.state.player_2_response_pattern, re.IGNORECASE)
             p2_match = re.match(player_2_pattern, response)
             if p2_match:
                 return p2_match.group('response').lower()  # return the label only
@@ -137,18 +153,15 @@ class ReferenceGameMaster(DialogueGameMaster):
         if player == self.instruction_giver:
             self.log_to_self('parse', parsed_response)
             # Game only has one round, so we can use the initial prompt header here
-            p2_prompt = self.game.player_2_prompt_header.replace('TARGET_EXPRESSION', parsed_response)
+            p2_prompt = self.state.player_2_prompt_header.replace('TARGET_EXPRESSION', parsed_response)
             self.set_context_for(self.instruction_follower, p2_prompt)
         else:
-            if parsed_response in self.game.target_grid_name:
+            if parsed_response in self.state.target_grid_name:
                 self.log_to_self('parse_correct', parsed_response)
+                self.state.succeed()
             else:
                 self.log_to_self('parse_wrong', parsed_response)
-
-    def _does_game_proceed(self):
-        if self.game.terminate:
-            return False
-        return True
+                self.state.failed()
 
 
 class ReferenceGameScorer(GameScorer):

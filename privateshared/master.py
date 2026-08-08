@@ -4,6 +4,7 @@ Implementation of a game master that control the game mechanisms.
 """
 import random
 from typing import List, Dict, Tuple
+from dataclasses import dataclass, field
 
 import numpy as np
 from sklearn.metrics import accuracy_score as acc_score
@@ -14,6 +15,7 @@ from clemcore.backends import Model, CustomResponseModel
 from clemcore.clemgame import GameSpec, Player, GameBenchmark
 from clemcore.clemgame.legacy.master import DialogueGameMaster
 from clemcore.clemgame.legacy.scorer import GameScorer
+from clemcore.clemgame.master import GameState, Outcome
 import logging
 
 from constants import (
@@ -21,6 +23,7 @@ from constants import (
     INVALID_LABEL, INVALID, SUCCESS, NOT_SUCCESS, NOT_PARSED, RESULT)
 
 logger = logging.getLogger(__name__)
+stdout_logger = logging.getLogger('privateshared')
 
 
 class Words:
@@ -77,16 +80,31 @@ class Questioner(Player):
     def set_question_type_for(self, current_round: int):
         self.question_type = self.question_order[current_round - 1]
 
+@dataclass
+class PrivateSharedGameState(GameState):
+    filled_slots: List[bool] = field(default_factory=list)
+    played_probing_rounds: int = 0
+    probing_questions: Dict[str,List[str]] = None
+    retries: List[str] = None
+    questioner_tag: str = None
+    probing: Dict[str,Dict[str,int]] = None
+    probe_gt: Dict[str,int] = None
+    slots: Dict[str,str] = None
+    question_order: List[str] = None
+    messages: List = field(default_factory=list)
+    max_turns: int = None
+    n_probe_turns: int = None
+    words: Words = None
+    initial_prompt: str = None
+    all_probes: List = field(default_factory=list)
+    request_counts: List[int] = None
+    parsed_request_counts: List[int] = None
+    violated_request_counts: List[int] = None
+    probes_all_correct: bool = True
 
-class PrivateSharedGame:
-    """Basic QA mechanism, to be called by the game master."""
 
-    def __init__(self, question_order: List[str], slots: Dict[str, str]):
-        self.slots = slots
-        self.max_turns: int = len(question_order)
-        self.question_order = question_order
-        self.messages: List = []
-        self.current_round: int = 0
+    def __post_init__(self):
+        super().__init__()
 
 
 class PrivateShared(DialogueGameMaster):
@@ -101,60 +119,57 @@ class PrivateShared(DialogueGameMaster):
         Args:
             game_instance: A dictionary containing the game instance parameters.
         """
-        self.filled_slots: List = []
-        self.aborted: bool = False
-        self.played_probing_rounds: int = 0
+        max_turns = len(game_instance['request_order'])
+        n_probe_turns = max_turns + 1
+        self.state = PrivateSharedGameState(probing_questions = self.load_json(PROBES_PATH.format(self.experiment['name'])),
+                                            retries = self.load_json(RETRIES_PATH)['suffixes'],
+                                            questioner_tag = f"{game_instance['tag']}: ",
+                                            probing = game_instance['probes'],
+                                            probe_gt = {slot: i for i, slot in enumerate(game_instance['request_order'])},
+                                            slots = game_instance['slots'],
+                                            question_order = game_instance['request_order'],
+                                            max_turns = max_turns,
+                                            n_probe_turns = n_probe_turns,
+                                            words = Words(self.load_json(WORDS_PATH.format(game_instance['lang']))),  # load language specific words
+                                            initial_prompt = game_instance['initial_prompt'],
+                                            # initialise turn counters for common metrics
+                                            request_counts = [0] * n_probe_turns,
+                                            parsed_request_counts = [0] * n_probe_turns,
+                                            violated_request_counts = [0] * n_probe_turns
 
-        # set up game instance
-        self.game_instance = game_instance
-        self.probing_questions = self.load_json(PROBES_PATH.format(self.experiment['name']))
-        self.retries = self.load_json(RETRIES_PATH)['suffixes']
+                                            )
 
-        self.questioner_tag = f"{game_instance['tag']}: "
-        self.probing = game_instance['probes']
-        self.probe_gt = {slot: i for i, slot in enumerate(game_instance['request_order'])}
-        self.game = PrivateSharedGame(game_instance['request_order'], game_instance['slots'])
-        self.n_probe_turns = self.game.max_turns + 1  # one probing before the game starts and one after each request
         request_strings = self.load_json(REQUESTS_PATH.format(self.experiment['name']))
-        self.words = Words(self.load_json(WORDS_PATH.format(game_instance['lang'])))  # load language specific words
-        self.initial_prompt = game_instance['initial_prompt']
-        self.all_probes: List[List[Dict]] = []
         
-        self.answerer: Answerer = Answerer(self.player_models[0], self.words)
+        self.answerer: Answerer = Answerer(self.player_models[0], self.state.words)
         self.questioner: Questioner = Questioner(game_instance['request_order'],
                                                  game_instance['requests'], request_strings)
-        
-        # initialise turn counters for common metrics
-        self.request_counts = [0] * self.n_probe_turns
-        self.parsed_request_counts = [0] * self.n_probe_turns
-        self.violated_request_counts = [0] * self.n_probe_turns
 
         self.add_player(self.answerer)
-        self.add_player(self.questioner, initial_context=dict(role="user", content=self.words.dummy_prompt))
-        self._current_player_idx = 1  # start with the questioner
+        self.add_player(self.questioner, initial_context=dict(role="user", content=self.state.words.dummy_prompt))
+        self.current_round = 0 # initialize the current round at 0 for the preliminary probing
+        self._current_player_idx: int = 1  # start with the questioner
 
     def _on_before_game(self):
-        self.set_context_for(self.questioner, self.words.dummy_prompt)
+        self.set_context_for(self.questioner, self.state.words.dummy_prompt)
 
-        self.answerer._messages.append(dict(role='user', content=self.initial_prompt, label='pseudo'))
-        self.answerer._messages.append(dict(role="assistant", content=self.words.ok, label="pseudo"))
+        self.answerer._messages.append(dict(role='user', content=self.state.initial_prompt, label='pseudo'))
+        self.answerer._messages.append(dict(role="assistant", content=self.state.words.ok, label="pseudo"))
         self.log_event(from_="GM", to=self.answerer.name,
-                       action=dict(type="send message", content=self.initial_prompt, label="pseudo"))
+                       action=dict(type="send message", content=self.state.initial_prompt, label="pseudo"))
         self.log_event(from_=self.answerer.name, to="GM",
-                       action=dict(type="get message", content=self.words.ok, label="pseudo"))
-        
+                       action=dict(type="get message", content=self.state.words.ok, label="pseudo"))
+
         # Conduct a preliminary probing round before the actual game starts
         turn_probes, probing_successful = self.probe()
-        self.all_probes.append(turn_probes)
+        self.state.all_probes.append(turn_probes)
         if not probing_successful:
             self.log_to_self("invalid format", "Abort: invalid format in probing.")
-            self.aborted = True
-
-        self.current_round = 1  # preliminary probing round is round 0
+            self.state.abort()
 
     def _on_before_round(self):
         self.questioner.set_question_type_for(self.current_round)
-        self.set_context_for(self.questioner, self.words.dummy_prompt)
+        self.set_context_for(self.questioner, self.state.words.dummy_prompt)
 
     def _start_next_round(self) -> bool:
         """
@@ -164,12 +179,7 @@ class PrivateShared(DialogueGameMaster):
             True, when to start a new round
         """
         return self._current_player_idx == 1
-    
-    def _does_game_proceed(self) -> bool:
-        """Check if the game can continue, i.e. not all slots are filled and the game wasn't aborted."""
-        if self.aborted:
-            return False
-        return self.current_round <= self.game.max_turns
+
 
     def _validate_player_response(self, player, response):
         """
@@ -181,23 +191,24 @@ class PrivateShared(DialogueGameMaster):
         Returns:
             True, if the response is fine. Otherwise, False.
         """
-        if player == self.questioner:
-            # Questioner responses are always valid, since they are programmatic
-            return True
-        if (not response.startswith(self.words.answer.strip())
-                or self._has_continuation(response)):
-            logger.debug(f"Game round {str(self.current_round)}: {NOT_PARSED}")
-            self.violated_request_counts[self.current_round] += 1
-            return False
-        self.parsed_request_counts[self.current_round] += 1
-        return True
+        is_valid = True
+        # Questioner responses are always valid, since they are programmatic
+        if player != self.questioner:
+            if (not response.startswith(self.state.words.answer.strip())
+                    or self._has_continuation(response)):
+                logger.debug(f"Game round {str(self.current_round)}: {NOT_PARSED}")
+                self.state.violated_request_counts[self.current_round] += 1
+                is_valid = False
+            else:
+                self.state.parsed_request_counts[self.current_round] += 1
+        return is_valid
     
     def _parse_response(self, player, response):
         # No need to parse questioner's response, since it is programmatic
         if player == self.questioner:
             return response
         # Parse valid answerer's response
-        clean_response = self._filter_tag(response, self.words.answer.strip())
+        clean_response = self._filter_tag(response, self.state.words.answer.strip())
         return clean_response
     
     def _on_valid_player_response(self, player, parsed_response):
@@ -209,27 +220,35 @@ class PrivateShared(DialogueGameMaster):
             parsed_response: The parsed response of the current player.
         """
         if player == self.questioner:
-            self.set_context_for(self.answerer, f"{self.questioner_tag}{parsed_response}")
+            self.set_context_for(self.answerer, f"{self.state.questioner_tag}{parsed_response}")
         else:
             # Check if the answer was correct
             slot_filled = self._is_slot_filled(parsed_response)
-            self.filled_slots.append(slot_filled)
+            self.state.filled_slots.append(slot_filled)
             self.log_to_self("metadata", f"Slot filled: {slot_filled}")
             # check if the agent gave away more info than it should
             # update ground truth if necessary
             self._update_anticipated_slots(parsed_response)
             # probing turn
             turn_probes, probing_successful = self.probe()
-            self.all_probes.append(turn_probes)
+            self.state.all_probes.append(turn_probes)
             if not probing_successful:
                 self.log_to_self("invalid format", "Abort: invalid format in probing.")
-                self.aborted = True
+                self.state.abort()
             # increment request counts
-            self.request_counts[self.current_round] += 1  # requests to the answerer per round
+            self.state.request_counts[self.current_round] += 1  # requests to the answerer per round
+
+    def _set_final_state(self):
+        successful = sum(self.state.filled_slots)/len(self.state.filled_slots) == 1 and self.state.probes_all_correct == True
+        self.state.succeed() if successful else self.state.failed()
+
+    def _on_after_round(self):
+        if self.current_round + 1 > self.state.max_turns and not self.state.outcome == Outcome.ABORTED:
+            self._set_final_state()
     
     def _on_after_game(self):
-        self.log_key('probes', self.all_probes)
-        self.log_key('realised_slots', self.probe_gt)
+        self.log_key('probes', self.state.all_probes)
+        self.log_key('realised_slots', self.state.probe_gt)
         self.log_to_self('end', 'Game finished.')
         self._log_eval_assets()
 
@@ -247,8 +266,8 @@ class PrivateShared(DialogueGameMaster):
 
     def _is_slot_filled(self, answer: str) -> bool:
         """Check if answer contains the correct value for a slot."""
-        slot = self.game.question_order[self.current_round - 1]
-        value = self.game.slots[slot]
+        slot = self.state.question_order[self.current_round - 1]
+        value = self.state.slots[slot]
         if value.lower() in answer.lower():
             return True
         return False
@@ -256,34 +275,34 @@ class PrivateShared(DialogueGameMaster):
     def _update_anticipated_slots(self, answer: str) -> None:
         """Update ground truth when agent anticipates a slot value."""
         turn = self.current_round - 1
-        for slot, value in self.game.slots.items():
-            if value.lower() in answer.lower() and turn < self.probe_gt[slot]:
-                update = UPDATE.format(slot.upper(), self.probe_gt[slot], turn)
+        for slot, value in self.state.slots.items():
+            if value.lower() in answer.lower() and turn < self.state.probe_gt[slot]:
+                update = UPDATE.format(slot.upper(), self.state.probe_gt[slot], turn)
                 self.log_to_self("metadata", update)
-                self.probe_gt[slot] = turn
+                self.state.probe_gt[slot] = turn
 
     def _log_eval_assets(self) -> None:
         """Log everything needed for the evaluation."""
         self.log_key(ms.METRIC_REQUEST_COUNT,
-                     self.request_counts)
+                     self.state.request_counts)
         self.log_key(ms.METRIC_REQUEST_COUNT_PARSED,
-                     self.parsed_request_counts)
+                     self.state.parsed_request_counts)
         self.log_key(ms.METRIC_REQUEST_COUNT_VIOLATED,
-                     self.violated_request_counts)
-        self.log_key('Filled Slots', self.filled_slots)
-        self.log_key('Aborted', self.aborted)
-        self.log_key('Played Probe Rounds', self.played_probing_rounds)
+                     self.state.violated_request_counts)
+        self.log_key('Filled Slots', self.state.filled_slots)
+        self.log_key('Aborted', self.state.outcome == Outcome.ABORTED)
+        self.log_key('Played Probe Rounds', self.state.played_probing_rounds)
 
     def _create_probe_dict(self, question_type: str, idx: int) -> Dict:
-        question = self.probing_questions[question_type][idx]
+        question = self.state.probing_questions[question_type][idx]
         return {'target': question_type.upper(),
-                'question': self.words.probe.format(question),
-                'gt': 1 if self.current_round > self.probe_gt[question_type] else 0}
+                'question': self.state.words.probe.format(question),
+                'gt': 1 if self.current_round > self.state.probe_gt[question_type] else 0}
 
     def _create_turn_probes(self) -> List[Dict]:
         """Return a list of probing dictionaries."""
         return [self._create_probe_dict(question_type, idx)
-                for question_type, idx in self.probing[str(self.current_round)].items()]
+                for question_type, idx in self.state.probing[str(self.current_round)].items()]
 
     def probe(self) -> Tuple[List[Dict], bool]:
         """Perform a round of probing."""
@@ -297,12 +316,14 @@ class PrivateShared(DialogueGameMaster):
             probe['value'] = self._convert_response(parsed_response)
             probe['tries'] = tries
             self._log_probing_outcome(probe, successful, tries)
+            if self.state.probes_all_correct == True and probe['value'] != probe['gt']:
+                self.state.probes_all_correct = False
             success_by_round.append(successful)
             if not successful:  # interrupt immediately
                 break
         probing_successful = all(success_by_round)
         if probing_successful:  # actual valid rounds for posterior evaluation
-            self.played_probing_rounds += 1
+            self.state.played_probing_rounds += 1
         return probes, probing_successful
 
     def _probing_loop(self, probe: Dict) -> Tuple[str, str, bool, int]:
@@ -312,23 +333,23 @@ class PrivateShared(DialogueGameMaster):
         """
         tries = 1
         successful = False
-        while tries <= len(self.retries):
+        while tries <= len(self.state.retries):
             question = self._get_probe_content(probe['question'], tries)
             context = dict(role="user", content=question)
             answer = self.answerer(context, memorize=False)
-            self.request_counts[self.current_round] += 1  # requests to the answerer per round
+            self.state.request_counts[self.current_round] += 1  # requests to the answerer per round
             parsed_response = self._parse_probing_response(answer)
             self.log_to_self("parse", parsed_response)
-            if parsed_response in (self.words.yes, self.words.no):  # check if valid response, otherwise try again
+            if parsed_response in (self.state.words.yes, self.state.words.no):  # check if valid response, otherwise try again
                 successful = True
-                self.parsed_request_counts[self.current_round] += 1
+                self.state.parsed_request_counts[self.current_round] += 1
                 break
-            self.violated_request_counts[self.current_round] += 1
+            self.state.violated_request_counts[self.current_round] += 1
             tries += 1
         return answer, parsed_response, successful, tries
 
     def _get_probe_content(self, question: str, tries: int) -> str:
-        return question[:].replace(self.words.me, f'{self.words.me}{self.retries[tries - 1]} ')
+        return question[:].replace(self.state.words.me, f'{self.state.words.me}{self.state.retries[tries - 1]} ')
 
     def _log_probing_outcome(self, probe: Dict, successful: bool, tries: int):
         if not successful:
@@ -349,21 +370,21 @@ class PrivateShared(DialogueGameMaster):
 
     def _parse_probing_response(self, response: str) -> str:
         """Extract parsed answer in probing turn."""
-        if (not response.startswith(self.words.aside.strip())
+        if (not response.startswith(self.state.words.aside.strip())
                 or self._has_continuation(response)):
             return INVALID
-        clean_response = self._filter_tag(response, self.words.aside.strip())
-        if clean_response.lower().startswith(self.words.yes):
-            return self.words.yes
-        if clean_response.lower().startswith(self.words.no):
-            return self.words.no
+        clean_response = self._filter_tag(response, self.state.words.aside.strip())
+        if clean_response.lower().startswith(self.state.words.yes):
+            return self.state.words.yes
+        if clean_response.lower().startswith(self.state.words.no):
+            return self.state.words.no
         return INVALID
 
     def _convert_response(self, response: str) -> int:
         """Turn probing response into integer (0: negation, 1: affirmation)."""
-        if response == self.words.yes:
+        if response == self.state.words.yes:
             return 1
-        if response == self.words.no:
+        if response == self.state.words.no:
             return 0
         return INVALID_LABEL
 
@@ -373,6 +394,7 @@ class PrivateSharedScorer(GameScorer):
     def __init__(self, game_name: str, experiment: Dict, game_instance: Dict):
         super().__init__(game_name, experiment, game_instance)
         self.slots = game_instance["slots"]
+        # stdout_logger.warning(f"Initialized scorer for {game_name} with experiment {experiment['name']} and instance with slots {self.slots}")
 
     def compute_scores(self, episode_interactions: Dict) -> None:
         logs = episode_interactions
@@ -426,6 +448,7 @@ class PrivateSharedScorer(GameScorer):
         # we truncate kappa to be between 0 and 1
         trunc_kappa = max(0, kappa) if not aborted else np.nan
         filled = logs['Filled Slots']
+        # stdout_logger.warning(f"Filled slots: {filled}")
         sf_acc = sum(filled) / len(filled) if not aborted else np.nan
         bench_score = PrivateSharedScorer.compute_bench_score(sf_acc, trunc_kappa)
 
