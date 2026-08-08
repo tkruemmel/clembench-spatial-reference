@@ -37,6 +37,9 @@ class SoloMatrixGameInstanceGenerator(GameInstanceGenerator):
     def on_generate(self, seed: int, **kwargs):
         common_config = self.load_json("resources/common_config")
         configs = self.load_json("resources/config")
+        # Keys beginning with "_" are metadata/comments (e.g. the regeneration
+        # note pinning --compact-only), not experiment variants.
+        configs = {k: v for k, v in configs.items() if not k.startswith("_")}
 
         grid_size = common_config["grid_size"]
         max_retries = common_config["max_retries"]
