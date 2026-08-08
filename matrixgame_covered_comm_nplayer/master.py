@@ -169,7 +169,7 @@ class NPlayerMatrixGameMaster(DialogueGameMaster):
         self.max_retries = game_instance.get("max_retries", 2)
         self.strict = game_instance.get("strict", False)
         optimal = game_instance.get("optimal_moves", 1)
-        self.max_turns = game_instance.get("max_turns", max(50, 5 * optimal))
+        self.max_turns = game_instance.get("max_turns", max(4 * optimal, 20))
         self.use_masking: bool = game_instance.get("use_masking", True)
         self.masking_hints: bool = game_instance.get("masking_hints", True)
         self.comm_protocol: str = game_instance.get("comm_protocol", COMM_NONE)
