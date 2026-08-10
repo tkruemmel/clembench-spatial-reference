@@ -84,10 +84,13 @@ def test_grammar_anchored_no_reason():
     assert _parse_response("thinking first\nmove: A to R2,C1 (down)", with_message=False) is None
     assert _parse_response("reason: r\nmove: A to R2,C1 (down)", with_message=False) is None
     assert _parse_response("done: all my objects are placed", with_message=False)["is_done"] is True
-    # channel on
+    # channel on: messages MAY span multiple lines (single-line boundary
+    # removed); the parser still never produces a `reason` field, and the move
+    # line remains the required terminator. Extra lines fold into the message.
     p = _parse_response("message: hi\nmove: A to R2,C1 (down)", with_message=True)
     assert p["message"] == "hi" and "reason" not in p
-    assert _parse_response("message: hi\nreason: r\nmove: A to R2,C1 (down)", with_message=True) is None
+    ml = _parse_response("message: hi\nmore context\nmove: A to R2,C1 (down)", with_message=True)
+    assert ml is not None and ml["message"] == "hi\nmore context" and "reason" not in ml
     d = _parse_response("message: done\ndone: all placed", with_message=True)
     assert d["is_done"] is True and d["message"] == "done"
     assert _parse_response("preamble\nmessage: hi\nmove: A to R2,C1 (down)", with_message=True) is None
@@ -307,21 +310,74 @@ def test_hybrid_done_message_exempt():
     assert ok is True
 
 
+def test_hybrid_multiline_message_passes():
+    # prose and PLAN clause on separate lines (single-line boundary removed)
+    master = _setup_master("hybrid")
+    ok = master._validate_player_response(
+        master.player_a,
+        "message: I'll take the left so you have room.\n"
+        "PLAN: move A from (R1,C1) to (R2,C1) — REQUEST: none\n"
+        "move: A to R2,C1 (down)",
+    )
+    assert ok is True
+
+
+def test_hybrid_prose_over_100_words_reprompts():
+    master = _setup_master("hybrid")
+    prose = " ".join(["word"] * 101)
+    ok = master._validate_player_response(
+        master.player_a,
+        f"message: {prose} PLAN: move A from (R1,C1) to (R2,C1) — REQUEST: none\n"
+        "move: A to R2,C1 (down)",
+    )
+    assert ok is False
+    assert master.reprompt_pending is True
+    assert "100 words" in _reprompt_text(master, master.player_a)
+
+
+def test_hybrid_request_over_10_words_reprompts():
+    master = _setup_master("hybrid")
+    req = " ".join(["x"] * 11)
+    ok = master._validate_player_response(
+        master.player_a,
+        f"message: heads up. PLAN: move A from (R1,C1) to (R2,C1) — REQUEST: {req}\n"
+        "move: A to R2,C1 (down)",
+    )
+    assert ok is False
+    assert master.reprompt_pending is True
+    assert "REQUEST" in _reprompt_text(master, master.player_a)
+
+
+def test_structured_request_over_10_words_reprompts():
+    master = _setup_master("structured")
+    req = " ".join(["x"] * 11)
+    ok = master._validate_player_response(
+        master.player_a,
+        f"message: PLAN: move A from (R1,C1) to (R2,C1) — REQUEST: {req}\n"
+        "move: A to R2,C1 (down)",
+    )
+    assert ok is False
+    assert master.reprompt_pending is True
+    assert "REQUEST" in _reprompt_text(master, master.player_a)
+
+
 def test_hybrid_template_example_matches_pattern():
-    """The hybrid template's example message must satisfy the enforced schema,
-    so a compliant model is never spuriously reprompted."""
+    """The hybrid template's example message must satisfy the enforced schema
+    AND word caps, so a compliant model is never spuriously reprompted."""
     import re as _re
-    from master import HYBRID_MSG_PATTERN
+    from master import HYBRID_MSG_PATTERN, _schema_violation
     from pathlib import Path
     tmpl = Path(__file__).resolve().parents[1] / \
         "resources/initial_prompts/en/player_prompt_hybrid.template"
     text = tmpl.read_text(encoding="utf-8")
     lines = _re.findall(r"^message:\s*(.+)$", text, _re.MULTILINE)
     assert lines, "template must contain an example `message:` line"
-    # The concrete example line must satisfy the enforced schema (the
+    # The concrete example line must satisfy structure AND word caps (the
     # `<...>` format-placeholder line is not expected to, and is ignored).
-    assert any(HYBRID_MSG_PATTERN.match(m.strip()) for m in lines), \
-        f"no example `message:` line matches HYBRID_MSG_PATTERN: {lines}"
+    concrete = [m.strip() for m in lines if HYBRID_MSG_PATTERN.match(m.strip())]
+    assert concrete, f"no example `message:` line matches HYBRID_MSG_PATTERN: {lines}"
+    assert all(_schema_violation("hybrid", m) is None for m in concrete), \
+        f"example message violates word caps: {concrete}"
 
 
 def test_blocked_vs_illegal_counters():

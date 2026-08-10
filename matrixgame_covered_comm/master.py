@@ -2,9 +2,9 @@
 
 Three communication protocol variants (plus a no-communication control):
   none       — no inter-agent messages; move-only response format.
-  structured — fixed template: PLAN: move X from (Rr,Cc) to (Rr,Cc) — REQUEST: ...
+  structured — fixed template: PLAN: move X from (Rr,Cc) to (Rr,Cc) — REQUEST: ...; PLAN and REQUEST each <=10 words, enforced (reprompt/abort).
   freeform   — unrestricted natural language; the prompt asks for under 100 words (not enforced).
-  hybrid     — free-form messaging plus a required PLAN/REQUEST coordinate clause; message schema enforced (reprompt/abort) like structured.
+  hybrid     — free-form prose (<=100 words) plus a required PLAN/REQUEST clause (each part <=10 words); message may span multiple lines; schema+caps enforced (reprompt/abort) like structured.
 
 Turn structure for none:
   move: OBJECT to Rr,Cc (DIRECTION)   (or: done: <explanation> if all own objects are at targets)
@@ -69,12 +69,15 @@ MOVE_ONLY_PATTERN = re.compile(
 )
 
 # Channel on (structured / freeform / hybrid): message precedes the move.
-# NOTE: no re.DOTALL — the message capture must not span the newline before
-# "move:", otherwise a stray extra line inserted between message and move
-# would be silently absorbed into the message instead of failing to parse.
+# re.DOTALL: the message MAY span multiple lines (e.g. free-form prose on its
+# own line(s) and the PLAN clause on another). The lazy `.+?` still stops at the
+# first `\nmove:`, which remains the required terminator, so the move line is
+# always parsed. Tradeoff: a stray line between message and move is absorbed
+# into the message rather than failing the parse — accepted to allow multi-line
+# messages.
 COMM_MOVE_PATTERN = re.compile(
     r"\A\s*message:\s*(?P<message>.+?)\s*\nmove:\s*(?P<object>[A-Z])\s+to\s+R(?P<target_row>\d+),?C(?P<target_col>\d+)\s*\((?P<direction>up|down|left|right)\)",
-    re.IGNORECASE,
+    re.IGNORECASE | re.DOTALL,
 )
 
 # Done declarations — "done:" replaces the move line.
@@ -82,47 +85,74 @@ DONE_ONLY_PATTERN = re.compile(
     r"\A\s*done:\s*(?P<done_reason>.+)",
     re.IGNORECASE | re.DOTALL,
 )
-# NOTE: no re.DOTALL here either, for the same reason as COMM_MOVE_PATTERN
-# above — the message capture must stop at the newline before "done:" so a
-# stray extra line in between fails the anchored parse instead of being
-# absorbed into the message. As a consequence done_reason only captures the
-# first line after "done:"; that text is logged only, never parsed further,
-# so this is fine.
+# re.DOTALL: like COMM_MOVE_PATTERN, the message may span multiple lines; the
+# lazy `.+?` stops at the first `\ndone:`. done_reason is logged only, never
+# parsed further.
 COMM_DONE_PATTERN = re.compile(
     r"\A\s*message:\s*(?P<message>.+?)\s*\ndone:\s*(?P<done_reason>.+)",
-    re.IGNORECASE,
+    re.IGNORECASE | re.DOTALL,
 )
 
+# Word caps (inclusive) enforced on the schema message parts.
+PROSE_MAX_WORDS = 100    # hybrid free-form prose part
+CLAUSE_MAX_WORDS = 10    # PLAN content and REQUEST content, each
+
 # Structured-protocol message schema, enforced (thesis: the protocol
-# *prescribes* the schema). Anchored: the message must BE the schema.
+# *prescribes* the schema). Anchored full-match; named groups feed the word
+# caps. The PLAN clause may sit on its own line (re.DOTALL).
 STRUCTURED_MSG_PATTERN = re.compile(
-    r"\A\s*PLAN:\s*move\s+\S+\s+from\s*\(R\d+,C\d+\)\s+to\s*\(R\d+,C\d+\)\s*[—\-]+\s*REQUEST:\s*.+\Z",
+    r"\A\s*PLAN:\s*(?P<plan>move\s+\S+\s+from\s*\(R\d+,C\d+\)\s+to\s*\(R\d+,C\d+\))\s*[—\-]+\s*REQUEST:\s*(?P<request>.+?)\s*\Z",
     re.IGNORECASE | re.DOTALL,
 )
 
 # Hybrid-protocol message schema, enforced (thesis: hybrid *combines* freeform
-# and structured). The message must open with free natural-language prose and
-# END with the same PLAN/REQUEST clause the structured protocol prescribes.
-# Anchored full-match: >=1 char of prose, then the clause running to the end.
-# A clause-only message (no prose) is rejected — that would just be structured.
+# and structured). Free natural-language prose, then the same PLAN/REQUEST
+# clause the structured protocol prescribes. Anchored full-match with named
+# groups (prose / plan / request); prose needs >=1 non-space char, so a
+# clause-only message (no prose) is rejected — that would just be structured.
 HYBRID_MSG_PATTERN = re.compile(
-    r"\A\s*\S.*?\s*PLAN:\s*move\s+\S+\s+from\s*\(R\d+,C\d+\)\s+to\s*\(R\d+,C\d+\)\s*[—\-]+\s*REQUEST:\s*.+\Z",
+    r"\A\s*(?P<prose>\S.*?)\s*PLAN:\s*(?P<plan>move\s+\S+\s+from\s*\(R\d+,C\d+\)\s+to\s*\(R\d+,C\d+\))\s*[—\-]+\s*REQUEST:\s*(?P<request>.+?)\s*\Z",
     re.IGNORECASE | re.DOTALL,
 )
 
-# Protocols whose message body must match a prescribed schema, paired with the
-# reprompt reminder shown on violation. `structured` keeps its exact prior
-# behavior; `hybrid` reuses the same reprompt/abort path.
-ENFORCED_MSG_SCHEMAS = {
-    COMM_STRUCTURED: (
-        STRUCTURED_MSG_PATTERN,
-        'message: PLAN: move [OBJECT] from (Rr,Cc) to (Rr,Cc) — REQUEST: [request or "none"]',
-    ),
-    COMM_HYBRID: (
-        HYBRID_MSG_PATTERN,
-        'message: <natural language> PLAN: move [OBJECT] from (Rr,Cc) to (Rr,Cc) — REQUEST: [request or "none"]',
-    ),
-}
+# Reminders shown when the schema structure is wrong (word-cap reminders are
+# built inline in _schema_violation).
+_STRUCTURED_REMINDER = (
+    'Use exactly:\n'
+    'message: PLAN: move [OBJECT] from (Rr,Cc) to (Rr,Cc) — REQUEST: [request or "none"]'
+)
+_HYBRID_REMINDER = (
+    'Use exactly:\n'
+    'message: <natural language> PLAN: move [OBJECT] from (Rr,Cc) to (Rr,Cc) — REQUEST: [request or "none"]'
+)
+
+
+def _clause_word_violation(match) -> Optional[str]:
+    """Word-cap check shared by structured and hybrid: PLAN and REQUEST content
+    must each be at most CLAUSE_MAX_WORDS words. Returns a reminder or None."""
+    if len(match.group("plan").split()) > CLAUSE_MAX_WORDS:
+        return f"Keep the PLAN clause to at most {CLAUSE_MAX_WORDS} words."
+    if len(match.group("request").split()) > CLAUSE_MAX_WORDS:
+        return f'Keep the REQUEST to at most {CLAUSE_MAX_WORDS} words (or "none").'
+    return None
+
+
+def _schema_violation(protocol: str, message: str) -> Optional[str]:
+    """Return a reprompt reminder if `message` violates the protocol's schema
+    (structure or word caps), else None. Only structured/hybrid have schemas."""
+    if protocol == COMM_STRUCTURED:
+        m = STRUCTURED_MSG_PATTERN.match(message)
+        if not m:
+            return _STRUCTURED_REMINDER
+        return _clause_word_violation(m)
+    if protocol == COMM_HYBRID:
+        m = HYBRID_MSG_PATTERN.match(message)
+        if not m:
+            return _HYBRID_REMINDER
+        if len(m.group("prose").split()) > PROSE_MAX_WORDS:
+            return f"Keep the natural-language part to at most {PROSE_MAX_WORDS} words."
+        return _clause_word_violation(m)
+    return None
 
 
 def _parse_response(response: str, with_message: bool) -> Optional[Dict[str, str]]:
@@ -395,35 +425,32 @@ class MatrixGameMaster(DialogueGameMaster):
             self.reprompt_attempts = 0
             return True
 
-        # Structured & hybrid protocols prescribe a message schema; enforce it.
-        # A malformed message is a violation like any parse failure: reprompt,
-        # consume the retry budget, abort on exhaustion. Done declarations are
-        # exempt (their message is the "done" marker, handled above).
-        schema = ENFORCED_MSG_SCHEMAS.get(self.comm_protocol)
-        if schema is not None:
-            pattern, reminder = schema
-            msg = parsed.get("message", "")
-            if not pattern.match(msg):
-                self.violated_request_counts += 1
-                self.log_to_self(
-                    "malformed_message",
-                    f"{player.role_name}: {self.comm_protocol} format not followed — got: {msg[:80]}",
-                )
-                self.reprompt_attempts += 1
-                if self.reprompt_attempts > self.max_retries:
-                    self.aborted = True
-                    self.log_to_self("abort", f"Too many malformed {self.comm_protocol} messages")
-                else:
-                    self.reprompt_pending = True
-                    self.set_context_for(player, (
-                        f"Your message did not follow the required {self.comm_protocol} format. "
-                        "Use exactly:\n"
-                        f"{reminder}\n\n"
-                        f"{self._format_reminder()}\n\n"
-                        f"CURRENT BOARD:\n{self._render_for(player)}\n\n"
-                        f"GOAL BOARD:\n{self._render_targets_for(player)}"
-                    ))
-                return False
+        # Structured & hybrid protocols prescribe a message schema (structure +
+        # word caps); enforce it. A violation is treated like any parse failure:
+        # reprompt, consume the retry budget, abort on exhaustion. Done
+        # declarations are exempt (their message is the "done" marker, above).
+        msg = parsed.get("message", "")
+        reminder = _schema_violation(self.comm_protocol, msg)
+        if reminder is not None:
+            self.violated_request_counts += 1
+            self.log_to_self(
+                "malformed_message",
+                f"{player.role_name}: {self.comm_protocol} message rules not followed — got: {msg[:80]}",
+            )
+            self.reprompt_attempts += 1
+            if self.reprompt_attempts > self.max_retries:
+                self.aborted = True
+                self.log_to_self("abort", f"Too many malformed {self.comm_protocol} messages")
+            else:
+                self.reprompt_pending = True
+                self.set_context_for(player, (
+                    f"Your message did not follow the required {self.comm_protocol} message rules. "
+                    f"{reminder}\n\n"
+                    f"{self._format_reminder()}\n\n"
+                    f"CURRENT BOARD:\n{self._render_for(player)}\n\n"
+                    f"GOAL BOARD:\n{self._render_targets_for(player)}"
+                ))
+            return False
 
         self.move_attempts += 1
 
