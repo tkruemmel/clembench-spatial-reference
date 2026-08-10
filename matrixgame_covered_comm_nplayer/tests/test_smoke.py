@@ -498,6 +498,77 @@ def test_validate_response_rejects_invalid_format():
     assert not master._validate_player_response(players[0], "no move here")
 
 
+def test_hybrid_pattern_requires_prose_and_clause():
+    from master import HYBRID_MSG_PATTERN
+    assert HYBRID_MSG_PATTERN.match(
+        "heads up team. PLAN: move A from (R2,C3) to (R4,C3) — REQUEST: none"
+    )
+    assert not HYBRID_MSG_PATTERN.match(
+        "PLAN: move A from (R2,C3) to (R4,C3) — REQUEST: none"
+    )
+    assert not HYBRID_MSG_PATTERN.match("go team")
+
+
+def _setup_hybrid_master():
+    from master import NPlayerMatrixGameMaster
+    instance = _make_game_instance(num_players=6, comm_protocol="hybrid")
+    models = [_DummyModel() for _ in range(6)]
+    master = NPlayerMatrixGameMaster(
+        game_spec=_make_game_spec() if "_make_game_spec" in globals() else None,
+        experiment={"variant_config": {"comm_protocol": "hybrid"}},
+        player_models=models,
+    )
+    master._on_setup(**instance)
+    return master
+
+
+def test_hybrid_wellformed_message_passes():
+    master = _setup_hybrid_master()
+    players = master.get_players()
+    ok = master._validate_player_response(
+        players[0],
+        "message: I'll head down the left so the rest of you have room. "
+        "PLAN: move A from (R1,C1) to (R2,C1) — REQUEST: none\n"
+        "move: A to R2,C1 (down)",
+    )
+    assert ok is True
+
+
+def test_hybrid_missing_clause_reprompts():
+    master = _setup_hybrid_master()
+    players = master.get_players()
+    ok = master._validate_player_response(
+        players[0], "message: go team\nmove: A to R2,C1 (down)"
+    )
+    assert ok is False
+    assert master.reprompt_pending is True
+    assert master.aborted is False
+    assert "PLAN:" in _reprompt_text(master, players[0])
+
+
+def test_hybrid_malformed_thrice_aborts():
+    master = _setup_hybrid_master()
+    players = master.get_players()
+    for _ in range(3):
+        master._validate_player_response(
+            players[0], "message: chatty\nmove: A to R2,C1 (down)"
+        )
+    assert master.aborted is True
+
+
+def test_hybrid_template_example_matches_pattern():
+    import re as _re
+    from master import HYBRID_MSG_PATTERN
+    from pathlib import Path
+    tmpl = Path(__file__).resolve().parents[1] / \
+        "resources/initial_prompts/en/player_prompt_hybrid.template"
+    text = tmpl.read_text(encoding="utf-8")
+    lines = _re.findall(r"^message:\s*(.+)$", text, _re.MULTILINE)
+    assert lines, "template must contain an example `message:` line"
+    assert any(HYBRID_MSG_PATTERN.match(m.strip()) for m in lines), \
+        f"no example `message:` line matches HYBRID_MSG_PATTERN: {lines}"
+
+
 def _reprompt_text(master, player):
     ctx = master.get_context_for(player)
     return (ctx.get("content") if isinstance(ctx, dict) else ctx) or ""
