@@ -245,6 +245,85 @@ def test_structured_done_message_exempt():
     assert ok is True
 
 
+def test_hybrid_pattern_requires_prose_and_clause():
+    from master import HYBRID_MSG_PATTERN
+    # prose + clause -> ok
+    assert HYBRID_MSG_PATTERN.match(
+        "I'll clear the left. PLAN: move A from (R2,C3) to (R4,C3) — REQUEST: none"
+    )
+    # structured-only (no prose) -> rejected: hybrid must combine both
+    assert not HYBRID_MSG_PATTERN.match(
+        "PLAN: move A from (R2,C3) to (R4,C3) — REQUEST: none"
+    )
+    # prose-only (no clause) -> rejected
+    assert not HYBRID_MSG_PATTERN.match("let's go team")
+
+
+def test_hybrid_wellformed_message_passes():
+    master = _setup_master("hybrid")
+    ok = master._validate_player_response(
+        master.player_a,
+        "message: I'll take the left so you have room. "
+        "PLAN: move A from (R1,C1) to (R2,C1) — REQUEST: none\n"
+        "move: A to R2,C1 (down)",
+    )
+    assert ok is True
+
+
+def test_hybrid_missing_clause_reprompts():
+    master = _setup_master("hybrid")
+    ok = master._validate_player_response(
+        master.player_a, "message: let's go team\nmove: A to R2,C1 (down)"
+    )
+    assert ok is False
+    assert master.reprompt_pending is True
+    assert master.aborted is False
+    assert "PLAN:" in _reprompt_text(master, master.player_a)
+
+
+def test_hybrid_malformed_thrice_aborts():
+    master = _setup_master("hybrid")
+    for _ in range(3):
+        master._validate_player_response(
+            master.player_a, "message: chatty\nmove: A to R2,C1 (down)"
+        )
+    assert master.aborted is True
+
+
+def test_hybrid_done_message_exempt():
+    from master import MatrixGameMaster
+    gi = _make_game_instance("hybrid")
+    for o in ("A", "B", "C"):
+        gi["target_positions"][o] = gi["start_positions"][o]
+    master = MatrixGameMaster(
+        game_spec=_make_game_spec(),
+        experiment={"variant_config": {"comm_protocol": "hybrid"}},
+        player_models=[_DummyModel("a"), _DummyModel("b")],
+    )
+    master._on_setup(**gi)
+    ok = master._validate_player_response(
+        master.player_a, "message: done\ndone: all my objects are placed"
+    )
+    assert ok is True
+
+
+def test_hybrid_template_example_matches_pattern():
+    """The hybrid template's example message must satisfy the enforced schema,
+    so a compliant model is never spuriously reprompted."""
+    import re as _re
+    from master import HYBRID_MSG_PATTERN
+    from pathlib import Path
+    tmpl = Path(__file__).resolve().parents[1] / \
+        "resources/initial_prompts/en/player_prompt_hybrid.template"
+    text = tmpl.read_text(encoding="utf-8")
+    lines = _re.findall(r"^message:\s*(.+)$", text, _re.MULTILINE)
+    assert lines, "template must contain an example `message:` line"
+    # The concrete example line must satisfy the enforced schema (the
+    # `<...>` format-placeholder line is not expected to, and is ignored).
+    assert any(HYBRID_MSG_PATTERN.match(m.strip()) for m in lines), \
+        f"no example `message:` line matches HYBRID_MSG_PATTERN: {lines}"
+
+
 def test_blocked_vs_illegal_counters():
     master = _setup_master()
     # A at R1,C1; right into B at R1,C2 -> blocked

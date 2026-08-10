@@ -4,7 +4,7 @@ Three communication protocol variants (plus a no-communication control):
   none       — no inter-agent messages; move-only response format.
   structured — fixed template: PLAN: move X from (Rr,Cc) to (Rr,Cc) — REQUEST: ...
   freeform   — unrestricted natural language; the prompt asks for under 100 words (not enforced).
-  hybrid     — free-form messaging plus an explicit shared coordinate frame in the prompt.
+  hybrid     — free-form messaging plus a required PLAN/REQUEST coordinate clause; message schema enforced (reprompt/abort) like structured.
 
 Turn structure for none:
   move: OBJECT to Rr,Cc (DIRECTION)   (or: done: <explanation> if all own objects are at targets)
@@ -99,6 +99,30 @@ STRUCTURED_MSG_PATTERN = re.compile(
     r"\A\s*PLAN:\s*move\s+\S+\s+from\s*\(R\d+,C\d+\)\s+to\s*\(R\d+,C\d+\)\s*[—\-]+\s*REQUEST:\s*.+\Z",
     re.IGNORECASE | re.DOTALL,
 )
+
+# Hybrid-protocol message schema, enforced (thesis: hybrid *combines* freeform
+# and structured). The message must open with free natural-language prose and
+# END with the same PLAN/REQUEST clause the structured protocol prescribes.
+# Anchored full-match: >=1 char of prose, then the clause running to the end.
+# A clause-only message (no prose) is rejected — that would just be structured.
+HYBRID_MSG_PATTERN = re.compile(
+    r"\A\s*\S.*?\s*PLAN:\s*move\s+\S+\s+from\s*\(R\d+,C\d+\)\s+to\s*\(R\d+,C\d+\)\s*[—\-]+\s*REQUEST:\s*.+\Z",
+    re.IGNORECASE | re.DOTALL,
+)
+
+# Protocols whose message body must match a prescribed schema, paired with the
+# reprompt reminder shown on violation. `structured` keeps its exact prior
+# behavior; `hybrid` reuses the same reprompt/abort path.
+ENFORCED_MSG_SCHEMAS = {
+    COMM_STRUCTURED: (
+        STRUCTURED_MSG_PATTERN,
+        'message: PLAN: move [OBJECT] from (Rr,Cc) to (Rr,Cc) — REQUEST: [request or "none"]',
+    ),
+    COMM_HYBRID: (
+        HYBRID_MSG_PATTERN,
+        'message: <natural language> PLAN: move [OBJECT] from (Rr,Cc) to (Rr,Cc) — REQUEST: [request or "none"]',
+    ),
+}
 
 
 def _parse_response(response: str, with_message: bool) -> Optional[Dict[str, str]]:
@@ -371,28 +395,30 @@ class MatrixGameMaster(DialogueGameMaster):
             self.reprompt_attempts = 0
             return True
 
-        # Structured protocol: the message MUST match the PLAN/REQUEST schema.
+        # Structured & hybrid protocols prescribe a message schema; enforce it.
         # A malformed message is a violation like any parse failure: reprompt,
         # consume the retry budget, abort on exhaustion. Done declarations are
-        # exempt (their message is the "done" marker).
-        if self.comm_protocol == COMM_STRUCTURED:
+        # exempt (their message is the "done" marker, handled above).
+        schema = ENFORCED_MSG_SCHEMAS.get(self.comm_protocol)
+        if schema is not None:
+            pattern, reminder = schema
             msg = parsed.get("message", "")
-            if not STRUCTURED_MSG_PATTERN.match(msg):
+            if not pattern.match(msg):
                 self.violated_request_counts += 1
                 self.log_to_self(
                     "malformed_message",
-                    f"{player.role_name}: structured format not followed — got: {msg[:80]}",
+                    f"{player.role_name}: {self.comm_protocol} format not followed — got: {msg[:80]}",
                 )
                 self.reprompt_attempts += 1
                 if self.reprompt_attempts > self.max_retries:
                     self.aborted = True
-                    self.log_to_self("abort", "Too many malformed structured messages")
+                    self.log_to_self("abort", f"Too many malformed {self.comm_protocol} messages")
                 else:
                     self.reprompt_pending = True
                     self.set_context_for(player, (
-                        "Your message did not follow the required structured format. "
+                        f"Your message did not follow the required {self.comm_protocol} format. "
                         "Use exactly:\n"
-                        'message: PLAN: move [OBJECT] from (Rr,Cc) to (Rr,Cc) — REQUEST: [request or "none"]\n\n'
+                        f"{reminder}\n\n"
                         f"{self._format_reminder()}\n\n"
                         f"CURRENT BOARD:\n{self._render_for(player)}\n\n"
                         f"GOAL BOARD:\n{self._render_targets_for(player)}"
