@@ -233,12 +233,16 @@ def test_grammar_anchored_no_reason():
     assert _parse_response("thinking first\nmove: A to R2,C1 (down)", with_message=False) is None
     assert _parse_response("reason: r\nmove: A to R2,C1 (down)", with_message=False) is None
     assert _parse_response("done: all my objects are placed", with_message=False)["is_done"] is True
-    # channel on
+    # channel on: messages MAY span multiple lines (single-line boundary
+    # removed); the parser still never produces a `reason` field, and the move
+    # line remains the required terminator. Extra lines fold into the message.
     p = _parse_response("message: hi\nmove: A to R2,C1 (down)", with_message=True)
     assert p["message"] == "hi" and "reason" not in p
-    assert _parse_response("message: hi\nreason: r\nmove: A to R2,C1 (down)", with_message=True) is None
+    ml = _parse_response("message: hi\nmore context\nmove: A to R2,C1 (down)", with_message=True)
+    assert ml is not None and ml["message"] == "hi\nmore context" and "reason" not in ml
     d = _parse_response("message: done\ndone: all placed", with_message=True)
     assert d["is_done"] is True and d["message"] == "done"
+    # a preamble BEFORE `message:` still fails the \A-anchored parse
     assert _parse_response("preamble\nmessage: hi\nmove: A to R2,C1 (down)", with_message=True) is None
 
 
@@ -556,17 +560,86 @@ def test_hybrid_malformed_thrice_aborts():
     assert master.aborted is True
 
 
+def test_hybrid_multiline_message_passes():
+    master = _setup_hybrid_master()
+    players = master.get_players()
+    ok = master._validate_player_response(
+        players[0],
+        "message: I'll head down the left so the rest of you have room.\n"
+        "PLAN: move A from (R1,C1) to (R2,C1) — REQUEST: none\n"
+        "move: A to R2,C1 (down)",
+    )
+    assert ok is True
+
+
+def test_hybrid_prose_over_100_words_reprompts():
+    master = _setup_hybrid_master()
+    players = master.get_players()
+    prose = " ".join(["word"] * 101)
+    ok = master._validate_player_response(
+        players[0],
+        f"message: {prose} PLAN: move A from (R1,C1) to (R2,C1) — REQUEST: none\n"
+        "move: A to R2,C1 (down)",
+    )
+    assert ok is False
+    assert master.reprompt_pending is True
+    assert "100 words" in _reprompt_text(master, players[0])
+
+
+def test_hybrid_request_over_10_words_reprompts():
+    master = _setup_hybrid_master()
+    players = master.get_players()
+    req = " ".join(["x"] * 11)
+    ok = master._validate_player_response(
+        players[0],
+        f"message: heads up. PLAN: move A from (R1,C1) to (R2,C1) — REQUEST: {req}\n"
+        "move: A to R2,C1 (down)",
+    )
+    assert ok is False
+    assert master.reprompt_pending is True
+    assert "REQUEST" in _reprompt_text(master, players[0])
+
+
+def _setup_structured_master():
+    from master import NPlayerMatrixGameMaster
+    instance = _make_game_instance(num_players=6, comm_protocol="structured")
+    models = [_DummyModel() for _ in range(6)]
+    master = NPlayerMatrixGameMaster(
+        game_spec=_make_game_spec() if "_make_game_spec" in globals() else None,
+        experiment={"variant_config": {"comm_protocol": "structured"}},
+        player_models=models,
+    )
+    master._on_setup(**instance)
+    return master
+
+
+def test_structured_request_over_10_words_reprompts():
+    master = _setup_structured_master()
+    players = master.get_players()
+    req = " ".join(["x"] * 11)
+    ok = master._validate_player_response(
+        players[0],
+        f"message: PLAN: move A from (R1,C1) to (R2,C1) — REQUEST: {req}\n"
+        "move: A to R2,C1 (down)",
+    )
+    assert ok is False
+    assert master.reprompt_pending is True
+    assert "REQUEST" in _reprompt_text(master, players[0])
+
+
 def test_hybrid_template_example_matches_pattern():
     import re as _re
-    from master import HYBRID_MSG_PATTERN
+    from master import HYBRID_MSG_PATTERN, _schema_violation
     from pathlib import Path
     tmpl = Path(__file__).resolve().parents[1] / \
         "resources/initial_prompts/en/player_prompt_hybrid.template"
     text = tmpl.read_text(encoding="utf-8")
     lines = _re.findall(r"^message:\s*(.+)$", text, _re.MULTILINE)
     assert lines, "template must contain an example `message:` line"
-    assert any(HYBRID_MSG_PATTERN.match(m.strip()) for m in lines), \
-        f"no example `message:` line matches HYBRID_MSG_PATTERN: {lines}"
+    concrete = [m.strip() for m in lines if HYBRID_MSG_PATTERN.match(m.strip())]
+    assert concrete, f"no example `message:` line matches HYBRID_MSG_PATTERN: {lines}"
+    assert all(_schema_violation("hybrid", m) is None for m in concrete), \
+        f"example message violates word caps: {concrete}"
 
 
 def _reprompt_text(master, player):
