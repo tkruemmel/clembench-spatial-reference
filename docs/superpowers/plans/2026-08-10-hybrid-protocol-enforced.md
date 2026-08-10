@@ -577,6 +577,16 @@ git commit -m "instances: regenerate hybrid prompts with enforced PLAN clause (b
 
 ---
 
+## Revision 2 (2026-08-10): multi-line messages + word caps
+
+Implemented on top of the above (commits: `comm/nplayer: multi-line messages + word caps`, `instances: regenerate hybrid+structured prompts …`):
+- **Removed the single-line boundary**: `COMM_MOVE_PATTERN` and `COMM_DONE_PATTERN` gained `re.DOTALL` in both packages — channel-on messages may span multiple lines (prose and PLAN clause on separate lines). The `move:`/`done:` line remains the required terminator.
+- **Word caps enforced** via `_schema_violation(protocol, message)` (replaces the `ENFORCED_MSG_SCHEMAS` table): hybrid prose ≤100 words; PLAN ≤10 and REQUEST ≤10 words for **both** hybrid and structured. Inclusive (violation only when exceeded). Patterns now expose named groups `prose`/`plan`/`request`. Note: the PLAN group is structurally ~6 words, so its cap never actually binds.
+- **Templates** (`hybrid` + `structured`, both packages) state the caps; hybrid notes the parts may be on separate lines. `freeform` unchanged (still soft, unenforced 100).
+- **Grammar-guarantee consequence** (thesis-relevant): allowing multi-line channel-on messages weakens the "anchored grammar / no `reason:` field" guarantee for channel-on protocols — a stray scaffold line folds into the message instead of failing the parse (channel-off `none` still rejects preamble). `test_grammar_anchored_no_reason` updated to encode the new behavior. Optional future guard: reject messages containing `^(reason|thinking|scratchpad):` lines.
+- **Tests added**: multi-line passes; hybrid prose>100 reprompts; hybrid REQUEST>10 reprompts; structured REQUEST>10 reprompts; template example obeys caps. Dyad 29 pass, n-player 62 pass.
+- **Instances regenerated**: hybrid + structured prompts updated, boards byte-identical, none/freeform untouched.
+
 ## Thesis follow-up (not a code task)
 
 Record for the Method chapter edits — hybrid is now a **superset of structured** (structured schema embedded in free prose), enforced identically:
