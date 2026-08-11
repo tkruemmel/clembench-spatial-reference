@@ -198,6 +198,17 @@ class MatrixPlayer(Player):
         super().__init__(model)
         self.role_name = role_name
         self.own_objects = own_objects
+        # Pinned rules/instructions, set once at setup. When present, the player's
+        # perspective is Markovian: the model sees the fixed preamble plus only the
+        # current turn's context (appended by the caller), never the whole transcript.
+        # The board fully re-describes the state each turn, so no history is needed,
+        # and the per-turn prompt stays bounded regardless of episode length.
+        self.preamble: Optional[str] = None
+
+    def get_perspective(self):
+        if self.preamble is not None:
+            return [{"role": "user", "content": self.preamble}]
+        return self._messages
 
     def _custom_response(self, context):
         first = sorted(self.own_objects)[0]
@@ -255,6 +266,9 @@ class MatrixGameMaster(DialogueGameMaster):
         self.seen_states: Dict[str, int] = {self.board.state_key(): 1}
         self.player_a_done: bool = False
         self.player_b_done: bool = False
+        # Each player's most recent message, relayed back to everyone (including
+        # the sender) in the Markovian per-turn context.
+        self.last_message: Dict[str, Optional[str]] = {"Player A": None, "Player B": None}
 
         model_a = self.player_models[0]
         model_b = self.player_models[1] if len(self.player_models) > 1 else self.player_models[0]
@@ -266,26 +280,50 @@ class MatrixGameMaster(DialogueGameMaster):
         objs_a = ", ".join(sorted(self.player_a_objects))
         objs_b = ", ".join(sorted(self.player_b_objects))
 
-        ctx_a = self._build_initial_context(prompt_template, objs_a, self.player_a)
-        ctx_b = self._build_initial_context(prompt_template, objs_b, self.player_b)
+        preamble_a, first_a = self._build_initial_context(prompt_template, objs_a, self.player_a)
+        preamble_b, first_b = self._build_initial_context(prompt_template, objs_b, self.player_b)
+        self.player_a.preamble = preamble_a
+        self.player_b.preamble = preamble_b
 
         self._prompt_template = prompt_template
-        self._player_b_received_intro = False
 
-        self.add_player(self.player_a, initial_context=ctx_a)
-        self.add_player(self.player_b, initial_context=ctx_b)
+        self.add_player(self.player_a, initial_context=first_a)
+        self.add_player(self.player_b, initial_context=first_b)
 
-    def _build_initial_context(self, template: str, own_objects_str: str, player: Player) -> str:
+    def _build_initial_context(self, template: str, own_objects_str: str, player: Player) -> tuple:
         prompt = template.replace("$YOUR_OBJECTS$", own_objects_str)
         prompt = prompt.replace("$GRID_SIZE$", str(self.grid_size))
         if "DONE OPTION" not in prompt:
             prompt += self._done_instructions_text()
         board_view = self._render_for(player)
         goal_view = self._render_targets_for(player)
-        return (
-            f"{prompt}\n\n"
+        # Return the fixed rules preamble and the first turn's context separately.
+        # The preamble is pinned on the player (Markovian perspective); the context
+        # mirrors the per-turn contexts built by _turn_context.
+        first_ctx = (
             f"CURRENT BOARD:\n{board_view}\n\n"
             f"GOAL BOARD (where YOUR objects must end up):\n{goal_view}"
+        )
+        return prompt, first_ctx
+
+    def _turn_context(self, recipient: Player, notice: str = "") -> str:
+        """Markovian per-turn context: every player's last message (including the
+        recipient's own), an optional master notice, current and goal boards, and
+        the response-format reminder. No accumulated history."""
+        message_lines: List[str] = []
+        for p in (self.player_a, self.player_b):
+            msg = self.last_message.get(p.role_name)
+            if msg:
+                label = f"{p.role_name} (you)" if p == recipient else p.role_name
+                message_lines.append(f"{label} says: {msg}")
+        comm_block = ("\n".join(message_lines) + "\n\n") if message_lines else ""
+        notice_block = (f"{notice}\n\n") if notice else ""
+        return (
+            f"{comm_block}"
+            f"{notice_block}"
+            f"CURRENT BOARD:\n{self._render_for(recipient)}\n\n"
+            f"GOAL BOARD:\n{self._render_targets_for(recipient)}\n\n"
+            f"Your turn. Respond with:\n{self._format_reminder()}"
         )
 
     def _done_instructions_text(self) -> str:
@@ -527,6 +565,10 @@ class MatrixGameMaster(DialogueGameMaster):
     def _on_valid_player_response(self, player: Player, parsed_response: str) -> None:
         message = self.current_parsed.get("message")
 
+        # Cache this player's most recent message for relay (to everyone, including
+        # itself). For protocols without a message this stays None.
+        self.last_message[player.role_name] = message if (message and self.with_message) else None
+
         if self.current_parsed.get("is_done"):
             if player == self.player_a:
                 self.player_a_done = True
@@ -543,17 +585,10 @@ class MatrixGameMaster(DialogueGameMaster):
                 return
 
             other = self.player_b if player == self.player_a else self.player_a
-            if message and self.with_message:
-                comm_line = f"{player.role_name} says: {message}\n\n"
-            else:
-                comm_line = ""
-            self.set_context_for(other, (
-                f"{comm_line}"
-                f"{player.role_name} has finished — all their objects are at their target positions. "
-                f"Continue alone until all objects are placed.\n\n"
-                f"CURRENT BOARD:\n{self._render_for(other)}\n\n"
-                f"GOAL BOARD:\n{self._render_targets_for(other)}\n\n"
-                f"Your turn. Respond with:\n{self._format_reminder()}"
+            self.set_context_for(other, self._turn_context(
+                other,
+                notice=(f"{player.role_name} has finished — all their objects are at their target positions. "
+                        f"Continue alone until all objects are placed."),
             ))
             return
 
@@ -591,30 +626,17 @@ class MatrixGameMaster(DialogueGameMaster):
         other = self.player_b if player == self.player_a else self.player_a
         other_done = self._is_done_player(other)
 
-        if message and self.with_message:
-            comm_line = f"{player.role_name} says: {message}\n\n"
-        else:
-            comm_line = ""
-
         if other_done:
-            # Partner finished; current player continues alone
-            self.set_context_for(player, (
-                f"Your partner has finished. Continue placing your remaining objects alone.\n\n"
-                f"CURRENT BOARD:\n{self._render_for(player)}\n\n"
-                f"GOAL BOARD:\n{self._render_targets_for(player)}\n\n"
-                f"Your turn. Respond with:\n{self._format_reminder()}"
+            # Partner finished; current player continues alone.
+            self.set_context_for(player, self._turn_context(
+                player,
+                notice="Your partner has finished. Continue placing your remaining objects alone.",
             ))
-        elif not self._player_b_received_intro and other == self.player_b:
-            self._player_b_received_intro = True
-            objs_b = ", ".join(sorted(self.player_b_objects))
-            self.set_context_for(other, self._build_initial_context(self._prompt_template, objs_b, other))
         else:
-            self.set_context_for(other, (
-                f"{comm_line}"
-                f"CURRENT BOARD:\n{self._render_for(other)}\n\n"
-                f"GOAL BOARD:\n{self._render_targets_for(other)}\n\n"
-                f"Your turn. Respond with:\n{self._format_reminder()}"
-            ))
+            # Relay to the partner: their own + the mover's latest message, plus the
+            # refreshed board. (The rules preamble is pinned on each player, so a
+            # separate intro message is no longer needed.)
+            self.set_context_for(other, self._turn_context(other))
 
     def _on_after_game(self):
         self.log_key(METRIC_ABORTED, int(self.aborted))

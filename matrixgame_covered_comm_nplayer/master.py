@@ -196,6 +196,17 @@ class MatrixPlayer(Player):
         super().__init__(model)
         self.role_name = role_name
         self.own_objects = own_objects
+        # Pinned rules/instructions, set once at setup. When present, the player's
+        # perspective is Markovian: the model sees the fixed preamble plus only the
+        # current turn's context (appended by the caller), never the whole transcript.
+        # The board fully re-describes the state each turn, so no history is needed,
+        # and the per-turn prompt stays bounded regardless of episode length.
+        self.preamble: Optional[str] = None
+
+    def get_perspective(self):
+        if self.preamble is not None:
+            return [{"role": "user", "content": self.preamble}]
+        return self._messages
 
     def _custom_response(self, context):
         first = sorted(self.own_objects)[0]
@@ -272,8 +283,9 @@ class NPlayerMatrixGameMaster(DialogueGameMaster):
             player = MatrixPlayer(model, role, self.player_objects[i])
             self._player_to_index[player] = i
             own_objs_str = ", ".join(sorted(self.player_objects[i]))
-            ctx = self._build_initial_context(prompt_template, own_objs_str, player, role, n_other)
-            self.add_player(player, initial_context=ctx)
+            preamble, first_ctx = self._build_initial_context(prompt_template, own_objs_str, player, role, n_other)
+            player.preamble = preamble
+            self.add_player(player, initial_context=first_ctx)
 
     def _build_initial_context(
         self,
@@ -291,11 +303,14 @@ class NPlayerMatrixGameMaster(DialogueGameMaster):
             prompt += self._done_instructions_text()
         board_view = self._render_for(player)
         goal_view = self._render_targets_for(player)
-        return (
-            f"{prompt}\n\n"
+        # Return the fixed rules preamble and the first turn's context separately.
+        # The preamble is pinned on the player (Markovian perspective); the context
+        # is the current board + goal, mirroring the per-turn broadcast contexts.
+        first_ctx = (
             f"CURRENT BOARD:\n{board_view}\n\n"
             f"GOAL BOARD (where each object must end up):\n{goal_view}"
         )
+        return prompt, first_ctx
 
     def _done_instructions_text(self) -> str:
         if self.with_message:
@@ -595,18 +610,18 @@ class NPlayerMatrixGameMaster(DialogueGameMaster):
             self.set_context_for(other, self._build_broadcast_context(other))
 
     def _build_broadcast_context(self, recipient: Player, move_desc: str = "") -> str:
-        """Build the next-turn context for a recipient: all other players' last
-        messages, an optional master notice (e.g. a done-notification), current
-        and goal boards, and the response format reminder. Regular moves pass
-        no move_desc — players read moves off the board listings."""
+        """Build the next-turn context for a recipient: every player's last
+        message (including the recipient's own), an optional master notice (e.g. a
+        done-notification), current and goal boards, and the response format
+        reminder. Regular moves pass no move_desc — players read moves off the
+        board listings."""
         recipient_idx = self._player_to_index[recipient]
         message_lines: List[str] = []
         for other_idx, other in enumerate(self.get_players()):
-            if other_idx == recipient_idx:
-                continue
             msg = self.last_message[other_idx]
             if msg:
-                message_lines.append(f"{other.role_name} says: {msg}")
+                label = f"{other.role_name} (you)" if other_idx == recipient_idx else other.role_name
+                message_lines.append(f"{label} says: {msg}")
         comm_block = ("\n".join(message_lines) + "\n\n") if message_lines else ""
         move_block = (f"{move_desc}\n\n") if move_desc else ""
 
