@@ -185,7 +185,7 @@ def test_masked_move_attempt_position_qualified_gives_semantic_hint():
     )
     assert accepted is False
     msg = _reprompt_text(master, master.player_a)
-    assert "partner" in msg, "should explain X marks the partner's objects"
+    assert "teammate" in msg, "should explain X marks the teammate's objects"
     assert "A, B, C" in msg, "should name the player's own objects"
     assert "could not be parsed" not in msg
 
@@ -197,7 +197,7 @@ def test_masked_move_attempt_clean_gives_semantic_hint():
     )
     assert accepted is False
     msg = _reprompt_text(master, master.player_a)
-    assert "partner" in msg
+    assert "teammate" in msg
     assert "A, B, C" in msg
     assert "Unknown object" not in msg
 
@@ -418,7 +418,7 @@ def test_masking_hint_shown_when_flag_on():
     master = _setup_master_hints("none", masking_hints=True)
     ok = master._validate_player_response(master.player_a, "move: X down")
     assert ok is False
-    assert "marks your partner's" in _reprompt_text(master, master.player_a)
+    assert "marks your teammate's" in _reprompt_text(master, master.player_a)
     assert master.illegal_attempts == 1  # counting unaffected
 
 
@@ -426,7 +426,7 @@ def test_masking_hint_suppressed_when_flag_off():
     master = _setup_master_hints("none", masking_hints=False)
     ok = master._validate_player_response(master.player_a, "move: X down")
     assert ok is False
-    assert "marks your partner's" not in _reprompt_text(master, master.player_a)
+    assert "marks your teammate's" not in _reprompt_text(master, master.player_a)
     assert master.illegal_attempts == 1  # counting still identical
 
 

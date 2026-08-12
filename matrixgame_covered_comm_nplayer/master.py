@@ -8,7 +8,7 @@ their next turn.
 Communication protocol variants (same as matrixgame_covered_comm):
   none       — no inter-agent messages; move-only response format.
   structured — fixed template: PLAN: move X from (Rr,Cc) to (Rr,Cc) — REQUEST: ...; PLAN and REQUEST each <=10 words, enforced (reprompt/abort).
-  freeform   — unrestricted natural language; the prompt asks for under 100 words (not enforced).
+  freeform   — unrestricted natural language; the prompt asks for at most 100 words (not enforced).
   hybrid     — free-form prose (<=100 words) plus a required PLAN/REQUEST clause (each part <=10 words); message may span multiple lines; schema+caps enforced (reprompt/abort) like structured.
 
 Same response formats as matrixgame_covered_comm. The "partner" wording is
@@ -115,13 +115,13 @@ HYBRID_MSG_PATTERN = re.compile(
 # built inline in _schema_violation).
 _STRUCTURED_REMINDER = (
     'Use exactly:\n'
-    'message: PLAN: move [OBJECT] from (Rr,Cc) to (Rr,Cc) — REQUEST: [request or "none"]\n'
-    "The first (Rr,Cc) is the object's current cell; the second is its goal cell."
+    'message: PLAN: move <OBJECT> from (Rr,Cc) to (Rr,Cc) — REQUEST: <request or "none">\n'
+    "The first (Rr,Cc) is the object's current cell. The second is its goal cell."
 )
 _HYBRID_REMINDER = (
     'Use exactly:\n'
-    'message: <natural language> PLAN: move [OBJECT] from (Rr,Cc) to (Rr,Cc) — REQUEST: [request or "none"]\n'
-    "The first (Rr,Cc) is the object's current cell; the second is its goal cell."
+    'message: <natural language> PLAN: move <OBJECT> from (Rr,Cc) to (Rr,Cc) — REQUEST: <request or "none">\n'
+    "The first (Rr,Cc) is the object's current cell. The second is its goal cell."
 )
 
 
@@ -150,7 +150,7 @@ def _schema_violation(protocol: str, message: str) -> Optional[str]:
         # Structure is correct; only the word caps can still be violated.
         if protocol == COMM_HYBRID and len(m.group("prose").split()) > PROSE_MAX_WORDS:
             return (f"Your PLAN/REQUEST clause is fine, but the natural-language part is too "
-                    f"long — keep it to at most {PROSE_MAX_WORDS} words.")
+                    f"long. Keep it to at most {PROSE_MAX_WORDS} words.")
         return _clause_word_violation(m)
     # Structure did not match — name the specific missing/wrong part.
     has_plan = re.search(r"PLAN\s*:", message, re.IGNORECASE) is not None
@@ -162,16 +162,16 @@ def _schema_violation(protocol: str, message: str) -> Optional[str]:
                   else "Your message is missing the required PLAN/REQUEST clause. ")
         return prefix + reminder
     if has_plan and not has_request:
-        return ('Your message has a PLAN but no REQUEST — append '
+        return ('Your message has a PLAN but no REQUEST. Append '
                 '— REQUEST: <request or "none"> after the PLAN clause. ' + reminder)
     if has_request and not has_plan:
-        return ("Your message has a REQUEST but no PLAN — add "
-                "PLAN: move [OBJECT] from (Rr,Cc) to (Rr,Cc) before it. " + reminder)
+        return ("Your message has a REQUEST but no PLAN. Add "
+                "PLAN: move <OBJECT> from (Rr,Cc) to (Rr,Cc) before it. " + reminder)
     if protocol == COMM_HYBRID and not re.split(r"PLAN\s*:", message, flags=re.IGNORECASE)[0].strip():
-        return ("Hybrid messages need natural-language prose BEFORE the PLAN clause — add a "
+        return ("Hybrid messages need natural-language prose BEFORE the PLAN clause. Add a "
                 "sentence, then the PLAN/REQUEST clause. " + reminder)
     return ("Your PLAN clause is not in the required form. It must read exactly "
-            "PLAN: move [OBJECT] from (Rr,Cc) to (Rr,Cc). " + reminder)
+            "PLAN: move <OBJECT> from (Rr,Cc) to (Rr,Cc). " + reminder)
 
 
 def _parse_response(response: str, with_message: bool) -> Optional[Dict[str, str]]:
@@ -362,7 +362,7 @@ class NPlayerMatrixGameMaster(DialogueGameMaster):
         object — i.e. one of its teammates' objects, which it cannot control."""
         own = ", ".join(sorted(self._objects_for(player)))
         return (
-            f"'{BLOCKED_MARKER}' marks your teammates' objects — you cannot move them. "
+            f"'{BLOCKED_MARKER}' marks your teammates' objects. You cannot move them. "
             f"You can only move YOUR objects: {own}. Choose one of yours."
         )
 
@@ -582,7 +582,7 @@ class NPlayerMatrixGameMaster(DialogueGameMaster):
                     continue
                 self.set_context_for(other, self._build_broadcast_context(
                     other,
-                    move_desc=f"{player.role_name} has finished — all their objects are at their target positions. Continue without them.",
+                    move_desc=f"{player.role_name} has finished. All their objects are at their target positions. Continue without them.",
                 ))
             return
 
