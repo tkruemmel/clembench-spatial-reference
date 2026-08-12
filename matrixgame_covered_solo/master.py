@@ -328,8 +328,8 @@ class SoloMatrixGameMaster(DialogueGameMaster):
         state = self.board.state_key()
         self.seen_states[state] = self.seen_states.get(state, 0) + 1
         if self.seen_states[state] >= 3:
-            self.aborted = True
-            self.log_to_self("abort", "Board state repeated 3 times — model is in a cycle")
+            self.lost = True
+            self.log_to_self("lose", "Board state repeated 3 times — model is in a cycle")
             return
 
         if self._all_objects_at_target():

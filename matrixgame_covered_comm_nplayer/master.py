@@ -429,9 +429,9 @@ class NPlayerMatrixGameMaster(DialogueGameMaster):
                     "invalid_done",
                     f"{player.role_name}: declared done but not all their objects are at target positions",
                 )
-                self.aborted = True
+                self.lost = True
                 self.log_to_self(
-                    "abort",
+                    "lose",
                     f"{player.role_name} declared done before all their objects reached their targets",
                 )
                 return False
@@ -593,8 +593,8 @@ class NPlayerMatrixGameMaster(DialogueGameMaster):
         state = self.board.state_key()
         self.seen_states[state] = self.seen_states.get(state, 0) + 1
         if self.seen_states[state] >= 3:
-            self.aborted = True
-            self.log_to_self("abort", "Board state repeated 3 times — players stuck in cycle")
+            self.lost = True
+            self.log_to_self("lose", "Board state repeated 3 times — players stuck in cycle")
             return
 
         if self.board.is_solved():
