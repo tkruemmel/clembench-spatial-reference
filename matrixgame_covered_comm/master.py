@@ -138,21 +138,42 @@ def _clause_word_violation(match) -> Optional[str]:
 
 
 def _schema_violation(protocol: str, message: str) -> Optional[str]:
-    """Return a reprompt reminder if `message` violates the protocol's schema
-    (structure or word caps), else None. Only structured/hybrid have schemas."""
-    if protocol == COMM_STRUCTURED:
-        m = STRUCTURED_MSG_PATTERN.match(message)
-        if not m:
-            return _STRUCTURED_REMINDER
+    """Return a specific reprompt reminder if `message` violates the protocol's
+    schema (structure or word caps), else None. The reminder names the exact
+    problem — missing PLAN, missing REQUEST, wrong PLAN form, missing prose
+    (hybrid), or a word-cap overrun — rather than only restating the template.
+    Only structured/hybrid have schemas."""
+    if protocol not in (COMM_STRUCTURED, COMM_HYBRID):
+        return None
+    pattern = STRUCTURED_MSG_PATTERN if protocol == COMM_STRUCTURED else HYBRID_MSG_PATTERN
+    reminder = _STRUCTURED_REMINDER if protocol == COMM_STRUCTURED else _HYBRID_REMINDER
+    m = pattern.match(message)
+    if m:
+        # Structure is correct; only the word caps can still be violated.
+        if protocol == COMM_HYBRID and len(m.group("prose").split()) > PROSE_MAX_WORDS:
+            return (f"Your PLAN/REQUEST clause is fine, but the natural-language part is too "
+                    f"long — keep it to at most {PROSE_MAX_WORDS} words.")
         return _clause_word_violation(m)
-    if protocol == COMM_HYBRID:
-        m = HYBRID_MSG_PATTERN.match(message)
-        if not m:
-            return _HYBRID_REMINDER
-        if len(m.group("prose").split()) > PROSE_MAX_WORDS:
-            return f"Keep the natural-language part to at most {PROSE_MAX_WORDS} words."
-        return _clause_word_violation(m)
-    return None
+    # Structure did not match — name the specific missing/wrong part.
+    has_plan = re.search(r"PLAN\s*:", message, re.IGNORECASE) is not None
+    has_request = re.search(r"REQUEST\s*:", message, re.IGNORECASE) is not None
+    if not has_plan and not has_request:
+        prefix = ("Your message is missing the required PLAN/REQUEST clause. "
+                  "Keep your natural-language prose, then append the clause. "
+                  if protocol == COMM_HYBRID
+                  else "Your message is missing the required PLAN/REQUEST clause. ")
+        return prefix + reminder
+    if has_plan and not has_request:
+        return ('Your message has a PLAN but no REQUEST — append '
+                '— REQUEST: <request or "none"> after the PLAN clause. ' + reminder)
+    if has_request and not has_plan:
+        return ("Your message has a REQUEST but no PLAN — add "
+                "PLAN: move [OBJECT] from (Rr,Cc) to (Rr,Cc) before it. " + reminder)
+    if protocol == COMM_HYBRID and not re.split(r"PLAN\s*:", message, flags=re.IGNORECASE)[0].strip():
+        return ("Hybrid messages need natural-language prose BEFORE the PLAN clause — add a "
+                "sentence, then the PLAN/REQUEST clause. " + reminder)
+    return ("Your PLAN clause is not in the required form. It must read exactly "
+            "PLAN: move [OBJECT] from (Rr,Cc) to (Rr,Cc). " + reminder)
 
 
 def _parse_response(response: str, with_message: bool) -> Optional[Dict[str, str]]:
@@ -481,9 +502,17 @@ class MatrixGameMaster(DialogueGameMaster):
                 self.log_to_self("abort", f"Too many malformed {self.comm_protocol} messages")
             else:
                 self.reprompt_pending = True
+                lines = [
+                    f"Your message did not follow the required {self.comm_protocol} message rules.",
+                    reminder,
+                ]
+                echo = msg.strip()
+                if echo:
+                    if len(echo) > 200:
+                        echo = echo[:200] + "…"
+                    lines.append(f'You wrote: "{echo}"')
                 self.set_context_for(player, (
-                    f"Your message did not follow the required {self.comm_protocol} message rules. "
-                    f"{reminder}\n\n"
+                    "\n".join(lines) + "\n\n"
                     f"{self._format_reminder()}\n\n"
                     f"CURRENT BOARD:\n{self._render_for(player)}\n\n"
                     f"GOAL BOARD:\n{self._render_targets_for(player)}"
@@ -520,11 +549,22 @@ class MatrixGameMaster(DialogueGameMaster):
                 # `move: X ...` parses as object "X" but X is a masked partner
                 # object; give the same semantic redirect as the unparsed form.
                 masked_attempt = self.use_masking and obj == BLOCKED_MARKER
-                guidance = (
-                    self._masked_move_message(player)
-                    if (masked_attempt and self.masking_hints)
-                    else f"Invalid move: {err_msg}\nPlease try again."
-                )
+                pos = self.board.object_positions.get(obj)
+                if masked_attempt and self.masking_hints:
+                    guidance = self._masked_move_message(player)
+                elif code == "coordinate_mismatch" and pos is not None:
+                    # Conceptual nudge on the coordinate convention — no target given.
+                    r, c = pos
+                    guidance = (
+                        f"Invalid move: {err_msg}\n"
+                        f"Your direction and the R,C cell you name must agree. Coordinate rules: "
+                        f"rows R increase downward (up = row-1, down = row+1); columns C increase "
+                        f"rightward (left = col-1, right = col+1). {obj} is currently at "
+                        f"(R{r+1},C{c+1}); apply your chosen direction to that cell and name the "
+                        f"cell it actually lands on."
+                    )
+                else:
+                    guidance = f"Invalid move: {err_msg}\nPlease try again."
                 self.set_context_for(player, (
                     f"{guidance}\n\n"
                     f"{self._format_reminder()}\n\n"
