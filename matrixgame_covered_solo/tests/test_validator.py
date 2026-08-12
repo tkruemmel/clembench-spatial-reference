@@ -60,14 +60,24 @@ def test_validate_rejects_out_of_bounds():
     assert "grid" in msg.lower()
 
 
-def test_validate_move_coordinate_mismatch():
+def test_validate_move_has_no_declared_target_param():
+    import inspect
+    from utils.board import Board
+    sig = inspect.signature(Board.validate_move)
+    assert "declared_target" not in sig.parameters
+
+
+def test_valid_direction_move_ok():
     from utils.board import Board
     b = Board(8, set())
-    b.place_object("A", 2, 2)  # 0-based -> displayed R3C3
-    # moving A down lands on (3,2) == R4C3; declaring R9C9 (8,8 0-based) is a mismatch
-    err = b.validate_move("A", "down", allowed_objects={"A"}, declared_target=(8, 8))
-    assert err is not None and err[0] == "coordinate_mismatch"
-    # correct declaration passes
-    assert b.validate_move("A", "down", allowed_objects={"A"}, declared_target=(3, 2)) is None
-    # omitting declared_target keeps old behaviour
-    assert b.validate_move("A", "down", allowed_objects={"A"}) is None
+    b.place_object("A", 3, 3)
+    assert b.validate_move("A", "right", allowed_objects={"A"}) is None
+
+
+def test_off_grid_and_wall_still_illegal():
+    from utils.board import Board
+    b = Board(8, {(2, 3)})
+    b.place_object("A", 0, 0)
+    assert b.validate_move("A", "up")[0] == "off_grid"
+    b.place_object("B", 1, 3)
+    assert b.validate_move("B", "down")[0] == "wall"
