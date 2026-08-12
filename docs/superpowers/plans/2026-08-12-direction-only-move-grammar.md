@@ -14,7 +14,7 @@
 - Clean break: the old coordinate form (`move: A to R3,C5 (right)`) must NOT parse — it falls through to the standard reprompt path.
 - PLAN clause in structured/hybrid comm KEEPS coordinates. Its regex is unchanged; only wording/examples are reframed so the second `(Rr,Cc)` is the object's **goal** cell (the plan may span several moves; the `move:` line is a single step toward it).
 - No commit contains a `Co-Authored-By: Claude …` trailer (repo convention).
-- Instances are regenerated from the generators (seed 42), never hand-edited.
+- Instances are regenerated from the generators (seed 42) at **2 instances per config**, never hand-edited. The regenerated `instances.json` files are **NOT committed** (they are for local test runs at reduced size); only the `*.template` source files are committed. This intentionally leaves committed templates ahead of committed instances — accepted per user direction.
 - Metrics consume only `object`, `direction`, `to` from each move-log entry — the `target` field is informational and is being dropped.
 
 ## File Structure
@@ -276,27 +276,28 @@ Replace the response-format line and example:
 
 Same two replacements as Step 1 (identical strings appear once each).
 
-- [ ] **Step 3: Regenerate solo instances**
+- [ ] **Step 3: Regenerate solo instances (2 per config, NOT committed)**
 
-Run: `python3 matrixgame_covered_solo/instancegenerator.py`
+Run: `python3 matrixgame_covered_solo/instancegenerator.py --num-instances 2`
 Expected output ends with `Wrote instances to instances.json`.
 
-- [ ] **Step 4: Verify only prompt text changed**
+- [ ] **Step 4: Verify the new grammar landed in the regenerated instances**
 
-Run: `git diff --stat matrixgame_covered_solo/in/instances.json` then `git diff matrixgame_covered_solo/in/instances.json | grep -c '"start_positions"\|"target_positions"'`
-Expected: the diff touches `player_prompt` strings only; board fields (`start_positions`, `target_positions`, `walls`) are unchanged (grep count on removed/added board lines is 0 in the `-`/`+` sense — confirm visually the changed lines are all inside `player_prompt`).
+Run: `grep -o 'move: <OBJECT>[^"]*' matrixgame_covered_solo/in/instances.json | sort -u` and `grep -c '"game_id"' matrixgame_covered_solo/in/instances.json`
+Expected: the move-format string is `move: <OBJECT> <DIRECTION>` (no `to R<row>...`), the example shows `move: A right`, and the game-instance count is 32 (16 experiments × 2). Also confirm no old-grammar remnants: `grep -c 'to R<row>,C<col>' matrixgame_covered_solo/in/instances.json` → 0.
 
 - [ ] **Step 5: Run the full solo suite**
 
 Run: `python3 -m pytest matrixgame_covered_solo/tests/ -q`
 Expected: PASS (includes `test_instance_generator.py`, `test_renderer.py`).
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 6: Commit templates ONLY (do NOT stage instances.json)**
 
 ```bash
-git add matrixgame_covered_solo/resources/initial_prompts/en/ matrixgame_covered_solo/in/instances.json
-git commit -m "solo: coordinate-free move in prompts; regenerate instances"
+git add matrixgame_covered_solo/resources/initial_prompts/en/
+git commit -m "solo: coordinate-free move in prompts"
 ```
+Leave `matrixgame_covered_solo/in/instances.json` modified in the working tree, unstaged.
 
 ---
 
@@ -505,27 +506,28 @@ The first (Rr,Cc) is where the object is now; the second is its GOAL cell (from 
 
 In `player_prompt_hybrid.template`, add the same clarifying sentence directly under item 2 of the COMMUNICATION list (the `PLAN: move <OBJECT> from (Rr,Cc) to (Rr,Cc)` line). Leave the freeform and none templates' communication sections unchanged. Do NOT change any literal `PLAN: move ... from (Rr,Cc) to (Rr,Cc)` example text — the schema regex still requires that exact form.
 
-- [ ] **Step 4: Regenerate comm instances**
+- [ ] **Step 4: Regenerate comm instances (2 per config, NOT committed)**
 
-Run: `python3 matrixgame_covered_comm/instancegenerator.py`
+Run: `python3 matrixgame_covered_comm/instancegenerator.py --n 2`
 Expected: prints `Generated: ...` lines for each experiment/level/protocol condition with no error.
 
-- [ ] **Step 5: Verify only prompt text changed**
+- [ ] **Step 5: Verify the new grammar landed in the regenerated instances**
 
-Run: `git diff matrixgame_covered_comm/in/instances.json | grep -E '^\+|^-' | grep -v player_prompt | grep -vE '^\+\+\+|^---'`
-Expected: no board-field lines (`start_positions`/`target_positions`/`walls`) appear — every changed line is inside a `player_prompt` string. (Changed `move:`/PLAN text lives inside `player_prompt`.)
+Run: `grep -o 'move: <OBJECT>[^"]*' matrixgame_covered_comm/in/instances.json | sort -u` and `grep -c 'to R<row>,C<col>' matrixgame_covered_comm/in/instances.json`
+Expected: the move-format string is `move: <OBJECT> <DIRECTION>`; the second grep returns `0` (no old grammar). PLAN clauses `from (Rr,Cc) to (Rr,Cc)` may still appear — that is correct.
 
 - [ ] **Step 6: Run the comm suite**
 
 Run: `python3 -m pytest matrixgame_covered_comm/tests/ -q`
 Expected: PASS.
 
-- [ ] **Step 7: Commit**
+- [ ] **Step 7: Commit templates ONLY (do NOT stage instances.json)**
 
 ```bash
-git add matrixgame_covered_comm/resources/initial_prompts/en/ matrixgame_covered_comm/in/instances.json
-git commit -m "comm: coordinate-free move + goal-framed PLAN in prompts; regenerate instances"
+git add matrixgame_covered_comm/resources/initial_prompts/en/
+git commit -m "comm: coordinate-free move + goal-framed PLAN in prompts"
 ```
+Leave `matrixgame_covered_comm/in/instances.json` modified in the working tree, unstaged.
 
 ---
 
@@ -666,27 +668,28 @@ The first (Rr,Cc) is where the object is now; the second is its GOAL cell (from 
 
 Leave the literal `PLAN: move ... from (Rr,Cc) to (Rr,Cc)` example strings unchanged.
 
-- [ ] **Step 4: Regenerate nplayer instances**
+- [ ] **Step 4: Regenerate nplayer instances (2 per config, NOT committed)**
 
-Run: `python3 matrixgame_covered_comm_nplayer/instancegenerator.py`
+Run: `python3 matrixgame_covered_comm_nplayer/instancegenerator.py --n 2`
 Expected: no error; instances written.
 
-- [ ] **Step 5: Verify only prompt text changed**
+- [ ] **Step 5: Verify the new grammar landed in the regenerated instances**
 
-Run: `git diff matrixgame_covered_comm_nplayer/in/instances.json | grep -E '^\+|^-' | grep -v player_prompt | grep -vE '^\+\+\+|^---'`
-Expected: no board-field lines appear.
+Run: `grep -o 'move: <OBJECT>[^"]*' matrixgame_covered_comm_nplayer/in/instances.json | sort -u` and `grep -c 'to R<row>,C<col>' matrixgame_covered_comm_nplayer/in/instances.json`
+Expected: move-format string is `move: <OBJECT> <DIRECTION>`; second grep returns `0`. PLAN clauses may still show `from (Rr,Cc) to (Rr,Cc)` — correct.
 
 - [ ] **Step 6: Run the nplayer suite**
 
 Run: `python3 -m pytest matrixgame_covered_comm_nplayer/tests/ -q`
 Expected: PASS.
 
-- [ ] **Step 7: Commit**
+- [ ] **Step 7: Commit templates ONLY (do NOT stage instances.json)**
 
 ```bash
-git add matrixgame_covered_comm_nplayer/resources/initial_prompts/en/ matrixgame_covered_comm_nplayer/in/instances.json
-git commit -m "nplayer: coordinate-free move + goal-framed PLAN in prompts; regenerate instances"
+git add matrixgame_covered_comm_nplayer/resources/initial_prompts/en/
+git commit -m "nplayer: coordinate-free move + goal-framed PLAN in prompts"
 ```
+Leave `matrixgame_covered_comm_nplayer/in/instances.json` modified in the working tree, unstaged.
 
 ---
 
@@ -714,6 +717,6 @@ Use each variant's mock player path (already exercised by the smoke tests) or ru
 
 - [ ] **Step 4: Final status**
 
-Run: `git log --oneline -9 | cat` and confirm the nine implementation commits are present and the working tree is clean (`git status`).
+Run: `git log --oneline -7 | cat` and confirm the seven implementation commits are present (solo board / solo master / solo templates / comm board+master / comm templates / nplayer board+master / nplayer templates). Run `git status --short`: the only staged/committed changes are code+templates; the three `in/instances.json` remain **modified but unstaged** (regenerated, intentionally uncommitted), alongside the pre-existing unrelated `key.json.template` and untracked files, which must be left untouched.
 ```
 
