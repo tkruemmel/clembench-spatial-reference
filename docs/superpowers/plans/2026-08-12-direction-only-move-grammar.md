@@ -180,7 +180,7 @@ Expected: FAIL — new grammar not yet implemented; `_parse_response("move: A ri
 
 ```python
 MOVE_ONLY_PATTERN = re.compile(
-    r"\A\s*move:\s*(?P<object>[A-Z])\s+(?P<direction>up|down|left|right)",
+    r"\A\s*move:\s*(?P<object>[A-Z])\s+(?P<direction>up|down|left|right)\b",
     re.IGNORECASE,
 )
 ```
@@ -189,7 +189,7 @@ MOVE_ONLY_PATTERN = re.compile(
 
 ```python
 MESSAGE_MOVE_PATTERN = re.compile(
-    r"\A\s*message:\s*(?P<message>.+?)\s*\nmove:\s*(?P<object>[A-Z])\s+(?P<direction>up|down|left|right)",
+    r"\A\s*message:\s*(?P<message>.+?)\s*\nmove:\s*(?P<object>[A-Z])\s+(?P<direction>up|down|left|right)\b",
     re.IGNORECASE,
 )
 ```
@@ -363,7 +363,7 @@ Expected: FAIL (old grammar removed from fixtures; masters still expect coordina
 
 ```python
 MOVE_ONLY_PATTERN = re.compile(
-    r"\A\s*move:\s*(?P<object>[A-Z])\s+(?P<direction>up|down|left|right)",
+    r"\A\s*move:\s*(?P<object>[A-Z])\s+(?P<direction>up|down|left|right)\b",
     re.IGNORECASE,
 )
 ```
@@ -372,7 +372,7 @@ MOVE_ONLY_PATTERN = re.compile(
 
 ```python
 COMM_MOVE_PATTERN = re.compile(
-    r"\A\s*message:\s*(?P<message>.+?)\s*\nmove:\s*(?P<object>[A-Z])\s+(?P<direction>up|down|left|right)",
+    r"\A\s*message:\s*(?P<message>.+?)\s*\nmove:\s*(?P<object>[A-Z])\s+(?P<direction>up|down|left|right)\b",
     re.IGNORECASE | re.DOTALL,
 )
 ```
@@ -571,11 +571,11 @@ Expected: FAIL.
 
 `MOVE_ONLY_PATTERN` (65):
 ```python
-    r"\A\s*move:\s*(?P<object>[A-Z])\s+(?P<direction>up|down|left|right)",
+    r"\A\s*move:\s*(?P<object>[A-Z])\s+(?P<direction>up|down|left|right)\b",
 ```
 `COMM_MOVE_PATTERN` (77):
 ```python
-    r"\A\s*message:\s*(?P<message>.+?)\s*\nmove:\s*(?P<object>[A-Z])\s+(?P<direction>up|down|left|right)",
+    r"\A\s*message:\s*(?P<message>.+?)\s*\nmove:\s*(?P<object>[A-Z])\s+(?P<direction>up|down|left|right)\b",
 ```
 `MASKED_OBJECT_MOVE_PATTERN` (55-58): simplify to `rf"move:\s*{re.escape(BLOCKED_MARKER)}\b"` and trim the `@R3C4` comment reference (comm/nplayer say "teammate" — keep that wording).
 
@@ -706,10 +706,15 @@ grep -rn "to R<row>,C<col>\|to Rr,Cc (DIRECTION)\| to R[0-9]" matrixgame_covered
 ```
 Expected: first grep returns nothing; second returns nothing in `master.py`/templates (matches inside PLAN `from (Rr,Cc) to (Rr,Cc)` are acceptable and expected — inspect any hit to confirm it is a PLAN clause, not a `move:` line).
 
-- [ ] **Step 2: Run every test suite**
+- [ ] **Step 2: Run every test suite — ONE VARIANT PER PROCESS**
 
-Run: `python3 -m pytest matrixgame_covered_solo/tests/ matrixgame_covered_comm/tests/ matrixgame_covered_comm_nplayer/tests/ -q`
-Expected: all PASS.
+The three variants share top-level module names (`master`, `utils.board`) and each conftest prepends its own root to `sys.path`, so a single combined `pytest` invocation cross-imports the wrong `master` and mass-fails (this collision pre-exists this work — verified at BASE). Run each in its own process:
+```
+python3 -m pytest matrixgame_covered_solo/tests/ -q
+python3 -m pytest matrixgame_covered_comm/tests/ -q
+python3 -m pytest matrixgame_covered_comm_nplayer/tests/ -q
+```
+Expected: solo all pass; comm all pass; nplayer all pass EXCEPT `test_master_setup_initial_context_substitutions`, a pre-existing failure (a Markovian per-turn-context `role_name` assertion) unrelated to this work — confirmed failing identically at BASE 66e79bb.
 
 - [ ] **Step 3: Drive one live episode per variant (smoke)**
 
