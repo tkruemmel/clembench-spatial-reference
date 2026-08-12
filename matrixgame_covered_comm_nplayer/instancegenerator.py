@@ -17,6 +17,7 @@ members and the S4 swap pair land on different agents at 3 players.
 The compact board representation is the only supported rendering mode.
 """
 
+import json
 import os
 import sys
 
@@ -121,3 +122,20 @@ if __name__ == "__main__":
 
     gen = MatrixGameNPlayerInstanceGenerator()
     gen.generate(filename="instances.json", seed=42, num_instances=args.n)
+
+    # clemgame.json declares two experiment groups ("instances_3p" and
+    # "instances_6p") that each load their own instances file, so the combined
+    # instances.json above must also be split by player count into the files
+    # the game actually loads.
+    in_dir = os.path.join(os.path.dirname(__file__), "in")
+    with open(os.path.join(in_dir, "instances.json"), encoding="utf-8") as f:
+        all_experiments = json.load(f)["experiments"]
+
+    for num_players, split_filename in ((3, "instances_3p.json"), (6, "instances_6p.json")):
+        experiments = [
+            experiment
+            for experiment in all_experiments
+            if experiment["game_instances"][0]["num_players"] == num_players
+        ]
+        with open(os.path.join(in_dir, split_filename), "w", encoding="utf-8") as f:
+            json.dump({"experiments": experiments}, f, indent=2, ensure_ascii=False)
