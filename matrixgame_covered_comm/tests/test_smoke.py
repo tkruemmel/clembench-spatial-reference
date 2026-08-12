@@ -70,30 +70,30 @@ def test_validate_move_returns_typed_codes():
 
 def test_masked_object_move_pattern():
     from master import MASKED_OBJECT_MOVE_PATTERN as P
-    assert P.search("move: X@R2C3 to R2,C4 (right)")
-    assert P.search("move: X to R2,C4 (right)")
-    assert P.search("move: x@r2c3 to r2,c4 (right)")  # case-insensitive
-    assert not P.search("move: A to R2,C4 (right)")
-    assert not P.search("the X at R2C3 is blocking\nmove: A to R2,C4 (right)")
+    assert P.search("move: X@R2C3 right")
+    assert P.search("move: X right")
+    assert P.search("move: x@r2c3 right")  # case-insensitive
+    assert not P.search("move: A right")
+    assert not P.search("the X at R2C3 is blocking\nmove: A right")
 
 
 def test_grammar_anchored_no_reason():
     from master import _parse_response
     # channel off
-    assert _parse_response("move: A to R2,C1 (down)", with_message=False) is not None
-    assert _parse_response("thinking first\nmove: A to R2,C1 (down)", with_message=False) is None
-    assert _parse_response("reason: r\nmove: A to R2,C1 (down)", with_message=False) is None
+    assert _parse_response("move: A down", with_message=False) is not None
+    assert _parse_response("thinking first\nmove: A down", with_message=False) is None
+    assert _parse_response("reason: r\nmove: A down", with_message=False) is None
     assert _parse_response("done: all my objects are placed", with_message=False)["is_done"] is True
     # channel on: messages MAY span multiple lines (single-line boundary
     # removed); the parser still never produces a `reason` field, and the move
     # line remains the required terminator. Extra lines fold into the message.
-    p = _parse_response("message: hi\nmove: A to R2,C1 (down)", with_message=True)
+    p = _parse_response("message: hi\nmove: A down", with_message=True)
     assert p["message"] == "hi" and "reason" not in p
-    ml = _parse_response("message: hi\nmore context\nmove: A to R2,C1 (down)", with_message=True)
+    ml = _parse_response("message: hi\nmore context\nmove: A down", with_message=True)
     assert ml is not None and ml["message"] == "hi\nmore context" and "reason" not in ml
     d = _parse_response("message: done\ndone: all placed", with_message=True)
     assert d["is_done"] is True and d["message"] == "done"
-    assert _parse_response("preamble\nmessage: hi\nmove: A to R2,C1 (down)", with_message=True) is None
+    assert _parse_response("preamble\nmessage: hi\nmove: A down", with_message=True) is None
 
 
 # ── Master-driven ────────────────────────────────────────────────────────
@@ -132,7 +132,7 @@ class _DummyModel:
         self._gen_args[key] = value
 
     def generate_response(self, *_a, **_k):
-        return "move: A to R1,C1 (down)"
+        return "move: A down"
 
 
 def _make_game_spec():
@@ -181,7 +181,7 @@ def test_render_targets_for_shows_only_own_targets():
 def test_masked_move_attempt_position_qualified_gives_semantic_hint():
     master = _setup_master()
     accepted = master._validate_player_response(
-        master.player_a, "move: X@R1C5 to R1,C6 (right)"
+        master.player_a, "move: X@R1C5 right"
     )
     assert accepted is False
     msg = _reprompt_text(master, master.player_a)
@@ -193,7 +193,7 @@ def test_masked_move_attempt_position_qualified_gives_semantic_hint():
 def test_masked_move_attempt_clean_gives_semantic_hint():
     master = _setup_master()
     accepted = master._validate_player_response(
-        master.player_a, "move: X to R1,C6 (right)"
+        master.player_a, "move: X right"
     )
     assert accepted is False
     msg = _reprompt_text(master, master.player_a)
@@ -206,7 +206,7 @@ def test_structured_wellformed_message_passes():
     master = _setup_master("structured")
     ok = master._validate_player_response(
         master.player_a,
-        "message: PLAN: move A from (R1,C1) to (R2,C1) — REQUEST: none\nmove: A to R2,C1 (down)",
+        "message: PLAN: move A from (R1,C1) to (R2,C1) — REQUEST: none\nmove: A down",
     )
     assert ok is True
 
@@ -214,7 +214,7 @@ def test_structured_wellformed_message_passes():
 def test_structured_malformed_message_reprompts():
     master = _setup_master("structured")
     ok = master._validate_player_response(
-        master.player_a, "message: let's go team\nmove: A to R2,C1 (down)"
+        master.player_a, "message: let's go team\nmove: A down"
     )
     assert ok is False
     assert master.reprompt_pending is True
@@ -226,7 +226,7 @@ def test_structured_malformed_thrice_aborts():
     master = _setup_master("structured")
     for _ in range(3):
         master._validate_player_response(
-            master.player_a, "message: chatty\nmove: A to R2,C1 (down)"
+            master.player_a, "message: chatty\nmove: A down"
         )
     assert master.aborted is True
 
@@ -268,7 +268,7 @@ def test_hybrid_wellformed_message_passes():
         master.player_a,
         "message: I'll take the left so you have room. "
         "PLAN: move A from (R1,C1) to (R2,C1) — REQUEST: none\n"
-        "move: A to R2,C1 (down)",
+        "move: A down",
     )
     assert ok is True
 
@@ -276,7 +276,7 @@ def test_hybrid_wellformed_message_passes():
 def test_hybrid_missing_clause_reprompts():
     master = _setup_master("hybrid")
     ok = master._validate_player_response(
-        master.player_a, "message: let's go team\nmove: A to R2,C1 (down)"
+        master.player_a, "message: let's go team\nmove: A down"
     )
     assert ok is False
     assert master.reprompt_pending is True
@@ -288,7 +288,7 @@ def test_hybrid_malformed_thrice_aborts():
     master = _setup_master("hybrid")
     for _ in range(3):
         master._validate_player_response(
-            master.player_a, "message: chatty\nmove: A to R2,C1 (down)"
+            master.player_a, "message: chatty\nmove: A down"
         )
     assert master.aborted is True
 
@@ -317,7 +317,7 @@ def test_hybrid_multiline_message_passes():
         master.player_a,
         "message: I'll take the left so you have room.\n"
         "PLAN: move A from (R1,C1) to (R2,C1) — REQUEST: none\n"
-        "move: A to R2,C1 (down)",
+        "move: A down",
     )
     assert ok is True
 
@@ -328,7 +328,7 @@ def test_hybrid_prose_over_100_words_reprompts():
     ok = master._validate_player_response(
         master.player_a,
         f"message: {prose} PLAN: move A from (R1,C1) to (R2,C1) — REQUEST: none\n"
-        "move: A to R2,C1 (down)",
+        "move: A down",
     )
     assert ok is False
     assert master.reprompt_pending is True
@@ -341,7 +341,7 @@ def test_hybrid_request_over_10_words_reprompts():
     ok = master._validate_player_response(
         master.player_a,
         f"message: heads up. PLAN: move A from (R1,C1) to (R2,C1) — REQUEST: {req}\n"
-        "move: A to R2,C1 (down)",
+        "move: A down",
     )
     assert ok is False
     assert master.reprompt_pending is True
@@ -354,7 +354,7 @@ def test_structured_request_over_10_words_reprompts():
     ok = master._validate_player_response(
         master.player_a,
         f"message: PLAN: move A from (R1,C1) to (R2,C1) — REQUEST: {req}\n"
-        "move: A to R2,C1 (down)",
+        "move: A down",
     )
     assert ok is False
     assert master.reprompt_pending is True
@@ -383,20 +383,20 @@ def test_hybrid_template_example_matches_pattern():
 def test_blocked_vs_illegal_counters():
     master = _setup_master()
     # A at R1,C1; right into B at R1,C2 -> blocked
-    master._validate_player_response(master.player_a, "move: A to R1,C2 (right)")
+    master._validate_player_response(master.player_a, "move: A right")
     assert master.blocked_attempts == 1 and master.illegal_attempts == 0
     # A up leaves the grid -> illegal
-    master._validate_player_response(master.player_a, "move: A to R0,C1 (up)")
+    master._validate_player_response(master.player_a, "move: A up")
     assert master.illegal_attempts == 1
     # legal move counts as an attempt but neither illegal nor blocked
-    master._validate_player_response(master.player_a, "move: A to R2,C1 (down)")
+    master._validate_player_response(master.player_a, "move: A down")
     assert master.move_attempts == 3
 
 
 def test_move_log_has_from_to():
     master = _setup_master()
-    master._validate_player_response(master.player_a, "move: A to R2,C1 (down)")
-    master._on_valid_player_response(master.player_a, "A to R2,C1 (down)")
+    master._validate_player_response(master.player_a, "move: A down")
+    master._on_valid_player_response(master.player_a, "A down")
     entry = master.move_log[-1]
     assert entry["from"] == [0, 0] and entry["to"] == [1, 0]
 
@@ -416,7 +416,7 @@ def _setup_master_hints(comm_protocol, masking_hints):
 
 def test_masking_hint_shown_when_flag_on():
     master = _setup_master_hints("none", masking_hints=True)
-    ok = master._validate_player_response(master.player_a, "move: X to R1,C1 (down)")
+    ok = master._validate_player_response(master.player_a, "move: X down")
     assert ok is False
     assert "marks your partner's" in _reprompt_text(master, master.player_a)
     assert master.illegal_attempts == 1  # counting unaffected
@@ -424,27 +424,24 @@ def test_masking_hint_shown_when_flag_on():
 
 def test_masking_hint_suppressed_when_flag_off():
     master = _setup_master_hints("none", masking_hints=False)
-    ok = master._validate_player_response(master.player_a, "move: X to R1,C1 (down)")
+    ok = master._validate_player_response(master.player_a, "move: X down")
     assert ok is False
     assert "marks your partner's" not in _reprompt_text(master, master.player_a)
     assert master.illegal_attempts == 1  # counting still identical
 
 
-def test_coordinate_mismatch_is_illegal_and_reprompts():
-    from master import DIRECTIONS
+def test_validate_move_has_no_declared_target_param():
+    import inspect
+    from utils.board import Board
+    sig = inspect.signature(Board.validate_move)
+    assert "declared_target" not in sig.parameters
+
+
+def test_old_coordinate_move_grammar_does_not_parse():
+    """Clean break: the old `move: A to Rr,Cc (dir)` form must not parse; it
+    falls through to the standard reprompt path (invalid_format), not a move."""
     master = _setup_master("none")
-    a0 = master.player_a
-    # A legal one-cell move but with a wrong declared destination cell.
-    obj = sorted(master._objects_for(a0))[0]
-    r, c = master.board.object_positions[obj]
-    # choose a legal direction into an empty neighbour, then lie about the cell
-    for direction, (dr, dc) in DIRECTIONS.items():
-        nr, nc = r + dr, c + dc
-        if 0 <= nr < master.grid_size and 0 <= nc < master.grid_size \
-           and (nr, nc) not in master.board.walls and master.board.is_cell_empty(nr, nc):
-            break
-    resp = f"move: {obj} to R9,C9 ({direction})"
-    ok = master._validate_player_response(a0, resp)
+    ok = master._validate_player_response(master.player_a, "move: A to R2,C1 (down)")
     assert ok is False
-    assert master.illegal_attempts == 1
     assert master.reprompt_pending is True
+    assert "could not be parsed" in _reprompt_text(master, master.player_a)

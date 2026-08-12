@@ -61,16 +61,14 @@ class Board:
         obj: str,
         direction: str,
         allowed_objects: Optional[Set[str]] = None,
-        declared_target: Optional[Tuple[int, int]] = None,
     ) -> Optional[Tuple[str, str]]:
         """Return (code, message) if the move is invalid, else None.
 
         Codes 'bad_direction', 'unknown_object', 'not_owner', 'off_grid',
-        'wall', 'coordinate_mismatch' are ILLEGAL moves (static rule
-        violations that indict the mover alone). Code 'occupied' is a
-        BLOCKED move (locally well-formed, fails only against the current
-        joint state). The scorer builds the illegal-move and blocked-move
-        rates from this distinction.
+        'wall' are ILLEGAL moves (static rule violations that indict the
+        mover alone). Code 'occupied' is a BLOCKED move (locally well-formed,
+        fails only against the current joint state). The scorer builds the
+        illegal-move and blocked-move rates from this distinction.
         """
         if direction not in DIRECTIONS:
             return ("bad_direction",
@@ -86,11 +84,6 @@ class Board:
         new_row, new_col = row + dr, col + dc
         if not (0 <= new_row < self.grid_size and 0 <= new_col < self.grid_size):
             return ("off_grid", f"Cannot move {obj} {direction}: would leave the grid.")
-        if declared_target is not None and declared_target != (new_row, new_col):
-            return ("coordinate_mismatch",
-                    f"Cannot move {obj} {direction}: you named "
-                    f"R{declared_target[0] + 1}C{declared_target[1] + 1} but that move lands on "
-                    f"R{new_row + 1}C{new_col + 1}.")
         if (new_row, new_col) in self.walls:
             return ("wall", f"Cannot move {obj} {direction}: (R{new_row + 1},C{new_col + 1}) is a wall.")
         if not self.is_cell_empty(new_row, new_col):
