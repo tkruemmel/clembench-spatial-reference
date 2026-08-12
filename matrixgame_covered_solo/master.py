@@ -6,11 +6,11 @@ Optional 'thinking' axis adds a free-form `message:` line per turn that the
 master logs but does not interpret.
 
 Turn structure (silent):
-  move: OBJECT to Rr,Cc (DIRECTION)
+  move: OBJECT DIRECTION
 
 Turn structure (thinking):
   message: ...
-  move: OBJECT to Rr,Cc (DIRECTION)
+  move: OBJECT DIRECTION
 
 The episode ends automatically when all owned objects are at their target
 positions (success), when max_turns is reached (lose), or when parse/validate
@@ -50,7 +50,7 @@ BLOCKED_ATTEMPTS = "Blocked Attempts"
 
 # Solo silent: the response IS the move line (anchored with \A).
 MOVE_ONLY_PATTERN = re.compile(
-    r"\A\s*move:\s*(?P<object>[A-Z])\s+to\s+R(?P<target_row>\d+),?C(?P<target_col>\d+)\s*\((?P<direction>up|down|left|right)\)",
+    r"\A\s*move:\s*(?P<object>[A-Z])\s+(?P<direction>up|down|left|right)",
     re.IGNORECASE,
 )
 
@@ -59,7 +59,7 @@ MOVE_ONLY_PATTERN = re.compile(
 # "move:", otherwise a stray extra line inserted between message and move
 # would be silently absorbed into the message instead of failing to parse.
 MESSAGE_MOVE_PATTERN = re.compile(
-    r"\A\s*message:\s*(?P<message>.+?)\s*\nmove:\s*(?P<object>[A-Z])\s+to\s+R(?P<target_row>\d+),?C(?P<target_col>\d+)\s*\((?P<direction>up|down|left|right)\)",
+    r"\A\s*message:\s*(?P<message>.+?)\s*\nmove:\s*(?P<object>[A-Z])\s+(?P<direction>up|down|left|right)",
     re.IGNORECASE,
 )
 
@@ -77,7 +77,6 @@ def _parse_response(response: str, with_message: bool) -> Optional[Dict[str, str
     result: Dict[str, str] = {
         "object": match.group("object").strip().upper(),
         "direction": match.group("direction").strip().lower(),
-        "target": f"R{match.group('target_row')},C{match.group('target_col')}",
     }
     if with_message:
         result["message"] = match.group("message").strip()
@@ -95,7 +94,7 @@ class SoloMatrixPlayer(Player):
     def _custom_response(self, context):
         # Used by clemcore's mock player; emit a deterministic valid-format move.
         first = sorted(self.own_objects)[0]
-        return f"move: {first} to R1,C1 (down)"
+        return f"move: {first} down"
 
 
 # ── Rendering helper ───────────────────────────────────────────────────
@@ -114,14 +113,6 @@ def _render_targets_view(board: Board, compact: bool) -> str:
     return board.render_targets()
 
 
-def _declared_cell(parsed: Dict[str, str]) -> Optional[Tuple[int, int]]:
-    """0-based (row, col) of the declared 'RrowCcol' target, or None if absent."""
-    m = re.match(r"R(\d+),?C(\d+)", parsed.get("target", ""))
-    if not m:
-        return None
-    return int(m.group(1)) - 1, int(m.group(2)) - 1
-
-
 # ── Validation ─────────────────────────────────────────────────────────
 
 def _validate_move(board: Board, player: SoloMatrixPlayer, parsed: Dict[str, str]) -> Optional[Tuple[str, str]]:
@@ -133,7 +124,6 @@ def _validate_move(board: Board, player: SoloMatrixPlayer, parsed: Dict[str, str
         parsed["object"],
         parsed["direction"],
         allowed_objects=player.own_objects,
-        declared_target=_declared_cell(parsed),
     )
 
 
@@ -207,9 +197,9 @@ class SoloMatrixGameMaster(DialogueGameMaster):
         if self.with_message:
             return (
                 "message: <a brief note to yourself>\n"
-                "move: <OBJECT> to R<row>,C<col> (<DIRECTION>)"
+                "move: <OBJECT> <DIRECTION>"
             )
-        return "move: <OBJECT> to R<row>,C<col> (<DIRECTION>)"
+        return "move: <OBJECT> <DIRECTION>"
 
     # ── helpers ────────────────────────────────────────────────────────
 
@@ -295,8 +285,7 @@ class SoloMatrixGameMaster(DialogueGameMaster):
 
     def _parse_response(self, player: Player, response: str) -> str:
         if self.current_parsed:
-            target = self.current_parsed.get("target", "?")
-            return f"{self.current_parsed['object']} to {target} ({self.current_parsed['direction']})"
+            return f"{self.current_parsed['object']} {self.current_parsed['direction']}"
         return response
 
     def _should_pass_turn(self) -> bool:
@@ -316,7 +305,6 @@ class SoloMatrixGameMaster(DialogueGameMaster):
         self.move_log.append({
             "object": obj,
             "direction": direction,
-            "target": self.current_parsed.get("target", ""),
             "from": [from_row, from_col],
             "to": [from_row + dr, from_col + dc],
             "message": message,

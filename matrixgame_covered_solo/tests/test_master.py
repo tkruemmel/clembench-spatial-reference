@@ -118,9 +118,9 @@ def test_valid_move_applies_and_does_not_end_episode():
     master = _make_master(thinking=False)
     # A is at (0,0), all targets at (2,*); moving A down once is valid and not solving.
     # (0,0) 0-based -> down lands on (1,0) 0-based == R2,C1 1-based.
-    ok = master._validate_player_response(master.player, "move: A to R2,C1 (down)")
+    ok = master._validate_player_response(master.player, "move: A down")
     assert ok is True
-    master._on_valid_player_response(master.player, "A to R2,C1 (down)")
+    master._on_valid_player_response(master.player, "A down")
     assert master.board.object_positions["A"] == (1, 0)
     assert master.success is False
     assert master.aborted is False
@@ -171,9 +171,9 @@ def test_success_triggers_when_all_objects_at_targets():
 
     # Now the only object not on target is F at (1,3); F's target is (1,2). One move left.
     # F at (1,3) 0-based -> left lands on (1,2) 0-based == R2,C3 1-based.
-    ok = master._validate_player_response(master.player, "move: F to R2,C3 (left)")
+    ok = master._validate_player_response(master.player, "move: F left")
     assert ok is True
-    master._on_valid_player_response(master.player, "F to R2,C3 (left)")
+    master._on_valid_player_response(master.player, "F left")
     assert master.success is True
     assert master.aborted is False
 
@@ -183,8 +183,8 @@ def test_does_game_proceed_false_after_max_turns():
     master.max_turns = 1
     # Apply one valid move
     # A at (0,0) 0-based -> down lands on (1,0) 0-based == R2,C1 1-based.
-    master._validate_player_response(master.player, "move: A to R2,C1 (down)")
-    master._on_valid_player_response(master.player, "A to R2,C1 (down)")
+    master._validate_player_response(master.player, "move: A down")
+    master._on_valid_player_response(master.player, "A down")
     assert master._does_game_proceed() is False
     assert master.lost is True
     assert master.aborted is False
@@ -204,7 +204,7 @@ def test_invalid_move_reprompts_with_format_reminder():
     # Place a wall directly below A's start so moving A down hits it.
     master.board.walls.add((1, 0))
     # A at (0,0) 0-based -> down lands on (1,0) 0-based == R2,C1 1-based (the wall).
-    ok = master._validate_player_response(master.player, "move: A to R2,C1 (down)")
+    ok = master._validate_player_response(master.player, "move: A down")
     assert ok is False
     assert master.reprompt_pending is True
     assert master.aborted is False
@@ -304,6 +304,6 @@ def test_one_turn_smoke():
     master = _make_master(thinking=False)
     response = master.player._custom_response(context=None)
     ok = master._validate_player_response(master.player, response)
-    # The stub _custom_response targets R1,C1 — may be invalid depending on start position,
-    # but it must at least parse without raising.
+    # The stub _custom_response moves the first owned object down — may be invalid
+    # depending on start position, but it must at least parse without raising.
     assert isinstance(ok, bool)
