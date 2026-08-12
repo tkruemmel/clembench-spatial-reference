@@ -19,7 +19,7 @@ A player who declares "done" (with all their objects at targets) stops receiving
 
 import re
 import logging
-from typing import Dict, List, Optional, Set, Tuple
+from typing import Dict, List, Optional, Set
 
 import numpy as np
 
