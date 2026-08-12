@@ -98,3 +98,14 @@ def test_thinking_message_then_direction_move():
     from master import _parse_response
     r = _parse_response("message: go\nmove: B down", with_message=True)
     assert r["object"] == "B" and r["direction"] == "down" and r["message"] == "go"
+
+
+def test_glued_direction_word_does_not_parse():
+    from master import _parse_response
+    assert _parse_response("move: A rightward", with_message=False) is None
+    assert _parse_response("move: A upward", with_message=False) is None
+
+
+def test_direction_with_trailing_text_still_parses():
+    from master import _parse_response
+    assert _parse_response("move: A right\n", with_message=False)["direction"] == "right"

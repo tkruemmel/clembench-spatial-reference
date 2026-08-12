@@ -50,7 +50,7 @@ BLOCKED_ATTEMPTS = "Blocked Attempts"
 
 # Solo silent: the response IS the move line (anchored with \A).
 MOVE_ONLY_PATTERN = re.compile(
-    r"\A\s*move:\s*(?P<object>[A-Z])\s+(?P<direction>up|down|left|right)",
+    r"\A\s*move:\s*(?P<object>[A-Z])\s+(?P<direction>up|down|left|right)\b",
     re.IGNORECASE,
 )
 
@@ -59,7 +59,7 @@ MOVE_ONLY_PATTERN = re.compile(
 # "move:", otherwise a stray extra line inserted between message and move
 # would be silently absorbed into the message instead of failing to parse.
 MESSAGE_MOVE_PATTERN = re.compile(
-    r"\A\s*message:\s*(?P<message>.+?)\s*\nmove:\s*(?P<object>[A-Z])\s+(?P<direction>up|down|left|right)",
+    r"\A\s*message:\s*(?P<message>.+?)\s*\nmove:\s*(?P<object>[A-Z])\s+(?P<direction>up|down|left|right)\b",
     re.IGNORECASE,
 )
 
