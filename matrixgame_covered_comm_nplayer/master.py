@@ -17,7 +17,7 @@ replaced by "teammates" throughout.
 
 import re
 import logging
-from typing import Dict, List, Optional, Set, Tuple
+from typing import Dict, List, Optional, Set
 
 import numpy as np
 
@@ -51,18 +51,16 @@ BLOCKED_ATTEMPTS = "Blocked Attempts"
 
 # ── Response patterns ──────────────────────────────────────────────────
 
-# Matches a move line whose object is the masked marker (a teammate's object),
-# in either the bare form `move: X ...` or the position-qualified form models
-# tend to emit, `move: X@R3C4 ...`. Used to give a targeted semantic redirect
-# instead of a generic parse error.
+# Matches a move line whose object is the masked marker (a teammate's object).
+# Used to give a targeted semantic redirect instead of a generic parse error.
 MASKED_OBJECT_MOVE_PATTERN = re.compile(
-    rf"move:\s*{re.escape(BLOCKED_MARKER)}(?:@R\d+,?C\d+)?\b",
+    rf"move:\s*{re.escape(BLOCKED_MARKER)}\b",
     re.IGNORECASE,
 )
 
 # Channel-off (comm_protocol == "none"): the response IS the move line.
 MOVE_ONLY_PATTERN = re.compile(
-    r"\A\s*move:\s*(?P<object>[A-Z])\s+to\s+R(?P<target_row>\d+),?C(?P<target_col>\d+)\s*\((?P<direction>up|down|left|right)\)",
+    r"\A\s*move:\s*(?P<object>[A-Z])\s+(?P<direction>up|down|left|right)\b",
     re.IGNORECASE,
 )
 
@@ -74,7 +72,7 @@ MOVE_ONLY_PATTERN = re.compile(
 # into the message rather than failing the parse — accepted to allow multi-line
 # messages.
 COMM_MOVE_PATTERN = re.compile(
-    r"\A\s*message:\s*(?P<message>.+?)\s*\nmove:\s*(?P<object>[A-Z])\s+to\s+R(?P<target_row>\d+),?C(?P<target_col>\d+)\s*\((?P<direction>up|down|left|right)\)",
+    r"\A\s*message:\s*(?P<message>.+?)\s*\nmove:\s*(?P<object>[A-Z])\s+(?P<direction>up|down|left|right)\b",
     re.IGNORECASE | re.DOTALL,
 )
 
@@ -117,11 +115,13 @@ HYBRID_MSG_PATTERN = re.compile(
 # built inline in _schema_violation).
 _STRUCTURED_REMINDER = (
     'Use exactly:\n'
-    'message: PLAN: move [OBJECT] from (Rr,Cc) to (Rr,Cc) — REQUEST: [request or "none"]'
+    'message: PLAN: move [OBJECT] from (Rr,Cc) to (Rr,Cc) — REQUEST: [request or "none"]\n'
+    "The first (Rr,Cc) is the object's current cell; the second is its goal cell."
 )
 _HYBRID_REMINDER = (
     'Use exactly:\n'
-    'message: <natural language> PLAN: move [OBJECT] from (Rr,Cc) to (Rr,Cc) — REQUEST: [request or "none"]'
+    'message: <natural language> PLAN: move [OBJECT] from (Rr,Cc) to (Rr,Cc) — REQUEST: [request or "none"]\n'
+    "The first (Rr,Cc) is the object's current cell; the second is its goal cell."
 )
 
 
@@ -182,7 +182,6 @@ def _parse_response(response: str, with_message: bool) -> Optional[Dict[str, str
         result = {
             "object": match.group("object").strip().upper(),
             "direction": match.group("direction").strip().lower(),
-            "target": f"R{match.group('target_row')},C{match.group('target_col')}",
         }
         if with_message:
             result["message"] = match.group("message").strip()
@@ -200,14 +199,6 @@ def _parse_response(response: str, with_message: bool) -> Optional[Dict[str, str
         return result
 
     return None
-
-
-def _declared_cell(parsed: Dict[str, str]) -> Optional[Tuple[int, int]]:
-    """0-based (row, col) of the declared 'RrowCcol' target, or None if absent."""
-    m = re.match(r"R(\d+),?C(\d+)", parsed.get("target", ""))
-    if not m:
-        return None
-    return int(m.group(1)) - 1, int(m.group(2)) - 1
 
 
 # ── Player ─────────────────────────────────────────────────────────────
@@ -231,7 +222,7 @@ class MatrixPlayer(Player):
 
     def _custom_response(self, context):
         first = sorted(self.own_objects)[0]
-        return f"move: {first} to R1,C1 (down)"
+        return f"move: {first} down"
 
 
 # ── Game master ────────────────────────────────────────────────────────
@@ -388,13 +379,13 @@ class NPlayerMatrixGameMaster(DialogueGameMaster):
         if self.with_message:
             return (
                 "message: <your message to your teammates>\n"
-                "move: <OBJECT> to R<row>,C<col> (<DIRECTION>)\n\n"
+                "move: <OBJECT> <DIRECTION>\n\n"
                 "OR, if ALL your objects are at their target positions:\n"
                 "message: done\n"
                 "done: all my objects are placed"
             )
         return (
-            "move: <OBJECT> to R<row>,C<col> (<DIRECTION>)\n\n"
+            "move: <OBJECT> <DIRECTION>\n\n"
             "OR, if ALL your objects are at their target positions:\n"
             "done: all my objects are placed"
         )
@@ -502,7 +493,7 @@ class NPlayerMatrixGameMaster(DialogueGameMaster):
         direction = parsed["direction"]
         allowed = self._objects_for(player)
         error = self.board.validate_move(
-            obj, direction, allowed_objects=allowed, declared_target=_declared_cell(parsed)
+            obj, direction, allowed_objects=allowed
         )
 
         if error:
@@ -523,23 +514,9 @@ class NPlayerMatrixGameMaster(DialogueGameMaster):
                 self.log_to_self("abort", "Too many invalid moves")
             else:
                 self.reprompt_pending = True
-                # `move: X ...` parses as object "X" but X is a masked teammate
-                # object; give the same semantic redirect as the unparsed form.
                 masked_attempt = self.use_masking and obj == BLOCKED_MARKER
-                pos = self.board.object_positions.get(obj)
                 if masked_attempt and self.masking_hints:
                     guidance = self._masked_move_message(player)
-                elif code == "coordinate_mismatch" and pos is not None:
-                    # Conceptual nudge on the coordinate convention — no target given.
-                    r, c = pos
-                    guidance = (
-                        f"Invalid move: {err_msg}\n"
-                        f"Your direction and the R,C cell you name must agree. Coordinate rules: "
-                        f"rows R increase downward (up = row-1, down = row+1); columns C increase "
-                        f"rightward (left = col-1, right = col+1). {obj} is currently at "
-                        f"(R{r+1},C{c+1}); apply your chosen direction to that cell and name the "
-                        f"cell it actually lands on."
-                    )
                 else:
                     guidance = f"Invalid move: {err_msg}\nPlease try again."
                 self.set_context_for(player, (
@@ -560,8 +537,7 @@ class NPlayerMatrixGameMaster(DialogueGameMaster):
         if self.current_parsed:
             if self.current_parsed.get("is_done"):
                 return "done"
-            target = self.current_parsed.get("target", "?")
-            return f"{self.current_parsed['object']} to {target} ({self.current_parsed['direction']})"
+            return f"{self.current_parsed['object']} {self.current_parsed['direction']}"
         return response
 
     def _should_pass_turn(self) -> bool:
@@ -620,7 +596,6 @@ class NPlayerMatrixGameMaster(DialogueGameMaster):
             "player": player.role_name,
             "object": obj,
             "direction": direction,
-            "target": self.current_parsed.get("target", ""),
             "from": [from_row, from_col],
             "to": [from_row + dr, from_col + dc],
             "message": message,
