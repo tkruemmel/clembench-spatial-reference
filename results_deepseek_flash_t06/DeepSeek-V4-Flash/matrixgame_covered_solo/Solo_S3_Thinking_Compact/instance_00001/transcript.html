@@ -1,0 +1,1209 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+    <style>
+        /* This CSS is based on a stack overflow answer by Roko C. Buljan in https://stackoverflow.com/a/71155446 */ 
+
+* {margin: 0; box-sizing: border-box;}
+
+body {
+  background-color: rgb(157, 152, 150);
+}
+
+.top-info {
+	text-align: center;
+	font: 1.25rem/1.5 sans-serif;
+	display: flex;
+	flex-direction: column;
+	padding: 1.25em;
+	width: 80%;
+  max-width: 1200px;
+	margin: auto;
+	background: #3f3e3e;
+	color: #fff;
+}
+
+.chat {
+  --rad: 1.5rem;
+  --rad-sm: .3rem;
+  font: 1rem/1.5 sans-serif;
+  display: flex;
+  flex-direction: column;
+  padding: 1rem;
+  width: 80%;
+  max-width: 1200px;
+  margin: auto;
+  background: #fff;
+}
+
+.msg {
+  position: relative;
+  padding: .6rem 1.2rem;
+  margin-inline: 1rem;
+  margin-block: 2rem;
+}
+
+.game-round {
+  padding: 1.5rem 0 1.5rem 0;
+  background-color: #f0f8ff; /* light background for content */
+  position: relative; /* Important to position the badge */
+  border-radius: 1rem;
+  margin: 1rem;
+  box-shadow: 0 .5rem 1rem rgba(0, 0, 0, .1);
+}
+
+/* Badge in top-right corner */
+.game-round::before {
+  content: "Round " attr(data-round);
+  position: absolute;
+  top: .35rem;
+  right: 1.5rem;
+  color: #c4c3c3;
+  font-size: 0.8rem;
+  font-weight: bold;
+}
+
+/* For fenced code/monospace blocks */
+pre {
+  background: #e0e0e0;
+  border-left: .2rem solid #f36d33;
+  border-radius: .2rem;
+  color: #666;
+  font-family: monospace;
+  line-height: 1.0;
+  margin-top: 0.3rem;
+  margin-bottom: 0.5rem;
+  max-width: 100%;
+  overflow: auto;
+  padding: 0.5rem 0.2rem;
+}/* This CSS is based on a stack overflow answer by Roko C. Buljan in https://stackoverflow.com/a/71155446 */
+/* Player colors are assigned according to number of players */
+
+.msg.player-gm {
+  border-radius: var(--rad-sm) var(--rad) var(--rad) var(--rad-sm);
+  color: #fff;
+  margin-right: 30%;
+}
+
+.msg.gm-player {
+  border-radius: var(--rad) var(--rad-sm) var(--rad-sm) var(--rad);
+  background: #c4c3c3;
+  color: #0c0c0c;
+  margin-left: 30%;
+}
+
+.msg.gm-gm {
+  border-radius: var(--rad-sm) var(--rad-sm) var(--rad-sm) var(--rad-sm);
+  background: #f1f1f1;
+  color: #373636;
+  margin-left: 50%;
+  margin-right: 10%;
+  font-size: 0.8rem;
+}
+
+.msg::before {
+  left: 1rem;
+  content: attr(speaker);
+  font-size: 0.8rem;
+  position: absolute;
+  bottom: 100%;
+  color: #888;
+  white-space: nowrap;
+}.msg.player-gm.p1 { background: darkseagreen; }
+
+    </style>
+</head>
+<body>
+
+<br/>
+
+<div class="top-info">
+    <p>Interaction Transcript for game 'matrixgame_covered_solo', experiment 'Solo_S3_Thinking_Compact', episode 1 with DeepSeek-V4-Flash.</p>
+</div>
+
+<br/>
+
+<div class="chat">
+<div class="game-round" data-round="0">
+    <div speaker="GM (Game Master) to Player 1 (SoloMatrixPlayer)" class="msg gm-player p1" style="">
+        <p>You are playing a grid rearrangement puzzle.<br/><br/>THE GRID:<br/>- The board is an 8×8 grid. Rows are labelled R1–R8 (top to bottom), columns C1–C8 (left to right).<br/>- The board is given to you as compact listings, refreshed every turn:<br/>  - CURRENT BOARD has an `Objects:` line listing each object as `Label@RrowCcol` (e.g. `Objects: A@R1C1 B@R2C3`), and, when there are walls, a `Walls:` line (e.g. `Walls: R4C4 R5C6`).<br/>  - GOAL BOARD is a `Targets:` line listing your objects&#x27; target cells as `Label-&gt;RrowCcol` (e.g. `Targets: A-&gt;R3C5`).<br/>- Any cell not listed as an object or a wall is empty. Objects cannot enter wall cells or leave the grid.<br/><br/>YOUR TASK:<br/>Move all objects to their target positions. The GOAL BOARD shows where each object must end up.<br/>You control ALL objects on the board: A, B, C, D, E, F. You may move any of them on any turn.<br/><br/>RULES:<br/>- On each turn, move exactly ONE object exactly ONE cell: up, down, left, or right.<br/>- Objects CANNOT move into wall cells or outside the grid boundaries.<br/>- Two objects CANNOT occupy the same cell.<br/><br/>SCRATCHPAD:<br/>Each turn, the `message:` line is a scratchpad for your own thinking. Use it to reason before you commit to a move. <br/>Sketch a plan, note which object to handle next, flag walls or other objects in the way, or leave yourself a reminder. <br/>Your previous turns (both your messages and your moves) stay in the conversation, so anything you write here is visible to you on later turns: treat it as a running memory to carry plans forward across the game.<br/>Keep it to a single line, immediately followed by your `move:` line.<br/><br/>RESPONSE FORMAT:<br/>You must respond using exactly this format, no other text:<br/>Begin your response directly with `message:` on the very first line. Do not output any preamble or thinking text before it.<br/>message: &lt;a brief note to yourself, a scratchpad for plans, observations, or reminders. Visible to you on later turns. It does not affect the game mechanics.&gt;<br/>move: &lt;OBJECT&gt; &lt;DIRECTION&gt;<br/><br/>Example:<br/>message: F has only one route around the wall. Handle it last so it doesn&#x27;t block A&#x27;s path.<br/>move: A right<br/><br/>The game ends automatically as soon as every object is on its target cell.<br/><br/><br/>CURRENT BOARD:<br/>Objects: A@R5C4 B@R6C2 C@R4C7 D@R7C2 E@R1C6 F@R1C2<br/>Walls: R2C7 R3C3 R3C4 R3C5 R4C6 R5C2 R5C6 R5C8 R6C3 R6C4 R6C6 R6C8 R7C6 R7C8 R8C6 R8C8<br/><br/>GOAL BOARD (where each object must end up):<br/>Targets: A-&gt;R6C2 B-&gt;R4C7 C-&gt;R7C2 D-&gt;R8C7 E-&gt;R1C2 F-&gt;R7C3</p>
+    </div>
+
+    <div speaker="Player 1 (SoloMatrixPlayer) to GM (Game Master)" class="msg player-gm p1" style="">
+        <p>message: Plan: F left down to R7C3, E to R1C2, then C-&gt;R4C8, D-&gt;R8C7, B-&gt;R4C7, C-&gt;R7C2, A-&gt;R6C2.<br/>move: F left</p>
+    </div>
+
+    <div speaker="Game Master: move" class="msg gm-gm" style="">
+        <p>Player moved F left</p>
+    </div>
+
+    <div speaker="Game Master: message" class="msg gm-gm" style="">
+        <p>Player: Plan: F left down to R7C3, E to R1C2, then C-&gt;R4C8, D-&gt;R8C7, B-&gt;R4C7, C-&gt;R7C2, A-&gt;R6C2.</p>
+    </div>
+</div><div class="game-round" data-round="1">
+    <div speaker="GM (Game Master) to Player 1 (SoloMatrixPlayer)" class="msg gm-player p1" style="">
+        <p>CURRENT BOARD:<br/>Objects: A@R5C4 B@R6C2 C@R4C7 D@R7C2 E@R1C6 F@R1C1<br/>Walls: R2C7 R3C3 R3C4 R3C5 R4C6 R5C2 R5C6 R5C8 R6C3 R6C4 R6C6 R6C8 R7C6 R7C8 R8C6 R8C8<br/><br/>GOAL BOARD:<br/>Targets: A-&gt;R6C2 B-&gt;R4C7 C-&gt;R7C2 D-&gt;R8C7 E-&gt;R1C2 F-&gt;R7C3<br/><br/>Your turn. Respond with:<br/>message: &lt;a brief note to yourself&gt;<br/>move: &lt;OBJECT&gt; &lt;DIRECTION&gt;</p>
+    </div>
+
+    <div speaker="Player 1 (SoloMatrixPlayer) to GM (Game Master)" class="msg player-gm p1" style="">
+        <p>message: E left to R1C2 first. Keep F parked. Later: C to R3C8, D to R8C7, B to R4C7, A to R6C2, C to R7C2 via R3C7/R2C6, then F via R8 to R7C3.<br/>move: E left</p>
+    </div>
+
+    <div speaker="Game Master: move" class="msg gm-gm" style="">
+        <p>Player moved E left</p>
+    </div>
+
+    <div speaker="Game Master: message" class="msg gm-gm" style="">
+        <p>Player: E left to R1C2 first. Keep F parked. Later: C to R3C8, D to R8C7, B to R4C7, A to R6C2, C to R7C2 via R3C7/R2C6, then F via R8 to R7C3.</p>
+    </div>
+</div><div class="game-round" data-round="2">
+    <div speaker="GM (Game Master) to Player 1 (SoloMatrixPlayer)" class="msg gm-player p1" style="">
+        <p>CURRENT BOARD:<br/>Objects: A@R5C4 B@R6C2 C@R4C7 D@R7C2 E@R1C5 F@R1C1<br/>Walls: R2C7 R3C3 R3C4 R3C5 R4C6 R5C2 R5C6 R5C8 R6C3 R6C4 R6C6 R6C8 R7C6 R7C8 R8C6 R8C8<br/><br/>GOAL BOARD:<br/>Targets: A-&gt;R6C2 B-&gt;R4C7 C-&gt;R7C2 D-&gt;R8C7 E-&gt;R1C2 F-&gt;R7C3<br/><br/>Your turn. Respond with:<br/>message: &lt;a brief note to yourself&gt;<br/>move: &lt;OBJECT&gt; &lt;DIRECTION&gt;</p>
+    </div>
+
+    <div speaker="Player 1 (SoloMatrixPlayer) to GM (Game Master)" class="msg player-gm p1" style="">
+        <p>message: Move E toward R1C2; then handle F, C/D/B, A.<br/>move: E left</p>
+    </div>
+
+    <div speaker="Game Master: move" class="msg gm-gm" style="">
+        <p>Player moved E left</p>
+    </div>
+
+    <div speaker="Game Master: message" class="msg gm-gm" style="">
+        <p>Player: Move E toward R1C2; then handle F, C/D/B, A.</p>
+    </div>
+</div><div class="game-round" data-round="3">
+    <div speaker="GM (Game Master) to Player 1 (SoloMatrixPlayer)" class="msg gm-player p1" style="">
+        <p>CURRENT BOARD:<br/>Objects: A@R5C4 B@R6C2 C@R4C7 D@R7C2 E@R1C4 F@R1C1<br/>Walls: R2C7 R3C3 R3C4 R3C5 R4C6 R5C2 R5C6 R5C8 R6C3 R6C4 R6C6 R6C8 R7C6 R7C8 R8C6 R8C8<br/><br/>GOAL BOARD:<br/>Targets: A-&gt;R6C2 B-&gt;R4C7 C-&gt;R7C2 D-&gt;R8C7 E-&gt;R1C2 F-&gt;R7C3<br/><br/>Your turn. Respond with:<br/>message: &lt;a brief note to yourself&gt;<br/>move: &lt;OBJECT&gt; &lt;DIRECTION&gt;</p>
+    </div>
+
+    <div speaker="Player 1 (SoloMatrixPlayer) to GM (Game Master)" class="msg player-gm p1" style="">
+        <p>message: Plan: park C at R4C8 to clear C7 for D/B. Then D-&gt;R8C7, B-&gt;R4C7, C-&gt;R7C2, A-&gt;R6C2, E/F last.<br/>move: C right</p>
+    </div>
+
+    <div speaker="Game Master: move" class="msg gm-gm" style="">
+        <p>Player moved C right</p>
+    </div>
+
+    <div speaker="Game Master: message" class="msg gm-gm" style="">
+        <p>Player: Plan: park C at R4C8 to clear C7 for D/B. Then D-&gt;R8C7, B-&gt;R4C7, C-&gt;R7C2, A-&gt;R6C2, E/F last.</p>
+    </div>
+</div><div class="game-round" data-round="4">
+    <div speaker="GM (Game Master) to Player 1 (SoloMatrixPlayer)" class="msg gm-player p1" style="">
+        <p>CURRENT BOARD:<br/>Objects: A@R5C4 B@R6C2 C@R4C8 D@R7C2 E@R1C4 F@R1C1<br/>Walls: R2C7 R3C3 R3C4 R3C5 R4C6 R5C2 R5C6 R5C8 R6C3 R6C4 R6C6 R6C8 R7C6 R7C8 R8C6 R8C8<br/><br/>GOAL BOARD:<br/>Targets: A-&gt;R6C2 B-&gt;R4C7 C-&gt;R7C2 D-&gt;R8C7 E-&gt;R1C2 F-&gt;R7C3<br/><br/>Your turn. Respond with:<br/>message: &lt;a brief note to yourself&gt;<br/>move: &lt;OBJECT&gt; &lt;DIRECTION&gt;</p>
+    </div>
+
+    <div speaker="Player 1 (SoloMatrixPlayer) to GM (Game Master)" class="msg player-gm p1" style="">
+        <p>message: D via left column to R2C6 then down/right/down C7 to R8C7 before B enters R4C7. Move D left to start.<br/>move: D left</p>
+    </div>
+
+    <div speaker="Game Master: move" class="msg gm-gm" style="">
+        <p>Player moved D left</p>
+    </div>
+
+    <div speaker="Game Master: message" class="msg gm-gm" style="">
+        <p>Player: D via left column to R2C6 then down/right/down C7 to R8C7 before B enters R4C7. Move D left to start.</p>
+    </div>
+</div><div class="game-round" data-round="5">
+    <div speaker="GM (Game Master) to Player 1 (SoloMatrixPlayer)" class="msg gm-player p1" style="">
+        <p>CURRENT BOARD:<br/>Objects: A@R5C4 B@R6C2 C@R4C8 D@R7C1 E@R1C4 F@R1C1<br/>Walls: R2C7 R3C3 R3C4 R3C5 R4C6 R5C2 R5C6 R5C8 R6C3 R6C4 R6C6 R6C8 R7C6 R7C8 R8C6 R8C8<br/><br/>GOAL BOARD:<br/>Targets: A-&gt;R6C2 B-&gt;R4C7 C-&gt;R7C2 D-&gt;R8C7 E-&gt;R1C2 F-&gt;R7C3<br/><br/>Your turn. Respond with:<br/>message: &lt;a brief note to yourself&gt;<br/>move: &lt;OBJECT&gt; &lt;DIRECTION&gt;</p>
+    </div>
+
+    <div speaker="Player 1 (SoloMatrixPlayer) to GM (Game Master)" class="msg player-gm p1" style="">
+        <p>message: Plan: D to R8C7 via column1/row2/right corridor, then B to R4C7, A to R6C2, C to R7C2, F via R8C3 to R7C3, E to R1C2.<br/>move: D up</p>
+    </div>
+
+    <div speaker="Game Master: move" class="msg gm-gm" style="">
+        <p>Player moved D up</p>
+    </div>
+
+    <div speaker="Game Master: message" class="msg gm-gm" style="">
+        <p>Player: Plan: D to R8C7 via column1/row2/right corridor, then B to R4C7, A to R6C2, C to R7C2, F via R8C3 to R7C3, E to R1C2.</p>
+    </div>
+</div><div class="game-round" data-round="6">
+    <div speaker="GM (Game Master) to Player 1 (SoloMatrixPlayer)" class="msg gm-player p1" style="">
+        <p>CURRENT BOARD:<br/>Objects: A@R5C4 B@R6C2 C@R4C8 D@R6C1 E@R1C4 F@R1C1<br/>Walls: R2C7 R3C3 R3C4 R3C5 R4C6 R5C2 R5C6 R5C8 R6C3 R6C4 R6C6 R6C8 R7C6 R7C8 R8C6 R8C8<br/><br/>GOAL BOARD:<br/>Targets: A-&gt;R6C2 B-&gt;R4C7 C-&gt;R7C2 D-&gt;R8C7 E-&gt;R1C2 F-&gt;R7C3<br/><br/>Your turn. Respond with:<br/>message: &lt;a brief note to yourself&gt;<br/>move: &lt;OBJECT&gt; &lt;DIRECTION&gt;</p>
+    </div>
+
+    <div speaker="Player 1 (SoloMatrixPlayer) to GM (Game Master)" class="msg player-gm p1" style="">
+        <p>message: Continuing plan: get E to R1C2, then route D/C/B/A/F via top/left corridor.<br/>move: E left</p>
+    </div>
+
+    <div speaker="Game Master: move" class="msg gm-gm" style="">
+        <p>Player moved E left</p>
+    </div>
+
+    <div speaker="Game Master: message" class="msg gm-gm" style="">
+        <p>Player: Continuing plan: get E to R1C2, then route D/C/B/A/F via top/left corridor.</p>
+    </div>
+</div><div class="game-round" data-round="7">
+    <div speaker="GM (Game Master) to Player 1 (SoloMatrixPlayer)" class="msg gm-player p1" style="">
+        <p>CURRENT BOARD:<br/>Objects: A@R5C4 B@R6C2 C@R4C8 D@R6C1 E@R1C3 F@R1C1<br/>Walls: R2C7 R3C3 R3C4 R3C5 R4C6 R5C2 R5C6 R5C8 R6C3 R6C4 R6C6 R6C8 R7C6 R7C8 R8C6 R8C8<br/><br/>GOAL BOARD:<br/>Targets: A-&gt;R6C2 B-&gt;R4C7 C-&gt;R7C2 D-&gt;R8C7 E-&gt;R1C2 F-&gt;R7C3<br/><br/>Your turn. Respond with:<br/>message: &lt;a brief note to yourself&gt;<br/>move: &lt;OBJECT&gt; &lt;DIRECTION&gt;</p>
+    </div>
+
+    <div speaker="Player 1 (SoloMatrixPlayer) to GM (Game Master)" class="msg player-gm p1" style="">
+        <p>message: E to R1C2; then D to R8C7 via R2/C7 before B takes R4C7.<br/>move: E left</p>
+    </div>
+
+    <div speaker="Game Master: move" class="msg gm-gm" style="">
+        <p>Player moved E left</p>
+    </div>
+
+    <div speaker="Game Master: message" class="msg gm-gm" style="">
+        <p>Player: E to R1C2; then D to R8C7 via R2/C7 before B takes R4C7.</p>
+    </div>
+</div><div class="game-round" data-round="8">
+    <div speaker="GM (Game Master) to Player 1 (SoloMatrixPlayer)" class="msg gm-player p1" style="">
+        <p>CURRENT BOARD:<br/>Objects: A@R5C4 B@R6C2 C@R4C8 D@R6C1 E@R1C2 F@R1C1<br/>Walls: R2C7 R3C3 R3C4 R3C5 R4C6 R5C2 R5C6 R5C8 R6C3 R6C4 R6C6 R6C8 R7C6 R7C8 R8C6 R8C8<br/><br/>GOAL BOARD:<br/>Targets: A-&gt;R6C2 B-&gt;R4C7 C-&gt;R7C2 D-&gt;R8C7 E-&gt;R1C2 F-&gt;R7C3<br/><br/>Your turn. Respond with:<br/>message: &lt;a brief note to yourself&gt;<br/>move: &lt;OBJECT&gt; &lt;DIRECTION&gt;</p>
+    </div>
+
+    <div speaker="Player 1 (SoloMatrixPlayer) to GM (Game Master)" class="msg player-gm p1" style="">
+        <p>message: D to R8C7 via left column/top corridor; B will follow to R4C7.<br/>move: D up</p>
+    </div>
+
+    <div speaker="Game Master: move" class="msg gm-gm" style="">
+        <p>Player moved D up</p>
+    </div>
+
+    <div speaker="Game Master: message" class="msg gm-gm" style="">
+        <p>Player: D to R8C7 via left column/top corridor; B will follow to R4C7.</p>
+    </div>
+</div><div class="game-round" data-round="9">
+    <div speaker="GM (Game Master) to Player 1 (SoloMatrixPlayer)" class="msg gm-player p1" style="">
+        <p>CURRENT BOARD:<br/>Objects: A@R5C4 B@R6C2 C@R4C8 D@R5C1 E@R1C2 F@R1C1<br/>Walls: R2C7 R3C3 R3C4 R3C5 R4C6 R5C2 R5C6 R5C8 R6C3 R6C4 R6C6 R6C8 R7C6 R7C8 R8C6 R8C8<br/><br/>GOAL BOARD:<br/>Targets: A-&gt;R6C2 B-&gt;R4C7 C-&gt;R7C2 D-&gt;R8C7 E-&gt;R1C2 F-&gt;R7C3<br/><br/>Your turn. Respond with:<br/>message: &lt;a brief note to yourself&gt;<br/>move: &lt;OBJECT&gt; &lt;DIRECTION&gt;</p>
+    </div>
+
+    <div speaker="Player 1 (SoloMatrixPlayer) to GM (Game Master)" class="msg player-gm p1" style="">
+        <p>message: D route: up C1 to R2C1, then right to R2C6, down through C7 to R8C7. Continue moving D up.<br/>move: D up</p>
+    </div>
+
+    <div speaker="Game Master: move" class="msg gm-gm" style="">
+        <p>Player moved D up</p>
+    </div>
+
+    <div speaker="Game Master: message" class="msg gm-gm" style="">
+        <p>Player: D route: up C1 to R2C1, then right to R2C6, down through C7 to R8C7. Continue moving D up.</p>
+    </div>
+</div><div class="game-round" data-round="10">
+    <div speaker="GM (Game Master) to Player 1 (SoloMatrixPlayer)" class="msg gm-player p1" style="">
+        <p>CURRENT BOARD:<br/>Objects: A@R5C4 B@R6C2 C@R4C8 D@R4C1 E@R1C2 F@R1C1<br/>Walls: R2C7 R3C3 R3C4 R3C5 R4C6 R5C2 R5C6 R5C8 R6C3 R6C4 R6C6 R6C8 R7C6 R7C8 R8C6 R8C8<br/><br/>GOAL BOARD:<br/>Targets: A-&gt;R6C2 B-&gt;R4C7 C-&gt;R7C2 D-&gt;R8C7 E-&gt;R1C2 F-&gt;R7C3<br/><br/>Your turn. Respond with:<br/>message: &lt;a brief note to yourself&gt;<br/>move: &lt;OBJECT&gt; &lt;DIRECTION&gt;</p>
+    </div>
+
+    <div speaker="Player 1 (SoloMatrixPlayer) to GM (Game Master)" class="msg player-gm p1" style="">
+        <p>message: D path: up C1 to R2C1, across row2 to R2C6, then down via C7 to R8C7. Keep C8/B/A clear for later.<br/>move: D up</p>
+    </div>
+
+    <div speaker="Game Master: move" class="msg gm-gm" style="">
+        <p>Player moved D up</p>
+    </div>
+
+    <div speaker="Game Master: message" class="msg gm-gm" style="">
+        <p>Player: D path: up C1 to R2C1, across row2 to R2C6, then down via C7 to R8C7. Keep C8/B/A clear for later.</p>
+    </div>
+</div><div class="game-round" data-round="11">
+    <div speaker="GM (Game Master) to Player 1 (SoloMatrixPlayer)" class="msg gm-player p1" style="">
+        <p>CURRENT BOARD:<br/>Objects: A@R5C4 B@R6C2 C@R4C8 D@R3C1 E@R1C2 F@R1C1<br/>Walls: R2C7 R3C3 R3C4 R3C5 R4C6 R5C2 R5C6 R5C8 R6C3 R6C4 R6C6 R6C8 R7C6 R7C8 R8C6 R8C8<br/><br/>GOAL BOARD:<br/>Targets: A-&gt;R6C2 B-&gt;R4C7 C-&gt;R7C2 D-&gt;R8C7 E-&gt;R1C2 F-&gt;R7C3<br/><br/>Your turn. Respond with:<br/>message: &lt;a brief note to yourself&gt;<br/>move: &lt;OBJECT&gt; &lt;DIRECTION&gt;</p>
+    </div>
+
+    <div speaker="Player 1 (SoloMatrixPlayer) to GM (Game Master)" class="msg player-gm p1" style="">
+        <p>message: Keep moving D to R8C7 via R2 row and C7 corridor. Then C first, B, A, F, E done.<br/>move: D up</p>
+    </div>
+
+    <div speaker="Game Master: move" class="msg gm-gm" style="">
+        <p>Player moved D up</p>
+    </div>
+
+    <div speaker="Game Master: message" class="msg gm-gm" style="">
+        <p>Player: Keep moving D to R8C7 via R2 row and C7 corridor. Then C first, B, A, F, E done.</p>
+    </div>
+</div><div class="game-round" data-round="12">
+    <div speaker="GM (Game Master) to Player 1 (SoloMatrixPlayer)" class="msg gm-player p1" style="">
+        <p>CURRENT BOARD:<br/>Objects: A@R5C4 B@R6C2 C@R4C8 D@R2C1 E@R1C2 F@R1C1<br/>Walls: R2C7 R3C3 R3C4 R3C5 R4C6 R5C2 R5C6 R5C8 R6C3 R6C4 R6C6 R6C8 R7C6 R7C8 R8C6 R8C8<br/><br/>GOAL BOARD:<br/>Targets: A-&gt;R6C2 B-&gt;R4C7 C-&gt;R7C2 D-&gt;R8C7 E-&gt;R1C2 F-&gt;R7C3<br/><br/>Your turn. Respond with:<br/>message: &lt;a brief note to yourself&gt;<br/>move: &lt;OBJECT&gt; &lt;DIRECTION&gt;</p>
+    </div>
+
+    <div speaker="Player 1 (SoloMatrixPlayer) to GM (Game Master)" class="msg player-gm p1" style="">
+        <p>message: D to R8C7 via row2 then C7 corridor; afterward B, C, F, A in order.<br/>move: D right</p>
+    </div>
+
+    <div speaker="Game Master: move" class="msg gm-gm" style="">
+        <p>Player moved D right</p>
+    </div>
+
+    <div speaker="Game Master: message" class="msg gm-gm" style="">
+        <p>Player: D to R8C7 via row2 then C7 corridor; afterward B, C, F, A in order.</p>
+    </div>
+</div><div class="game-round" data-round="13">
+    <div speaker="GM (Game Master) to Player 1 (SoloMatrixPlayer)" class="msg gm-player p1" style="">
+        <p>CURRENT BOARD:<br/>Objects: A@R5C4 B@R6C2 C@R4C8 D@R2C2 E@R1C2 F@R1C1<br/>Walls: R2C7 R3C3 R3C4 R3C5 R4C6 R5C2 R5C6 R5C8 R6C3 R6C4 R6C6 R6C8 R7C6 R7C8 R8C6 R8C8<br/><br/>GOAL BOARD:<br/>Targets: A-&gt;R6C2 B-&gt;R4C7 C-&gt;R7C2 D-&gt;R8C7 E-&gt;R1C2 F-&gt;R7C3<br/><br/>Your turn. Respond with:<br/>message: &lt;a brief note to yourself&gt;<br/>move: &lt;OBJECT&gt; &lt;DIRECTION&gt;</p>
+    </div>
+
+    <div speaker="Player 1 (SoloMatrixPlayer) to GM (Game Master)" class="msg player-gm p1" style="">
+        <p>message: D to R8C7 via R2C6, R3C6, R3C7, C7 column. Next steps after D: C to R7C2, then B to R4C7, A to R6C2, F last.<br/>move: D right</p>
+    </div>
+
+    <div speaker="Game Master: move" class="msg gm-gm" style="">
+        <p>Player moved D right</p>
+    </div>
+
+    <div speaker="Game Master: message" class="msg gm-gm" style="">
+        <p>Player: D to R8C7 via R2C6, R3C6, R3C7, C7 column. Next steps after D: C to R7C2, then B to R4C7, A to R6C2, F last.</p>
+    </div>
+</div><div class="game-round" data-round="14">
+    <div speaker="GM (Game Master) to Player 1 (SoloMatrixPlayer)" class="msg gm-player p1" style="">
+        <p>CURRENT BOARD:<br/>Objects: A@R5C4 B@R6C2 C@R4C8 D@R2C3 E@R1C2 F@R1C1<br/>Walls: R2C7 R3C3 R3C4 R3C5 R4C6 R5C2 R5C6 R5C8 R6C3 R6C4 R6C6 R6C8 R7C6 R7C8 R8C6 R8C8<br/><br/>GOAL BOARD:<br/>Targets: A-&gt;R6C2 B-&gt;R4C7 C-&gt;R7C2 D-&gt;R8C7 E-&gt;R1C2 F-&gt;R7C3<br/><br/>Your turn. Respond with:<br/>message: &lt;a brief note to yourself&gt;<br/>move: &lt;OBJECT&gt; &lt;DIRECTION&gt;</p>
+    </div>
+
+    <div speaker="Player 1 (SoloMatrixPlayer) to GM (Game Master)" class="msg player-gm p1" style="">
+        <p>message: Continue D east along row2 to R2C6, then down C7 to target.<br/>move: D right</p>
+    </div>
+
+    <div speaker="Game Master: move" class="msg gm-gm" style="">
+        <p>Player moved D right</p>
+    </div>
+
+    <div speaker="Game Master: message" class="msg gm-gm" style="">
+        <p>Player: Continue D east along row2 to R2C6, then down C7 to target.</p>
+    </div>
+</div><div class="game-round" data-round="15">
+    <div speaker="GM (Game Master) to Player 1 (SoloMatrixPlayer)" class="msg gm-player p1" style="">
+        <p>CURRENT BOARD:<br/>Objects: A@R5C4 B@R6C2 C@R4C8 D@R2C4 E@R1C2 F@R1C1<br/>Walls: R2C7 R3C3 R3C4 R3C5 R4C6 R5C2 R5C6 R5C8 R6C3 R6C4 R6C6 R6C8 R7C6 R7C8 R8C6 R8C8<br/><br/>GOAL BOARD:<br/>Targets: A-&gt;R6C2 B-&gt;R4C7 C-&gt;R7C2 D-&gt;R8C7 E-&gt;R1C2 F-&gt;R7C3<br/><br/>Your turn. Respond with:<br/>message: &lt;a brief note to yourself&gt;<br/>move: &lt;OBJECT&gt; &lt;DIRECTION&gt;</p>
+    </div>
+
+    <div speaker="Player 1 (SoloMatrixPlayer) to GM (Game Master)" class="msg player-gm p1" style="">
+        <p>message: D to R2C5 then R2C6, drop down C7 corridor to R8C7. Continue east.<br/>move: D right</p>
+    </div>
+
+    <div speaker="Game Master: move" class="msg gm-gm" style="">
+        <p>Player moved D right</p>
+    </div>
+
+    <div speaker="Game Master: message" class="msg gm-gm" style="">
+        <p>Player: D to R2C5 then R2C6, drop down C7 corridor to R8C7. Continue east.</p>
+    </div>
+</div><div class="game-round" data-round="16">
+    <div speaker="GM (Game Master) to Player 1 (SoloMatrixPlayer)" class="msg gm-player p1" style="">
+        <p>CURRENT BOARD:<br/>Objects: A@R5C4 B@R6C2 C@R4C8 D@R2C5 E@R1C2 F@R1C1<br/>Walls: R2C7 R3C3 R3C4 R3C5 R4C6 R5C2 R5C6 R5C8 R6C3 R6C4 R6C6 R6C8 R7C6 R7C8 R8C6 R8C8<br/><br/>GOAL BOARD:<br/>Targets: A-&gt;R6C2 B-&gt;R4C7 C-&gt;R7C2 D-&gt;R8C7 E-&gt;R1C2 F-&gt;R7C3<br/><br/>Your turn. Respond with:<br/>message: &lt;a brief note to yourself&gt;<br/>move: &lt;OBJECT&gt; &lt;DIRECTION&gt;</p>
+    </div>
+
+    <div speaker="Player 1 (SoloMatrixPlayer) to GM (Game Master)" class="msg player-gm p1" style="">
+        <p>message: D to R2C6 then down C6/C7 corridor to R8C7. After D, B to R4C7, A to R6C2, C to R7C2, F via bottom to R7C3.<br/>move: D right</p>
+    </div>
+
+    <div speaker="Game Master: move" class="msg gm-gm" style="">
+        <p>Player moved D right</p>
+    </div>
+
+    <div speaker="Game Master: message" class="msg gm-gm" style="">
+        <p>Player: D to R2C6 then down C6/C7 corridor to R8C7. After D, B to R4C7, A to R6C2, C to R7C2, F via bottom to R7C3.</p>
+    </div>
+</div><div class="game-round" data-round="17">
+    <div speaker="GM (Game Master) to Player 1 (SoloMatrixPlayer)" class="msg gm-player p1" style="">
+        <p>CURRENT BOARD:<br/>Objects: A@R5C4 B@R6C2 C@R4C8 D@R2C6 E@R1C2 F@R1C1<br/>Walls: R2C7 R3C3 R3C4 R3C5 R4C6 R5C2 R5C6 R5C8 R6C3 R6C4 R6C6 R6C8 R7C6 R7C8 R8C6 R8C8<br/><br/>GOAL BOARD:<br/>Targets: A-&gt;R6C2 B-&gt;R4C7 C-&gt;R7C2 D-&gt;R8C7 E-&gt;R1C2 F-&gt;R7C3<br/><br/>Your turn. Respond with:<br/>message: &lt;a brief note to yourself&gt;<br/>move: &lt;OBJECT&gt; &lt;DIRECTION&gt;</p>
+    </div>
+
+    <div speaker="Player 1 (SoloMatrixPlayer) to GM (Game Master)" class="msg player-gm p1" style="">
+        <p>message: D to R8C7 via R3C6-R3C7 then down C7. Then B-&gt;R4C7, A-&gt;R6C2, F-&gt;R7C3, C via top to R7C2.<br/>move: D down</p>
+    </div>
+
+    <div speaker="Game Master: move" class="msg gm-gm" style="">
+        <p>Player moved D down</p>
+    </div>
+
+    <div speaker="Game Master: message" class="msg gm-gm" style="">
+        <p>Player: D to R8C7 via R3C6-R3C7 then down C7. Then B-&gt;R4C7, A-&gt;R6C2, F-&gt;R7C3, C via top to R7C2.</p>
+    </div>
+</div><div class="game-round" data-round="18">
+    <div speaker="GM (Game Master) to Player 1 (SoloMatrixPlayer)" class="msg gm-player p1" style="">
+        <p>CURRENT BOARD:<br/>Objects: A@R5C4 B@R6C2 C@R4C8 D@R3C6 E@R1C2 F@R1C1<br/>Walls: R2C7 R3C3 R3C4 R3C5 R4C6 R5C2 R5C6 R5C8 R6C3 R6C4 R6C6 R6C8 R7C6 R7C8 R8C6 R8C8<br/><br/>GOAL BOARD:<br/>Targets: A-&gt;R6C2 B-&gt;R4C7 C-&gt;R7C2 D-&gt;R8C7 E-&gt;R1C2 F-&gt;R7C3<br/><br/>Your turn. Respond with:<br/>message: &lt;a brief note to yourself&gt;<br/>move: &lt;OBJECT&gt; &lt;DIRECTION&gt;</p>
+    </div>
+
+    <div speaker="Player 1 (SoloMatrixPlayer) to GM (Game Master)" class="msg player-gm p1" style="">
+        <p>message: D to R3C7 then down C7 to R8C7. Then B, A, F, C in sequence.<br/>move: D right</p>
+    </div>
+
+    <div speaker="Game Master: move" class="msg gm-gm" style="">
+        <p>Player moved D right</p>
+    </div>
+
+    <div speaker="Game Master: message" class="msg gm-gm" style="">
+        <p>Player: D to R3C7 then down C7 to R8C7. Then B, A, F, C in sequence.</p>
+    </div>
+</div><div class="game-round" data-round="19">
+    <div speaker="GM (Game Master) to Player 1 (SoloMatrixPlayer)" class="msg gm-player p1" style="">
+        <p>CURRENT BOARD:<br/>Objects: A@R5C4 B@R6C2 C@R4C8 D@R3C7 E@R1C2 F@R1C1<br/>Walls: R2C7 R3C3 R3C4 R3C5 R4C6 R5C2 R5C6 R5C8 R6C3 R6C4 R6C6 R6C8 R7C6 R7C8 R8C6 R8C8<br/><br/>GOAL BOARD:<br/>Targets: A-&gt;R6C2 B-&gt;R4C7 C-&gt;R7C2 D-&gt;R8C7 E-&gt;R1C2 F-&gt;R7C3<br/><br/>Your turn. Respond with:<br/>message: &lt;a brief note to yourself&gt;<br/>move: &lt;OBJECT&gt; &lt;DIRECTION&gt;</p>
+    </div>
+
+    <div speaker="Player 1 (SoloMatrixPlayer) to GM (Game Master)" class="msg player-gm p1" style="">
+        <p>message: D down C7 corridor toward R8C7. Then B to R4C7, A to R6C2, F via bottom, C to R7C2.<br/>move: D down</p>
+    </div>
+
+    <div speaker="Game Master: move" class="msg gm-gm" style="">
+        <p>Player moved D down</p>
+    </div>
+
+    <div speaker="Game Master: message" class="msg gm-gm" style="">
+        <p>Player: D down C7 corridor toward R8C7. Then B to R4C7, A to R6C2, F via bottom, C to R7C2.</p>
+    </div>
+</div><div class="game-round" data-round="20">
+    <div speaker="GM (Game Master) to Player 1 (SoloMatrixPlayer)" class="msg gm-player p1" style="">
+        <p>CURRENT BOARD:<br/>Objects: A@R5C4 B@R6C2 C@R4C8 D@R4C7 E@R1C2 F@R1C1<br/>Walls: R2C7 R3C3 R3C4 R3C5 R4C6 R5C2 R5C6 R5C8 R6C3 R6C4 R6C6 R6C8 R7C6 R7C8 R8C6 R8C8<br/><br/>GOAL BOARD:<br/>Targets: A-&gt;R6C2 B-&gt;R4C7 C-&gt;R7C2 D-&gt;R8C7 E-&gt;R1C2 F-&gt;R7C3<br/><br/>Your turn. Respond with:<br/>message: &lt;a brief note to yourself&gt;<br/>move: &lt;OBJECT&gt; &lt;DIRECTION&gt;</p>
+    </div>
+
+    <div speaker="Player 1 (SoloMatrixPlayer) to GM (Game Master)" class="msg player-gm p1" style="">
+        <p>message: D down C7 to R8C7; then B via row2 to R4C7, then A/C/F order.<br/>move: D down</p>
+    </div>
+
+    <div speaker="Game Master: move" class="msg gm-gm" style="">
+        <p>Player moved D down</p>
+    </div>
+
+    <div speaker="Game Master: message" class="msg gm-gm" style="">
+        <p>Player: D down C7 to R8C7; then B via row2 to R4C7, then A/C/F order.</p>
+    </div>
+</div><div class="game-round" data-round="21">
+    <div speaker="GM (Game Master) to Player 1 (SoloMatrixPlayer)" class="msg gm-player p1" style="">
+        <p>CURRENT BOARD:<br/>Objects: A@R5C4 B@R6C2 C@R4C8 D@R5C7 E@R1C2 F@R1C1<br/>Walls: R2C7 R3C3 R3C4 R3C5 R4C6 R5C2 R5C6 R5C8 R6C3 R6C4 R6C6 R6C8 R7C6 R7C8 R8C6 R8C8<br/><br/>GOAL BOARD:<br/>Targets: A-&gt;R6C2 B-&gt;R4C7 C-&gt;R7C2 D-&gt;R8C7 E-&gt;R1C2 F-&gt;R7C3<br/><br/>Your turn. Respond with:<br/>message: &lt;a brief note to yourself&gt;<br/>move: &lt;OBJECT&gt; &lt;DIRECTION&gt;</p>
+    </div>
+
+    <div speaker="Player 1 (SoloMatrixPlayer) to GM (Game Master)" class="msg player-gm p1" style="">
+        <p>message: D continues down C7 corridor to R8C7. Keep C at C8, then route B/A/C/F.<br/>move: D down</p>
+    </div>
+
+    <div speaker="Game Master: move" class="msg gm-gm" style="">
+        <p>Player moved D down</p>
+    </div>
+
+    <div speaker="Game Master: message" class="msg gm-gm" style="">
+        <p>Player: D continues down C7 corridor to R8C7. Keep C at C8, then route B/A/C/F.</p>
+    </div>
+</div><div class="game-round" data-round="22">
+    <div speaker="GM (Game Master) to Player 1 (SoloMatrixPlayer)" class="msg gm-player p1" style="">
+        <p>CURRENT BOARD:<br/>Objects: A@R5C4 B@R6C2 C@R4C8 D@R6C7 E@R1C2 F@R1C1<br/>Walls: R2C7 R3C3 R3C4 R3C5 R4C6 R5C2 R5C6 R5C8 R6C3 R6C4 R6C6 R6C8 R7C6 R7C8 R8C6 R8C8<br/><br/>GOAL BOARD:<br/>Targets: A-&gt;R6C2 B-&gt;R4C7 C-&gt;R7C2 D-&gt;R8C7 E-&gt;R1C2 F-&gt;R7C3<br/><br/>Your turn. Respond with:<br/>message: &lt;a brief note to yourself&gt;<br/>move: &lt;OBJECT&gt; &lt;DIRECTION&gt;</p>
+    </div>
+
+    <div speaker="Player 1 (SoloMatrixPlayer) to GM (Game Master)" class="msg player-gm p1" style="">
+        <p>message: D down C7 corridor toward R8C7.<br/>move: D down</p>
+    </div>
+
+    <div speaker="Game Master: move" class="msg gm-gm" style="">
+        <p>Player moved D down</p>
+    </div>
+
+    <div speaker="Game Master: message" class="msg gm-gm" style="">
+        <p>Player: D down C7 corridor toward R8C7.</p>
+    </div>
+</div><div class="game-round" data-round="23">
+    <div speaker="GM (Game Master) to Player 1 (SoloMatrixPlayer)" class="msg gm-player p1" style="">
+        <p>CURRENT BOARD:<br/>Objects: A@R5C4 B@R6C2 C@R4C8 D@R7C7 E@R1C2 F@R1C1<br/>Walls: R2C7 R3C3 R3C4 R3C5 R4C6 R5C2 R5C6 R5C8 R6C3 R6C4 R6C6 R6C8 R7C6 R7C8 R8C6 R8C8<br/><br/>GOAL BOARD:<br/>Targets: A-&gt;R6C2 B-&gt;R4C7 C-&gt;R7C2 D-&gt;R8C7 E-&gt;R1C2 F-&gt;R7C3<br/><br/>Your turn. Respond with:<br/>message: &lt;a brief note to yourself&gt;<br/>move: &lt;OBJECT&gt; &lt;DIRECTION&gt;</p>
+    </div>
+
+    <div speaker="Player 1 (SoloMatrixPlayer) to GM (Game Master)" class="msg player-gm p1" style="">
+        <p>message: D down one to R8C7. Then B/A/C/F sequence.<br/>move: D down</p>
+    </div>
+
+    <div speaker="Game Master: move" class="msg gm-gm" style="">
+        <p>Player moved D down</p>
+    </div>
+
+    <div speaker="Game Master: message" class="msg gm-gm" style="">
+        <p>Player: D down one to R8C7. Then B/A/C/F sequence.</p>
+    </div>
+</div><div class="game-round" data-round="24">
+    <div speaker="GM (Game Master) to Player 1 (SoloMatrixPlayer)" class="msg gm-player p1" style="">
+        <p>CURRENT BOARD:<br/>Objects: A@R5C4 B@R6C2 C@R4C8 D@R8C7 E@R1C2 F@R1C1<br/>Walls: R2C7 R3C3 R3C4 R3C5 R4C6 R5C2 R5C6 R5C8 R6C3 R6C4 R6C6 R6C8 R7C6 R7C8 R8C6 R8C8<br/><br/>GOAL BOARD:<br/>Targets: A-&gt;R6C2 B-&gt;R4C7 C-&gt;R7C2 D-&gt;R8C7 E-&gt;R1C2 F-&gt;R7C3<br/><br/>Your turn. Respond with:<br/>message: &lt;a brief note to yourself&gt;<br/>move: &lt;OBJECT&gt; &lt;DIRECTION&gt;</p>
+    </div>
+
+    <div speaker="Player 1 (SoloMatrixPlayer) to GM (Game Master)" class="msg player-gm p1" style="">
+        <p>message: D done, E done. Now move B to R4C7 via left column/top corridor; then A to R6C2, C to R7C2, F via bottom.<br/>move: B left</p>
+    </div>
+
+    <div speaker="Game Master: move" class="msg gm-gm" style="">
+        <p>Player moved B left</p>
+    </div>
+
+    <div speaker="Game Master: message" class="msg gm-gm" style="">
+        <p>Player: D done, E done. Now move B to R4C7 via left column/top corridor; then A to R6C2, C to R7C2, F via bottom.</p>
+    </div>
+</div><div class="game-round" data-round="25">
+    <div speaker="GM (Game Master) to Player 1 (SoloMatrixPlayer)" class="msg gm-player p1" style="">
+        <p>CURRENT BOARD:<br/>Objects: A@R5C4 B@R6C1 C@R4C8 D@R8C7 E@R1C2 F@R1C1<br/>Walls: R2C7 R3C3 R3C4 R3C5 R4C6 R5C2 R5C6 R5C8 R6C3 R6C4 R6C6 R6C8 R7C6 R7C8 R8C6 R8C8<br/><br/>GOAL BOARD:<br/>Targets: A-&gt;R6C2 B-&gt;R4C7 C-&gt;R7C2 D-&gt;R8C7 E-&gt;R1C2 F-&gt;R7C3<br/><br/>Your turn. Respond with:<br/>message: &lt;a brief note to yourself&gt;<br/>move: &lt;OBJECT&gt; &lt;DIRECTION&gt;</p>
+    </div>
+
+    <div speaker="Player 1 (SoloMatrixPlayer) to GM (Game Master)" class="msg player-gm p1" style="">
+        <p>message: B to R4C7 via left column up, row2 right, then down C7. Continue B up.<br/>move: B up</p>
+    </div>
+
+    <div speaker="Game Master: move" class="msg gm-gm" style="">
+        <p>Player moved B up</p>
+    </div>
+
+    <div speaker="Game Master: message" class="msg gm-gm" style="">
+        <p>Player: B to R4C7 via left column up, row2 right, then down C7. Continue B up.</p>
+    </div>
+</div><div class="game-round" data-round="26">
+    <div speaker="GM (Game Master) to Player 1 (SoloMatrixPlayer)" class="msg gm-player p1" style="">
+        <p>CURRENT BOARD:<br/>Objects: A@R5C4 B@R5C1 C@R4C8 D@R8C7 E@R1C2 F@R1C1<br/>Walls: R2C7 R3C3 R3C4 R3C5 R4C6 R5C2 R5C6 R5C8 R6C3 R6C4 R6C6 R6C8 R7C6 R7C8 R8C6 R8C8<br/><br/>GOAL BOARD:<br/>Targets: A-&gt;R6C2 B-&gt;R4C7 C-&gt;R7C2 D-&gt;R8C7 E-&gt;R1C2 F-&gt;R7C3<br/><br/>Your turn. Respond with:<br/>message: &lt;a brief note to yourself&gt;<br/>move: &lt;OBJECT&gt; &lt;DIRECTION&gt;</p>
+    </div>
+
+    <div speaker="Player 1 (SoloMatrixPlayer) to GM (Game Master)" class="msg player-gm p1" style="">
+        <p>message: B up left column, then along row2 to R2C6, down to R3C7, then down to R4C7. After that: A-&gt;R6C2 via R4/R5/R6C1, C-&gt;R7C2 via row2/left column, F-&gt;R7C3 via bottom.<br/>move: B up</p>
+    </div>
+
+    <div speaker="Game Master: move" class="msg gm-gm" style="">
+        <p>Player moved B up</p>
+    </div>
+
+    <div speaker="Game Master: message" class="msg gm-gm" style="">
+        <p>Player: B up left column, then along row2 to R2C6, down to R3C7, then down to R4C7. After that: A-&gt;R6C2 via R4/R5/R6C1, C-&gt;R7C2 via row2/left column, F-&gt;R7C3 via bottom.</p>
+    </div>
+</div><div class="game-round" data-round="27">
+    <div speaker="GM (Game Master) to Player 1 (SoloMatrixPlayer)" class="msg gm-player p1" style="">
+        <p>CURRENT BOARD:<br/>Objects: A@R5C4 B@R4C1 C@R4C8 D@R8C7 E@R1C2 F@R1C1<br/>Walls: R2C7 R3C3 R3C4 R3C5 R4C6 R5C2 R5C6 R5C8 R6C3 R6C4 R6C6 R6C8 R7C6 R7C8 R8C6 R8C8<br/><br/>GOAL BOARD:<br/>Targets: A-&gt;R6C2 B-&gt;R4C7 C-&gt;R7C2 D-&gt;R8C7 E-&gt;R1C2 F-&gt;R7C3<br/><br/>Your turn. Respond with:<br/>message: &lt;a brief note to yourself&gt;<br/>move: &lt;OBJECT&gt; &lt;DIRECTION&gt;</p>
+    </div>
+
+    <div speaker="Player 1 (SoloMatrixPlayer) to GM (Game Master)" class="msg player-gm p1" style="">
+        <p>message: B to R4C7 via R3C1-R2C1-row2-top-C8-C7. Then C/A/F routes planned.<br/>move: B up</p>
+    </div>
+
+    <div speaker="Game Master: move" class="msg gm-gm" style="">
+        <p>Player moved B up</p>
+    </div>
+
+    <div speaker="Game Master: message" class="msg gm-gm" style="">
+        <p>Player: B to R4C7 via R3C1-R2C1-row2-top-C8-C7. Then C/A/F routes planned.</p>
+    </div>
+</div><div class="game-round" data-round="28">
+    <div speaker="GM (Game Master) to Player 1 (SoloMatrixPlayer)" class="msg gm-player p1" style="">
+        <p>CURRENT BOARD:<br/>Objects: A@R5C4 B@R3C1 C@R4C8 D@R8C7 E@R1C2 F@R1C1<br/>Walls: R2C7 R3C3 R3C4 R3C5 R4C6 R5C2 R5C6 R5C8 R6C3 R6C4 R6C6 R6C8 R7C6 R7C8 R8C6 R8C8<br/><br/>GOAL BOARD:<br/>Targets: A-&gt;R6C2 B-&gt;R4C7 C-&gt;R7C2 D-&gt;R8C7 E-&gt;R1C2 F-&gt;R7C3<br/><br/>Your turn. Respond with:<br/>message: &lt;a brief note to yourself&gt;<br/>move: &lt;OBJECT&gt; &lt;DIRECTION&gt;</p>
+    </div>
+
+    <div speaker="Player 1 (SoloMatrixPlayer) to GM (Game Master)" class="msg player-gm p1" style="">
+        <p>message: B to R4C7 via R2C1 -&gt; R2C6 -&gt; R3C6 -&gt; R3C7 -&gt; R4C7. Then A to R6C2, C to R7C2, F via bottom.<br/>move: B up</p>
+    </div>
+
+    <div speaker="Game Master: move" class="msg gm-gm" style="">
+        <p>Player moved B up</p>
+    </div>
+
+    <div speaker="Game Master: message" class="msg gm-gm" style="">
+        <p>Player: B to R4C7 via R2C1 -&gt; R2C6 -&gt; R3C6 -&gt; R3C7 -&gt; R4C7. Then A to R6C2, C to R7C2, F via bottom.</p>
+    </div>
+</div><div class="game-round" data-round="29">
+    <div speaker="GM (Game Master) to Player 1 (SoloMatrixPlayer)" class="msg gm-player p1" style="">
+        <p>CURRENT BOARD:<br/>Objects: A@R5C4 B@R2C1 C@R4C8 D@R8C7 E@R1C2 F@R1C1<br/>Walls: R2C7 R3C3 R3C4 R3C5 R4C6 R5C2 R5C6 R5C8 R6C3 R6C4 R6C6 R6C8 R7C6 R7C8 R8C6 R8C8<br/><br/>GOAL BOARD:<br/>Targets: A-&gt;R6C2 B-&gt;R4C7 C-&gt;R7C2 D-&gt;R8C7 E-&gt;R1C2 F-&gt;R7C3<br/><br/>Your turn. Respond with:<br/>message: &lt;a brief note to yourself&gt;<br/>move: &lt;OBJECT&gt; &lt;DIRECTION&gt;</p>
+    </div>
+
+    <div speaker="Player 1 (SoloMatrixPlayer) to GM (Game Master)" class="msg player-gm p1" style="">
+        <p>message: B path to R4C7: R2C2-R2C6-R3C6-R3C7-R4C7.<br/>move: B right</p>
+    </div>
+
+    <div speaker="Game Master: move" class="msg gm-gm" style="">
+        <p>Player moved B right</p>
+    </div>
+
+    <div speaker="Game Master: message" class="msg gm-gm" style="">
+        <p>Player: B path to R4C7: R2C2-R2C6-R3C6-R3C7-R4C7.</p>
+    </div>
+</div><div class="game-round" data-round="30">
+    <div speaker="GM (Game Master) to Player 1 (SoloMatrixPlayer)" class="msg gm-player p1" style="">
+        <p>CURRENT BOARD:<br/>Objects: A@R5C4 B@R2C2 C@R4C8 D@R8C7 E@R1C2 F@R1C1<br/>Walls: R2C7 R3C3 R3C4 R3C5 R4C6 R5C2 R5C6 R5C8 R6C3 R6C4 R6C6 R6C8 R7C6 R7C8 R8C6 R8C8<br/><br/>GOAL BOARD:<br/>Targets: A-&gt;R6C2 B-&gt;R4C7 C-&gt;R7C2 D-&gt;R8C7 E-&gt;R1C2 F-&gt;R7C3<br/><br/>Your turn. Respond with:<br/>message: &lt;a brief note to yourself&gt;<br/>move: &lt;OBJECT&gt; &lt;DIRECTION&gt;</p>
+    </div>
+
+    <div speaker="Player 1 (SoloMatrixPlayer) to GM (Game Master)" class="msg player-gm p1" style="">
+        <p>message: B route to R4C7: R2C3, R2C4, R2C5, R2C6, R3C6, R3C7, R4C7. Then A to R6C2, C to R7C2, F via bottom.<br/>move: B right</p>
+    </div>
+
+    <div speaker="Game Master: move" class="msg gm-gm" style="">
+        <p>Player moved B right</p>
+    </div>
+
+    <div speaker="Game Master: message" class="msg gm-gm" style="">
+        <p>Player: B route to R4C7: R2C3, R2C4, R2C5, R2C6, R3C6, R3C7, R4C7. Then A to R6C2, C to R7C2, F via bottom.</p>
+    </div>
+</div><div class="game-round" data-round="31">
+    <div speaker="GM (Game Master) to Player 1 (SoloMatrixPlayer)" class="msg gm-player p1" style="">
+        <p>CURRENT BOARD:<br/>Objects: A@R5C4 B@R2C3 C@R4C8 D@R8C7 E@R1C2 F@R1C1<br/>Walls: R2C7 R3C3 R3C4 R3C5 R4C6 R5C2 R5C6 R5C8 R6C3 R6C4 R6C6 R6C8 R7C6 R7C8 R8C6 R8C8<br/><br/>GOAL BOARD:<br/>Targets: A-&gt;R6C2 B-&gt;R4C7 C-&gt;R7C2 D-&gt;R8C7 E-&gt;R1C2 F-&gt;R7C3<br/><br/>Your turn. Respond with:<br/>message: &lt;a brief note to yourself&gt;<br/>move: &lt;OBJECT&gt; &lt;DIRECTION&gt;</p>
+    </div>
+
+    <div speaker="Player 1 (SoloMatrixPlayer) to GM (Game Master)" class="msg player-gm p1" style="">
+        <p>message: B to R2C4 then R2C5/R2C6/R3C6/R3C7/R4C7. Then A, C, F.<br/>move: B right</p>
+    </div>
+
+    <div speaker="Game Master: move" class="msg gm-gm" style="">
+        <p>Player moved B right</p>
+    </div>
+
+    <div speaker="Game Master: message" class="msg gm-gm" style="">
+        <p>Player: B to R2C4 then R2C5/R2C6/R3C6/R3C7/R4C7. Then A, C, F.</p>
+    </div>
+</div><div class="game-round" data-round="32">
+    <div speaker="GM (Game Master) to Player 1 (SoloMatrixPlayer)" class="msg gm-player p1" style="">
+        <p>CURRENT BOARD:<br/>Objects: A@R5C4 B@R2C4 C@R4C8 D@R8C7 E@R1C2 F@R1C1<br/>Walls: R2C7 R3C3 R3C4 R3C5 R4C6 R5C2 R5C6 R5C8 R6C3 R6C4 R6C6 R6C8 R7C6 R7C8 R8C6 R8C8<br/><br/>GOAL BOARD:<br/>Targets: A-&gt;R6C2 B-&gt;R4C7 C-&gt;R7C2 D-&gt;R8C7 E-&gt;R1C2 F-&gt;R7C3<br/><br/>Your turn. Respond with:<br/>message: &lt;a brief note to yourself&gt;<br/>move: &lt;OBJECT&gt; &lt;DIRECTION&gt;</p>
+    </div>
+
+    <div speaker="Player 1 (SoloMatrixPlayer) to GM (Game Master)" class="msg player-gm p1" style="">
+        <p>message: B to R4C7 via R2C5-R2C6-R3C6-R3C7-R4C7.<br/>move: B right</p>
+    </div>
+
+    <div speaker="Game Master: move" class="msg gm-gm" style="">
+        <p>Player moved B right</p>
+    </div>
+
+    <div speaker="Game Master: message" class="msg gm-gm" style="">
+        <p>Player: B to R4C7 via R2C5-R2C6-R3C6-R3C7-R4C7.</p>
+    </div>
+</div><div class="game-round" data-round="33">
+    <div speaker="GM (Game Master) to Player 1 (SoloMatrixPlayer)" class="msg gm-player p1" style="">
+        <p>CURRENT BOARD:<br/>Objects: A@R5C4 B@R2C5 C@R4C8 D@R8C7 E@R1C2 F@R1C1<br/>Walls: R2C7 R3C3 R3C4 R3C5 R4C6 R5C2 R5C6 R5C8 R6C3 R6C4 R6C6 R6C8 R7C6 R7C8 R8C6 R8C8<br/><br/>GOAL BOARD:<br/>Targets: A-&gt;R6C2 B-&gt;R4C7 C-&gt;R7C2 D-&gt;R8C7 E-&gt;R1C2 F-&gt;R7C3<br/><br/>Your turn. Respond with:<br/>message: &lt;a brief note to yourself&gt;<br/>move: &lt;OBJECT&gt; &lt;DIRECTION&gt;</p>
+    </div>
+
+    <div speaker="Player 1 (SoloMatrixPlayer) to GM (Game Master)" class="msg player-gm p1" style="">
+        <p>message: B continues to R4C7: R2C6, R3C6, R3C7, R4C7. Then A path, F, C with E temp move.<br/>move: B right</p>
+    </div>
+
+    <div speaker="Game Master: move" class="msg gm-gm" style="">
+        <p>Player moved B right</p>
+    </div>
+
+    <div speaker="Game Master: message" class="msg gm-gm" style="">
+        <p>Player: B continues to R4C7: R2C6, R3C6, R3C7, R4C7. Then A path, F, C with E temp move.</p>
+    </div>
+</div><div class="game-round" data-round="34">
+    <div speaker="GM (Game Master) to Player 1 (SoloMatrixPlayer)" class="msg gm-player p1" style="">
+        <p>CURRENT BOARD:<br/>Objects: A@R5C4 B@R2C6 C@R4C8 D@R8C7 E@R1C2 F@R1C1<br/>Walls: R2C7 R3C3 R3C4 R3C5 R4C6 R5C2 R5C6 R5C8 R6C3 R6C4 R6C6 R6C8 R7C6 R7C8 R8C6 R8C8<br/><br/>GOAL BOARD:<br/>Targets: A-&gt;R6C2 B-&gt;R4C7 C-&gt;R7C2 D-&gt;R8C7 E-&gt;R1C2 F-&gt;R7C3<br/><br/>Your turn. Respond with:<br/>message: &lt;a brief note to yourself&gt;<br/>move: &lt;OBJECT&gt; &lt;DIRECTION&gt;</p>
+    </div>
+
+    <div speaker="Player 1 (SoloMatrixPlayer) to GM (Game Master)" class="msg player-gm p1" style="">
+        <p>message: B down to R3C6, then right/down to R4C7. After B placed, move A to R6C2 via bottom loop, then C via top row to R7C2, F via bottom to R7C3.<br/>move: B down</p>
+    </div>
+
+    <div speaker="Game Master: move" class="msg gm-gm" style="">
+        <p>Player moved B down</p>
+    </div>
+
+    <div speaker="Game Master: message" class="msg gm-gm" style="">
+        <p>Player: B down to R3C6, then right/down to R4C7. After B placed, move A to R6C2 via bottom loop, then C via top row to R7C2, F via bottom to R7C3.</p>
+    </div>
+</div><div class="game-round" data-round="35">
+    <div speaker="GM (Game Master) to Player 1 (SoloMatrixPlayer)" class="msg gm-player p1" style="">
+        <p>CURRENT BOARD:<br/>Objects: A@R5C4 B@R3C6 C@R4C8 D@R8C7 E@R1C2 F@R1C1<br/>Walls: R2C7 R3C3 R3C4 R3C5 R4C6 R5C2 R5C6 R5C8 R6C3 R6C4 R6C6 R6C8 R7C6 R7C8 R8C6 R8C8<br/><br/>GOAL BOARD:<br/>Targets: A-&gt;R6C2 B-&gt;R4C7 C-&gt;R7C2 D-&gt;R8C7 E-&gt;R1C2 F-&gt;R7C3<br/><br/>Your turn. Respond with:<br/>message: &lt;a brief note to yourself&gt;<br/>move: &lt;OBJECT&gt; &lt;DIRECTION&gt;</p>
+    </div>
+
+    <div speaker="Player 1 (SoloMatrixPlayer) to GM (Game Master)" class="msg player-gm p1" style="">
+        <p>message: B right to R3C7, then down to R4C7. Then address A, C, F.<br/>move: B right</p>
+    </div>
+
+    <div speaker="Game Master: move" class="msg gm-gm" style="">
+        <p>Player moved B right</p>
+    </div>
+
+    <div speaker="Game Master: message" class="msg gm-gm" style="">
+        <p>Player: B right to R3C7, then down to R4C7. Then address A, C, F.</p>
+    </div>
+</div><div class="game-round" data-round="36">
+    <div speaker="GM (Game Master) to Player 1 (SoloMatrixPlayer)" class="msg gm-player p1" style="">
+        <p>CURRENT BOARD:<br/>Objects: A@R5C4 B@R3C7 C@R4C8 D@R8C7 E@R1C2 F@R1C1<br/>Walls: R2C7 R3C3 R3C4 R3C5 R4C6 R5C2 R5C6 R5C8 R6C3 R6C4 R6C6 R6C8 R7C6 R7C8 R8C6 R8C8<br/><br/>GOAL BOARD:<br/>Targets: A-&gt;R6C2 B-&gt;R4C7 C-&gt;R7C2 D-&gt;R8C7 E-&gt;R1C2 F-&gt;R7C3<br/><br/>Your turn. Respond with:<br/>message: &lt;a brief note to yourself&gt;<br/>move: &lt;OBJECT&gt; &lt;DIRECTION&gt;</p>
+    </div>
+
+    <div speaker="Player 1 (SoloMatrixPlayer) to GM (Game Master)" class="msg player-gm p1" style="">
+        <p>message: B placed at target. Next: move C via top/row2/left to R7C2, then A to R6C2, then F via bottom to R7C3.<br/>move: B down</p>
+    </div>
+
+    <div speaker="Game Master: move" class="msg gm-gm" style="">
+        <p>Player moved B down</p>
+    </div>
+
+    <div speaker="Game Master: message" class="msg gm-gm" style="">
+        <p>Player: B placed at target. Next: move C via top/row2/left to R7C2, then A to R6C2, then F via bottom to R7C3.</p>
+    </div>
+</div><div class="game-round" data-round="37">
+    <div speaker="GM (Game Master) to Player 1 (SoloMatrixPlayer)" class="msg gm-player p1" style="">
+        <p>CURRENT BOARD:<br/>Objects: A@R5C4 B@R4C7 C@R4C8 D@R8C7 E@R1C2 F@R1C1<br/>Walls: R2C7 R3C3 R3C4 R3C5 R4C6 R5C2 R5C6 R5C8 R6C3 R6C4 R6C6 R6C8 R7C6 R7C8 R8C6 R8C8<br/><br/>GOAL BOARD:<br/>Targets: A-&gt;R6C2 B-&gt;R4C7 C-&gt;R7C2 D-&gt;R8C7 E-&gt;R1C2 F-&gt;R7C3<br/><br/>Your turn. Respond with:<br/>message: &lt;a brief note to yourself&gt;<br/>move: &lt;OBJECT&gt; &lt;DIRECTION&gt;</p>
+    </div>
+
+    <div speaker="Player 1 (SoloMatrixPlayer) to GM (Game Master)" class="msg player-gm p1" style="">
+        <p>message: C up to R3C8, then route C via row3/row2/left column to R7C2. Later A via left column to R6C2, F via bottom to R7C3.<br/>move: C up</p>
+    </div>
+
+    <div speaker="Game Master: move" class="msg gm-gm" style="">
+        <p>Player moved C up</p>
+    </div>
+
+    <div speaker="Game Master: message" class="msg gm-gm" style="">
+        <p>Player: C up to R3C8, then route C via row3/row2/left column to R7C2. Later A via left column to R6C2, F via bottom to R7C3.</p>
+    </div>
+</div><div class="game-round" data-round="38">
+    <div speaker="GM (Game Master) to Player 1 (SoloMatrixPlayer)" class="msg gm-player p1" style="">
+        <p>CURRENT BOARD:<br/>Objects: A@R5C4 B@R4C7 C@R3C8 D@R8C7 E@R1C2 F@R1C1<br/>Walls: R2C7 R3C3 R3C4 R3C5 R4C6 R5C2 R5C6 R5C8 R6C3 R6C4 R6C6 R6C8 R7C6 R7C8 R8C6 R8C8<br/><br/>GOAL BOARD:<br/>Targets: A-&gt;R6C2 B-&gt;R4C7 C-&gt;R7C2 D-&gt;R8C7 E-&gt;R1C2 F-&gt;R7C3<br/><br/>Your turn. Respond with:<br/>message: &lt;a brief note to yourself&gt;<br/>move: &lt;OBJECT&gt; &lt;DIRECTION&gt;</p>
+    </div>
+
+    <div speaker="Player 1 (SoloMatrixPlayer) to GM (Game Master)" class="msg player-gm p1" style="">
+        <p>message: C route: R3C8 -&gt; R3C7 -&gt; R3C6 -&gt; R2C6 -&gt; row2 left -&gt; left column down to R7C2. A later via R4C1-R5C1-R6C1 to R6C2, F via bottom row.<br/>move: C left</p>
+    </div>
+
+    <div speaker="Game Master: move" class="msg gm-gm" style="">
+        <p>Player moved C left</p>
+    </div>
+
+    <div speaker="Game Master: message" class="msg gm-gm" style="">
+        <p>Player: C route: R3C8 -&gt; R3C7 -&gt; R3C6 -&gt; R2C6 -&gt; row2 left -&gt; left column down to R7C2. A later via R4C1-R5C1-R6C1 to R6C2, F via bottom row.</p>
+    </div>
+</div><div class="game-round" data-round="39">
+    <div speaker="GM (Game Master) to Player 1 (SoloMatrixPlayer)" class="msg gm-player p1" style="">
+        <p>CURRENT BOARD:<br/>Objects: A@R5C4 B@R4C7 C@R3C7 D@R8C7 E@R1C2 F@R1C1<br/>Walls: R2C7 R3C3 R3C4 R3C5 R4C6 R5C2 R5C6 R5C8 R6C3 R6C4 R6C6 R6C8 R7C6 R7C8 R8C6 R8C8<br/><br/>GOAL BOARD:<br/>Targets: A-&gt;R6C2 B-&gt;R4C7 C-&gt;R7C2 D-&gt;R8C7 E-&gt;R1C2 F-&gt;R7C3<br/><br/>Your turn. Respond with:<br/>message: &lt;a brief note to yourself&gt;<br/>move: &lt;OBJECT&gt; &lt;DIRECTION&gt;</p>
+    </div>
+
+    <div speaker="Player 1 (SoloMatrixPlayer) to GM (Game Master)" class="msg player-gm p1" style="">
+        <p>message: C route: R3C7 -&gt; R3C6 -&gt; R2C6 -&gt; row2 left -&gt; C1 -&gt; down to R7C2. Continue C left.<br/>move: C left</p>
+    </div>
+
+    <div speaker="Game Master: move" class="msg gm-gm" style="">
+        <p>Player moved C left</p>
+    </div>
+
+    <div speaker="Game Master: message" class="msg gm-gm" style="">
+        <p>Player: C route: R3C7 -&gt; R3C6 -&gt; R2C6 -&gt; row2 left -&gt; C1 -&gt; down to R7C2. Continue C left.</p>
+    </div>
+</div><div class="game-round" data-round="40">
+    <div speaker="GM (Game Master) to Player 1 (SoloMatrixPlayer)" class="msg gm-player p1" style="">
+        <p>CURRENT BOARD:<br/>Objects: A@R5C4 B@R4C7 C@R3C6 D@R8C7 E@R1C2 F@R1C1<br/>Walls: R2C7 R3C3 R3C4 R3C5 R4C6 R5C2 R5C6 R5C8 R6C3 R6C4 R6C6 R6C8 R7C6 R7C8 R8C6 R8C8<br/><br/>GOAL BOARD:<br/>Targets: A-&gt;R6C2 B-&gt;R4C7 C-&gt;R7C2 D-&gt;R8C7 E-&gt;R1C2 F-&gt;R7C3<br/><br/>Your turn. Respond with:<br/>message: &lt;a brief note to yourself&gt;<br/>move: &lt;OBJECT&gt; &lt;DIRECTION&gt;</p>
+    </div>
+
+    <div speaker="Player 1 (SoloMatrixPlayer) to GM (Game Master)" class="msg player-gm p1" style="">
+        <p>message: Switch to A: route R5C3-&gt;R4C3-&gt;R4C2-&gt;R4C1-&gt;R5C1-&gt;R6C1-&gt;R6C2. Then C via row2/left column to R7C2, F via bottom.<br/>move: A left</p>
+    </div>
+
+    <div speaker="Game Master: move" class="msg gm-gm" style="">
+        <p>Player moved A left</p>
+    </div>
+
+    <div speaker="Game Master: message" class="msg gm-gm" style="">
+        <p>Player: Switch to A: route R5C3-&gt;R4C3-&gt;R4C2-&gt;R4C1-&gt;R5C1-&gt;R6C1-&gt;R6C2. Then C via row2/left column to R7C2, F via bottom.</p>
+    </div>
+</div><div class="game-round" data-round="41">
+    <div speaker="GM (Game Master) to Player 1 (SoloMatrixPlayer)" class="msg gm-player p1" style="">
+        <p>CURRENT BOARD:<br/>Objects: A@R5C3 B@R4C7 C@R3C6 D@R8C7 E@R1C2 F@R1C1<br/>Walls: R2C7 R3C3 R3C4 R3C5 R4C6 R5C2 R5C6 R5C8 R6C3 R6C4 R6C6 R6C8 R7C6 R7C8 R8C6 R8C8<br/><br/>GOAL BOARD:<br/>Targets: A-&gt;R6C2 B-&gt;R4C7 C-&gt;R7C2 D-&gt;R8C7 E-&gt;R1C2 F-&gt;R7C3<br/><br/>Your turn. Respond with:<br/>message: &lt;a brief note to yourself&gt;<br/>move: &lt;OBJECT&gt; &lt;DIRECTION&gt;</p>
+    </div>
+
+    <div speaker="Player 1 (SoloMatrixPlayer) to GM (Game Master)" class="msg player-gm p1" style="">
+        <p>message: A route to R6C2: R4C3-&gt;R4C2-&gt;R4C1-&gt;R5C1-&gt;R6C1-&gt;R6C2. Continue.<br/>move: A up</p>
+    </div>
+
+    <div speaker="Game Master: move" class="msg gm-gm" style="">
+        <p>Player moved A up</p>
+    </div>
+
+    <div speaker="Game Master: message" class="msg gm-gm" style="">
+        <p>Player: A route to R6C2: R4C3-&gt;R4C2-&gt;R4C1-&gt;R5C1-&gt;R6C1-&gt;R6C2. Continue.</p>
+    </div>
+</div><div class="game-round" data-round="42">
+    <div speaker="GM (Game Master) to Player 1 (SoloMatrixPlayer)" class="msg gm-player p1" style="">
+        <p>CURRENT BOARD:<br/>Objects: A@R4C3 B@R4C7 C@R3C6 D@R8C7 E@R1C2 F@R1C1<br/>Walls: R2C7 R3C3 R3C4 R3C5 R4C6 R5C2 R5C6 R5C8 R6C3 R6C4 R6C6 R6C8 R7C6 R7C8 R8C6 R8C8<br/><br/>GOAL BOARD:<br/>Targets: A-&gt;R6C2 B-&gt;R4C7 C-&gt;R7C2 D-&gt;R8C7 E-&gt;R1C2 F-&gt;R7C3<br/><br/>Your turn. Respond with:<br/>message: &lt;a brief note to yourself&gt;<br/>move: &lt;OBJECT&gt; &lt;DIRECTION&gt;</p>
+    </div>
+
+    <div speaker="Player 1 (SoloMatrixPlayer) to GM (Game Master)" class="msg player-gm p1" style="">
+        <p>message: A route to R6C2: R4C2 -&gt; R4C1 -&gt; R5C1 -&gt; R6C1 -&gt; R6C2. Then C via row2/left column, F via bottom.<br/>move: A left</p>
+    </div>
+
+    <div speaker="Game Master: move" class="msg gm-gm" style="">
+        <p>Player moved A left</p>
+    </div>
+
+    <div speaker="Game Master: message" class="msg gm-gm" style="">
+        <p>Player: A route to R6C2: R4C2 -&gt; R4C1 -&gt; R5C1 -&gt; R6C1 -&gt; R6C2. Then C via row2/left column, F via bottom.</p>
+    </div>
+</div><div class="game-round" data-round="43">
+    <div speaker="GM (Game Master) to Player 1 (SoloMatrixPlayer)" class="msg gm-player p1" style="">
+        <p>CURRENT BOARD:<br/>Objects: A@R4C2 B@R4C7 C@R3C6 D@R8C7 E@R1C2 F@R1C1<br/>Walls: R2C7 R3C3 R3C4 R3C5 R4C6 R5C2 R5C6 R5C8 R6C3 R6C4 R6C6 R6C8 R7C6 R7C8 R8C6 R8C8<br/><br/>GOAL BOARD:<br/>Targets: A-&gt;R6C2 B-&gt;R4C7 C-&gt;R7C2 D-&gt;R8C7 E-&gt;R1C2 F-&gt;R7C3<br/><br/>Your turn. Respond with:<br/>message: &lt;a brief note to yourself&gt;<br/>move: &lt;OBJECT&gt; &lt;DIRECTION&gt;</p>
+    </div>
+
+    <div speaker="Player 1 (SoloMatrixPlayer) to GM (Game Master)" class="msg player-gm p1" style="">
+        <p>message: A route: R4C1 -&gt; R5C1 -&gt; R6C1 -&gt; R6C2. Then C via row2/left column to R7C2, F via bottom to R7C3.<br/>move: A left</p>
+    </div>
+
+    <div speaker="Game Master: move" class="msg gm-gm" style="">
+        <p>Player moved A left</p>
+    </div>
+
+    <div speaker="Game Master: message" class="msg gm-gm" style="">
+        <p>Player: A route: R4C1 -&gt; R5C1 -&gt; R6C1 -&gt; R6C2. Then C via row2/left column to R7C2, F via bottom to R7C3.</p>
+    </div>
+</div><div class="game-round" data-round="44">
+    <div speaker="GM (Game Master) to Player 1 (SoloMatrixPlayer)" class="msg gm-player p1" style="">
+        <p>CURRENT BOARD:<br/>Objects: A@R4C1 B@R4C7 C@R3C6 D@R8C7 E@R1C2 F@R1C1<br/>Walls: R2C7 R3C3 R3C4 R3C5 R4C6 R5C2 R5C6 R5C8 R6C3 R6C4 R6C6 R6C8 R7C6 R7C8 R8C6 R8C8<br/><br/>GOAL BOARD:<br/>Targets: A-&gt;R6C2 B-&gt;R4C7 C-&gt;R7C2 D-&gt;R8C7 E-&gt;R1C2 F-&gt;R7C3<br/><br/>Your turn. Respond with:<br/>message: &lt;a brief note to yourself&gt;<br/>move: &lt;OBJECT&gt; &lt;DIRECTION&gt;</p>
+    </div>
+
+    <div speaker="Player 1 (SoloMatrixPlayer) to GM (Game Master)" class="msg player-gm p1" style="">
+        <p>message: A to R6C2 via C1: down to R6C1, right. Then C via row2/C1 to R7C2, then F via bottom row to R7C3.<br/>move: A down</p>
+    </div>
+
+    <div speaker="Game Master: move" class="msg gm-gm" style="">
+        <p>Player moved A down</p>
+    </div>
+
+    <div speaker="Game Master: message" class="msg gm-gm" style="">
+        <p>Player: A to R6C2 via C1: down to R6C1, right. Then C via row2/C1 to R7C2, then F via bottom row to R7C3.</p>
+    </div>
+</div><div class="game-round" data-round="45">
+    <div speaker="GM (Game Master) to Player 1 (SoloMatrixPlayer)" class="msg gm-player p1" style="">
+        <p>CURRENT BOARD:<br/>Objects: A@R5C1 B@R4C7 C@R3C6 D@R8C7 E@R1C2 F@R1C1<br/>Walls: R2C7 R3C3 R3C4 R3C5 R4C6 R5C2 R5C6 R5C8 R6C3 R6C4 R6C6 R6C8 R7C6 R7C8 R8C6 R8C8<br/><br/>GOAL BOARD:<br/>Targets: A-&gt;R6C2 B-&gt;R4C7 C-&gt;R7C2 D-&gt;R8C7 E-&gt;R1C2 F-&gt;R7C3<br/><br/>Your turn. Respond with:<br/>message: &lt;a brief note to yourself&gt;<br/>move: &lt;OBJECT&gt; &lt;DIRECTION&gt;</p>
+    </div>
+
+    <div speaker="Player 1 (SoloMatrixPlayer) to GM (Game Master)" class="msg player-gm p1" style="">
+        <p>message: A down C1 to R6C2, then C via row2/left column to R7C2, F via bottom to R7C3.<br/>move: A down</p>
+    </div>
+
+    <div speaker="Game Master: move" class="msg gm-gm" style="">
+        <p>Player moved A down</p>
+    </div>
+
+    <div speaker="Game Master: message" class="msg gm-gm" style="">
+        <p>Player: A down C1 to R6C2, then C via row2/left column to R7C2, F via bottom to R7C3.</p>
+    </div>
+</div><div class="game-round" data-round="46">
+    <div speaker="GM (Game Master) to Player 1 (SoloMatrixPlayer)" class="msg gm-player p1" style="">
+        <p>CURRENT BOARD:<br/>Objects: A@R6C1 B@R4C7 C@R3C6 D@R8C7 E@R1C2 F@R1C1<br/>Walls: R2C7 R3C3 R3C4 R3C5 R4C6 R5C2 R5C6 R5C8 R6C3 R6C4 R6C6 R6C8 R7C6 R7C8 R8C6 R8C8<br/><br/>GOAL BOARD:<br/>Targets: A-&gt;R6C2 B-&gt;R4C7 C-&gt;R7C2 D-&gt;R8C7 E-&gt;R1C2 F-&gt;R7C3<br/><br/>Your turn. Respond with:<br/>message: &lt;a brief note to yourself&gt;<br/>move: &lt;OBJECT&gt; &lt;DIRECTION&gt;</p>
+    </div>
+
+    <div speaker="Player 1 (SoloMatrixPlayer) to GM (Game Master)" class="msg player-gm p1" style="">
+        <p>message: A right to target R6C2. Then route C via row2/left column to R7C2, then F via bottom row to R7C3.<br/>move: A right</p>
+    </div>
+
+    <div speaker="Game Master: move" class="msg gm-gm" style="">
+        <p>Player moved A right</p>
+    </div>
+
+    <div speaker="Game Master: message" class="msg gm-gm" style="">
+        <p>Player: A right to target R6C2. Then route C via row2/left column to R7C2, then F via bottom row to R7C3.</p>
+    </div>
+</div><div class="game-round" data-round="47">
+    <div speaker="GM (Game Master) to Player 1 (SoloMatrixPlayer)" class="msg gm-player p1" style="">
+        <p>CURRENT BOARD:<br/>Objects: A@R6C2 B@R4C7 C@R3C6 D@R8C7 E@R1C2 F@R1C1<br/>Walls: R2C7 R3C3 R3C4 R3C5 R4C6 R5C2 R5C6 R5C8 R6C3 R6C4 R6C6 R6C8 R7C6 R7C8 R8C6 R8C8<br/><br/>GOAL BOARD:<br/>Targets: A-&gt;R6C2 B-&gt;R4C7 C-&gt;R7C2 D-&gt;R8C7 E-&gt;R1C2 F-&gt;R7C3<br/><br/>Your turn. Respond with:<br/>message: &lt;a brief note to yourself&gt;<br/>move: &lt;OBJECT&gt; &lt;DIRECTION&gt;</p>
+    </div>
+
+    <div speaker="Player 1 (SoloMatrixPlayer) to GM (Game Master)" class="msg player-gm p1" style="">
+        <p>message: C route to R7C2: R2C6 -&gt; row2 left -&gt; C1 down -&gt; R7C2. Then F down C1 and bottom to R7C3.<br/>move: C up</p>
+    </div>
+
+    <div speaker="Game Master: move" class="msg gm-gm" style="">
+        <p>Player moved C up</p>
+    </div>
+
+    <div speaker="Game Master: message" class="msg gm-gm" style="">
+        <p>Player: C route to R7C2: R2C6 -&gt; row2 left -&gt; C1 down -&gt; R7C2. Then F down C1 and bottom to R7C3.</p>
+    </div>
+</div><div class="game-round" data-round="48">
+    <div speaker="GM (Game Master) to Player 1 (SoloMatrixPlayer)" class="msg gm-player p1" style="">
+        <p>CURRENT BOARD:<br/>Objects: A@R6C2 B@R4C7 C@R2C6 D@R8C7 E@R1C2 F@R1C1<br/>Walls: R2C7 R3C3 R3C4 R3C5 R4C6 R5C2 R5C6 R5C8 R6C3 R6C4 R6C6 R6C8 R7C6 R7C8 R8C6 R8C8<br/><br/>GOAL BOARD:<br/>Targets: A-&gt;R6C2 B-&gt;R4C7 C-&gt;R7C2 D-&gt;R8C7 E-&gt;R1C2 F-&gt;R7C3<br/><br/>Your turn. Respond with:<br/>message: &lt;a brief note to yourself&gt;<br/>move: &lt;OBJECT&gt; &lt;DIRECTION&gt;</p>
+    </div>
+
+    <div speaker="Player 1 (SoloMatrixPlayer) to GM (Game Master)" class="msg player-gm p1" style="">
+        <p>message: C to R7C2 via row2 left then down C1 to R7C1/right. Then F via C1/bottom row to R7C3.<br/>move: C left</p>
+    </div>
+
+    <div speaker="Game Master: move" class="msg gm-gm" style="">
+        <p>Player moved C left</p>
+    </div>
+
+    <div speaker="Game Master: message" class="msg gm-gm" style="">
+        <p>Player: C to R7C2 via row2 left then down C1 to R7C1/right. Then F via C1/bottom row to R7C3.</p>
+    </div>
+</div><div class="game-round" data-round="49">
+    <div speaker="GM (Game Master) to Player 1 (SoloMatrixPlayer)" class="msg gm-player p1" style="">
+        <p>CURRENT BOARD:<br/>Objects: A@R6C2 B@R4C7 C@R2C5 D@R8C7 E@R1C2 F@R1C1<br/>Walls: R2C7 R3C3 R3C4 R3C5 R4C6 R5C2 R5C6 R5C8 R6C3 R6C4 R6C6 R6C8 R7C6 R7C8 R8C6 R8C8<br/><br/>GOAL BOARD:<br/>Targets: A-&gt;R6C2 B-&gt;R4C7 C-&gt;R7C2 D-&gt;R8C7 E-&gt;R1C2 F-&gt;R7C3<br/><br/>Your turn. Respond with:<br/>message: &lt;a brief note to yourself&gt;<br/>move: &lt;OBJECT&gt; &lt;DIRECTION&gt;</p>
+    </div>
+
+    <div speaker="Player 1 (SoloMatrixPlayer) to GM (Game Master)" class="msg player-gm p1" style="">
+        <p>message: C continues left along row2 then down C1 to R7C1 and right to R7C2. Then F down C1/bottom to R7C3.<br/>move: C left</p>
+    </div>
+
+    <div speaker="Game Master: move" class="msg gm-gm" style="">
+        <p>Player moved C left</p>
+    </div>
+
+    <div speaker="Game Master: message" class="msg gm-gm" style="">
+        <p>Player: C continues left along row2 then down C1 to R7C1 and right to R7C2. Then F down C1/bottom to R7C3.</p>
+    </div>
+</div><div class="game-round" data-round="50">
+    <div speaker="GM (Game Master) to Player 1 (SoloMatrixPlayer)" class="msg gm-player p1" style="">
+        <p>CURRENT BOARD:<br/>Objects: A@R6C2 B@R4C7 C@R2C4 D@R8C7 E@R1C2 F@R1C1<br/>Walls: R2C7 R3C3 R3C4 R3C5 R4C6 R5C2 R5C6 R5C8 R6C3 R6C4 R6C6 R6C8 R7C6 R7C8 R8C6 R8C8<br/><br/>GOAL BOARD:<br/>Targets: A-&gt;R6C2 B-&gt;R4C7 C-&gt;R7C2 D-&gt;R8C7 E-&gt;R1C2 F-&gt;R7C3<br/><br/>Your turn. Respond with:<br/>message: &lt;a brief note to yourself&gt;<br/>move: &lt;OBJECT&gt; &lt;DIRECTION&gt;</p>
+    </div>
+
+    <div speaker="Player 1 (SoloMatrixPlayer) to GM (Game Master)" class="msg player-gm p1" style="">
+        <p>message: C to R7C2 via R2C1 then down C1, right into target. F later down C1 to R8C1, right, right, up.<br/>move: C left</p>
+    </div>
+
+    <div speaker="Game Master: move" class="msg gm-gm" style="">
+        <p>Player moved C left</p>
+    </div>
+
+    <div speaker="Game Master: message" class="msg gm-gm" style="">
+        <p>Player: C to R7C2 via R2C1 then down C1, right into target. F later down C1 to R8C1, right, right, up.</p>
+    </div>
+</div><div class="game-round" data-round="51">
+    <div speaker="GM (Game Master) to Player 1 (SoloMatrixPlayer)" class="msg gm-player p1" style="">
+        <p>CURRENT BOARD:<br/>Objects: A@R6C2 B@R4C7 C@R2C3 D@R8C7 E@R1C2 F@R1C1<br/>Walls: R2C7 R3C3 R3C4 R3C5 R4C6 R5C2 R5C6 R5C8 R6C3 R6C4 R6C6 R6C8 R7C6 R7C8 R8C6 R8C8<br/><br/>GOAL BOARD:<br/>Targets: A-&gt;R6C2 B-&gt;R4C7 C-&gt;R7C2 D-&gt;R8C7 E-&gt;R1C2 F-&gt;R7C3<br/><br/>Your turn. Respond with:<br/>message: &lt;a brief note to yourself&gt;<br/>move: &lt;OBJECT&gt; &lt;DIRECTION&gt;</p>
+    </div>
+
+    <div speaker="Player 1 (SoloMatrixPlayer) to GM (Game Master)" class="msg player-gm p1" style="">
+        <p>message: C to R7C2: R2C2, R2C1, down C1 to R7C1, right to target. Then F via C1/bottom to R7C3.<br/>move: C left</p>
+    </div>
+
+    <div speaker="Game Master: move" class="msg gm-gm" style="">
+        <p>Player moved C left</p>
+    </div>
+
+    <div speaker="Game Master: message" class="msg gm-gm" style="">
+        <p>Player: C to R7C2: R2C2, R2C1, down C1 to R7C1, right to target. Then F via C1/bottom to R7C3.</p>
+    </div>
+</div><div class="game-round" data-round="52">
+    <div speaker="GM (Game Master) to Player 1 (SoloMatrixPlayer)" class="msg gm-player p1" style="">
+        <p>CURRENT BOARD:<br/>Objects: A@R6C2 B@R4C7 C@R2C2 D@R8C7 E@R1C2 F@R1C1<br/>Walls: R2C7 R3C3 R3C4 R3C5 R4C6 R5C2 R5C6 R5C8 R6C3 R6C4 R6C6 R6C8 R7C6 R7C8 R8C6 R8C8<br/><br/>GOAL BOARD:<br/>Targets: A-&gt;R6C2 B-&gt;R4C7 C-&gt;R7C2 D-&gt;R8C7 E-&gt;R1C2 F-&gt;R7C3<br/><br/>Your turn. Respond with:<br/>message: &lt;a brief note to yourself&gt;<br/>move: &lt;OBJECT&gt; &lt;DIRECTION&gt;</p>
+    </div>
+
+    <div speaker="Player 1 (SoloMatrixPlayer) to GM (Game Master)" class="msg player-gm p1" style="">
+        <p>message: F first: go down C1 to R8C1, then right to R8C3, up to R7C3. Then C via C1 to R7C2.<br/>move: F down</p>
+    </div>
+
+    <div speaker="Game Master: move" class="msg gm-gm" style="">
+        <p>Player moved F down</p>
+    </div>
+
+    <div speaker="Game Master: message" class="msg gm-gm" style="">
+        <p>Player: F first: go down C1 to R8C1, then right to R8C3, up to R7C3. Then C via C1 to R7C2.</p>
+    </div>
+</div><div class="game-round" data-round="53">
+    <div speaker="GM (Game Master) to Player 1 (SoloMatrixPlayer)" class="msg gm-player p1" style="">
+        <p>CURRENT BOARD:<br/>Objects: A@R6C2 B@R4C7 C@R2C2 D@R8C7 E@R1C2 F@R2C1<br/>Walls: R2C7 R3C3 R3C4 R3C5 R4C6 R5C2 R5C6 R5C8 R6C3 R6C4 R6C6 R6C8 R7C6 R7C8 R8C6 R8C8<br/><br/>GOAL BOARD:<br/>Targets: A-&gt;R6C2 B-&gt;R4C7 C-&gt;R7C2 D-&gt;R8C7 E-&gt;R1C2 F-&gt;R7C3<br/><br/>Your turn. Respond with:<br/>message: &lt;a brief note to yourself&gt;<br/>move: &lt;OBJECT&gt; &lt;DIRECTION&gt;</p>
+    </div>
+
+    <div speaker="Player 1 (SoloMatrixPlayer) to GM (Game Master)" class="msg player-gm p1" style="">
+        <p>message: F down C1 to R8C1, then right/bottom and up to R7C3. C will follow down C1 after F clears.<br/>move: F down</p>
+    </div>
+
+    <div speaker="Game Master: move" class="msg gm-gm" style="">
+        <p>Player moved F down</p>
+    </div>
+
+    <div speaker="Game Master: message" class="msg gm-gm" style="">
+        <p>Player: F down C1 to R8C1, then right/bottom and up to R7C3. C will follow down C1 after F clears.</p>
+    </div>
+</div><div class="game-round" data-round="54">
+    <div speaker="GM (Game Master) to Player 1 (SoloMatrixPlayer)" class="msg gm-player p1" style="">
+        <p>CURRENT BOARD:<br/>Objects: A@R6C2 B@R4C7 C@R2C2 D@R8C7 E@R1C2 F@R3C1<br/>Walls: R2C7 R3C3 R3C4 R3C5 R4C6 R5C2 R5C6 R5C8 R6C3 R6C4 R6C6 R6C8 R7C6 R7C8 R8C6 R8C8<br/><br/>GOAL BOARD:<br/>Targets: A-&gt;R6C2 B-&gt;R4C7 C-&gt;R7C2 D-&gt;R8C7 E-&gt;R1C2 F-&gt;R7C3<br/><br/>Your turn. Respond with:<br/>message: &lt;a brief note to yourself&gt;<br/>move: &lt;OBJECT&gt; &lt;DIRECTION&gt;</p>
+    </div>
+
+    <div speaker="Player 1 (SoloMatrixPlayer) to GM (Game Master)" class="msg player-gm p1" style="">
+        <p>message: F down C1 to R8C1, then right to R8C3, up to R7C3. C then left/down C1 to R7C2.<br/>move: F down</p>
+    </div>
+
+    <div speaker="Game Master: move" class="msg gm-gm" style="">
+        <p>Player moved F down</p>
+    </div>
+
+    <div speaker="Game Master: message" class="msg gm-gm" style="">
+        <p>Player: F down C1 to R8C1, then right to R8C3, up to R7C3. C then left/down C1 to R7C2.</p>
+    </div>
+</div><div class="game-round" data-round="55">
+    <div speaker="GM (Game Master) to Player 1 (SoloMatrixPlayer)" class="msg gm-player p1" style="">
+        <p>CURRENT BOARD:<br/>Objects: A@R6C2 B@R4C7 C@R2C2 D@R8C7 E@R1C2 F@R4C1<br/>Walls: R2C7 R3C3 R3C4 R3C5 R4C6 R5C2 R5C6 R5C8 R6C3 R6C4 R6C6 R6C8 R7C6 R7C8 R8C6 R8C8<br/><br/>GOAL BOARD:<br/>Targets: A-&gt;R6C2 B-&gt;R4C7 C-&gt;R7C2 D-&gt;R8C7 E-&gt;R1C2 F-&gt;R7C3<br/><br/>Your turn. Respond with:<br/>message: &lt;a brief note to yourself&gt;<br/>move: &lt;OBJECT&gt; &lt;DIRECTION&gt;</p>
+    </div>
+
+    <div speaker="Player 1 (SoloMatrixPlayer) to GM (Game Master)" class="msg player-gm p1" style="">
+        <p>message: Move C left into column C1, then continue F down to bottom; after F clears, C down to R7C1 and right to target.<br/>move: C left</p>
+    </div>
+
+    <div speaker="Game Master: move" class="msg gm-gm" style="">
+        <p>Player moved C left</p>
+    </div>
+
+    <div speaker="Game Master: message" class="msg gm-gm" style="">
+        <p>Player: Move C left into column C1, then continue F down to bottom; after F clears, C down to R7C1 and right to target.</p>
+    </div>
+</div><div class="game-round" data-round="56">
+    <div speaker="GM (Game Master) to Player 1 (SoloMatrixPlayer)" class="msg gm-player p1" style="">
+        <p>CURRENT BOARD:<br/>Objects: A@R6C2 B@R4C7 C@R2C1 D@R8C7 E@R1C2 F@R4C1<br/>Walls: R2C7 R3C3 R3C4 R3C5 R4C6 R5C2 R5C6 R5C8 R6C3 R6C4 R6C6 R6C8 R7C6 R7C8 R8C6 R8C8<br/><br/>GOAL BOARD:<br/>Targets: A-&gt;R6C2 B-&gt;R4C7 C-&gt;R7C2 D-&gt;R8C7 E-&gt;R1C2 F-&gt;R7C3<br/><br/>Your turn. Respond with:<br/>message: &lt;a brief note to yourself&gt;<br/>move: &lt;OBJECT&gt; &lt;DIRECTION&gt;</p>
+    </div>
+
+    <div speaker="Player 1 (SoloMatrixPlayer) to GM (Game Master)" class="msg player-gm p1" style="">
+        <p>message: C parked at R2C1. Move F down C1 through to R8C1, then right/up to R7C3. After F clears, C down to R7C2.<br/>move: F down</p>
+    </div>
+
+    <div speaker="Game Master: move" class="msg gm-gm" style="">
+        <p>Player moved F down</p>
+    </div>
+
+    <div speaker="Game Master: message" class="msg gm-gm" style="">
+        <p>Player: C parked at R2C1. Move F down C1 through to R8C1, then right/up to R7C3. After F clears, C down to R7C2.</p>
+    </div>
+</div><div class="game-round" data-round="57">
+    <div speaker="GM (Game Master) to Player 1 (SoloMatrixPlayer)" class="msg gm-player p1" style="">
+        <p>CURRENT BOARD:<br/>Objects: A@R6C2 B@R4C7 C@R2C1 D@R8C7 E@R1C2 F@R5C1<br/>Walls: R2C7 R3C3 R3C4 R3C5 R4C6 R5C2 R5C6 R5C8 R6C3 R6C4 R6C6 R6C8 R7C6 R7C8 R8C6 R8C8<br/><br/>GOAL BOARD:<br/>Targets: A-&gt;R6C2 B-&gt;R4C7 C-&gt;R7C2 D-&gt;R8C7 E-&gt;R1C2 F-&gt;R7C3<br/><br/>Your turn. Respond with:<br/>message: &lt;a brief note to yourself&gt;<br/>move: &lt;OBJECT&gt; &lt;DIRECTION&gt;</p>
+    </div>
+
+    <div speaker="Player 1 (SoloMatrixPlayer) to GM (Game Master)" class="msg player-gm p1" style="">
+        <p>message: F down C1 then across bottom to R7C3; C follows down C1 to R7C2.<br/>move: F down</p>
+    </div>
+
+    <div speaker="Game Master: move" class="msg gm-gm" style="">
+        <p>Player moved F down</p>
+    </div>
+
+    <div speaker="Game Master: message" class="msg gm-gm" style="">
+        <p>Player: F down C1 then across bottom to R7C3; C follows down C1 to R7C2.</p>
+    </div>
+</div><div class="game-round" data-round="58">
+    <div speaker="GM (Game Master) to Player 1 (SoloMatrixPlayer)" class="msg gm-player p1" style="">
+        <p>CURRENT BOARD:<br/>Objects: A@R6C2 B@R4C7 C@R2C1 D@R8C7 E@R1C2 F@R6C1<br/>Walls: R2C7 R3C3 R3C4 R3C5 R4C6 R5C2 R5C6 R5C8 R6C3 R6C4 R6C6 R6C8 R7C6 R7C8 R8C6 R8C8<br/><br/>GOAL BOARD:<br/>Targets: A-&gt;R6C2 B-&gt;R4C7 C-&gt;R7C2 D-&gt;R8C7 E-&gt;R1C2 F-&gt;R7C3<br/><br/>Your turn. Respond with:<br/>message: &lt;a brief note to yourself&gt;<br/>move: &lt;OBJECT&gt; &lt;DIRECTION&gt;</p>
+    </div>
+
+    <div speaker="Player 1 (SoloMatrixPlayer) to GM (Game Master)" class="msg player-gm p1" style="">
+        <p>message: F down to R7C1, then right to R7C3; C will follow down C1 to R7C2.<br/>move: F down</p>
+    </div>
+
+    <div speaker="Game Master: move" class="msg gm-gm" style="">
+        <p>Player moved F down</p>
+    </div>
+
+    <div speaker="Game Master: message" class="msg gm-gm" style="">
+        <p>Player: F down to R7C1, then right to R7C3; C will follow down C1 to R7C2.</p>
+    </div>
+</div><div class="game-round" data-round="59">
+    <div speaker="GM (Game Master) to Player 1 (SoloMatrixPlayer)" class="msg gm-player p1" style="">
+        <p>CURRENT BOARD:<br/>Objects: A@R6C2 B@R4C7 C@R2C1 D@R8C7 E@R1C2 F@R7C1<br/>Walls: R2C7 R3C3 R3C4 R3C5 R4C6 R5C2 R5C6 R5C8 R6C3 R6C4 R6C6 R6C8 R7C6 R7C8 R8C6 R8C8<br/><br/>GOAL BOARD:<br/>Targets: A-&gt;R6C2 B-&gt;R4C7 C-&gt;R7C2 D-&gt;R8C7 E-&gt;R1C2 F-&gt;R7C3<br/><br/>Your turn. Respond with:<br/>message: &lt;a brief note to yourself&gt;<br/>move: &lt;OBJECT&gt; &lt;DIRECTION&gt;</p>
+    </div>
+
+    <div speaker="Player 1 (SoloMatrixPlayer) to GM (Game Master)" class="msg player-gm p1" style="">
+        <p>message: F at R7C1 needs to get to R7C3; move F right to R7C2, then right to R7C3. C will follow down C1 to R7C2 after F clears.<br/>move: F right</p>
+    </div>
+
+    <div speaker="Game Master: move" class="msg gm-gm" style="">
+        <p>Player moved F right</p>
+    </div>
+
+    <div speaker="Game Master: message" class="msg gm-gm" style="">
+        <p>Player: F at R7C1 needs to get to R7C3; move F right to R7C2, then right to R7C3. C will follow down C1 to R7C2 after F clears.</p>
+    </div>
+</div><div class="game-round" data-round="60">
+    <div speaker="GM (Game Master) to Player 1 (SoloMatrixPlayer)" class="msg gm-player p1" style="">
+        <p>CURRENT BOARD:<br/>Objects: A@R6C2 B@R4C7 C@R2C1 D@R8C7 E@R1C2 F@R7C2<br/>Walls: R2C7 R3C3 R3C4 R3C5 R4C6 R5C2 R5C6 R5C8 R6C3 R6C4 R6C6 R6C8 R7C6 R7C8 R8C6 R8C8<br/><br/>GOAL BOARD:<br/>Targets: A-&gt;R6C2 B-&gt;R4C7 C-&gt;R7C2 D-&gt;R8C7 E-&gt;R1C2 F-&gt;R7C3<br/><br/>Your turn. Respond with:<br/>message: &lt;a brief note to yourself&gt;<br/>move: &lt;OBJECT&gt; &lt;DIRECTION&gt;</p>
+    </div>
+
+    <div speaker="Player 1 (SoloMatrixPlayer) to GM (Game Master)" class="msg player-gm p1" style="">
+        <p>message: F to R7C3; then C down C1 to R7C2.<br/>move: F right</p>
+    </div>
+
+    <div speaker="Game Master: move" class="msg gm-gm" style="">
+        <p>Player moved F right</p>
+    </div>
+
+    <div speaker="Game Master: message" class="msg gm-gm" style="">
+        <p>Player: F to R7C3; then C down C1 to R7C2.</p>
+    </div>
+</div><div class="game-round" data-round="61">
+    <div speaker="GM (Game Master) to Player 1 (SoloMatrixPlayer)" class="msg gm-player p1" style="">
+        <p>CURRENT BOARD:<br/>Objects: A@R6C2 B@R4C7 C@R2C1 D@R8C7 E@R1C2 F@R7C3<br/>Walls: R2C7 R3C3 R3C4 R3C5 R4C6 R5C2 R5C6 R5C8 R6C3 R6C4 R6C6 R6C8 R7C6 R7C8 R8C6 R8C8<br/><br/>GOAL BOARD:<br/>Targets: A-&gt;R6C2 B-&gt;R4C7 C-&gt;R7C2 D-&gt;R8C7 E-&gt;R1C2 F-&gt;R7C3<br/><br/>Your turn. Respond with:<br/>message: &lt;a brief note to yourself&gt;<br/>move: &lt;OBJECT&gt; &lt;DIRECTION&gt;</p>
+    </div>
+
+    <div speaker="Player 1 (SoloMatrixPlayer) to GM (Game Master)" class="msg player-gm p1" style="">
+        <p>message: C down C1 to R7C1, then right to R7C2.<br/>move: C down</p>
+    </div>
+
+    <div speaker="Game Master: move" class="msg gm-gm" style="">
+        <p>Player moved C down</p>
+    </div>
+
+    <div speaker="Game Master: message" class="msg gm-gm" style="">
+        <p>Player: C down C1 to R7C1, then right to R7C2.</p>
+    </div>
+</div><div class="game-round" data-round="62">
+    <div speaker="GM (Game Master) to Player 1 (SoloMatrixPlayer)" class="msg gm-player p1" style="">
+        <p>CURRENT BOARD:<br/>Objects: A@R6C2 B@R4C7 C@R3C1 D@R8C7 E@R1C2 F@R7C3<br/>Walls: R2C7 R3C3 R3C4 R3C5 R4C6 R5C2 R5C6 R5C8 R6C3 R6C4 R6C6 R6C8 R7C6 R7C8 R8C6 R8C8<br/><br/>GOAL BOARD:<br/>Targets: A-&gt;R6C2 B-&gt;R4C7 C-&gt;R7C2 D-&gt;R8C7 E-&gt;R1C2 F-&gt;R7C3<br/><br/>Your turn. Respond with:<br/>message: &lt;a brief note to yourself&gt;<br/>move: &lt;OBJECT&gt; &lt;DIRECTION&gt;</p>
+    </div>
+
+    <div speaker="Player 1 (SoloMatrixPlayer) to GM (Game Master)" class="msg player-gm p1" style="">
+        <p>message: C down C1 to R7C1, then right to R7C2 target.<br/>move: C down</p>
+    </div>
+
+    <div speaker="Game Master: move" class="msg gm-gm" style="">
+        <p>Player moved C down</p>
+    </div>
+
+    <div speaker="Game Master: message" class="msg gm-gm" style="">
+        <p>Player: C down C1 to R7C1, then right to R7C2 target.</p>
+    </div>
+</div><div class="game-round" data-round="63">
+    <div speaker="GM (Game Master) to Player 1 (SoloMatrixPlayer)" class="msg gm-player p1" style="">
+        <p>CURRENT BOARD:<br/>Objects: A@R6C2 B@R4C7 C@R4C1 D@R8C7 E@R1C2 F@R7C3<br/>Walls: R2C7 R3C3 R3C4 R3C5 R4C6 R5C2 R5C6 R5C8 R6C3 R6C4 R6C6 R6C8 R7C6 R7C8 R8C6 R8C8<br/><br/>GOAL BOARD:<br/>Targets: A-&gt;R6C2 B-&gt;R4C7 C-&gt;R7C2 D-&gt;R8C7 E-&gt;R1C2 F-&gt;R7C3<br/><br/>Your turn. Respond with:<br/>message: &lt;a brief note to yourself&gt;<br/>move: &lt;OBJECT&gt; &lt;DIRECTION&gt;</p>
+    </div>
+
+    <div speaker="Player 1 (SoloMatrixPlayer) to GM (Game Master)" class="msg player-gm p1" style="">
+        <p>message: C down C1 to R7C1, then right to R7C2 target.<br/>move: C down</p>
+    </div>
+
+    <div speaker="Game Master: move" class="msg gm-gm" style="">
+        <p>Player moved C down</p>
+    </div>
+
+    <div speaker="Game Master: message" class="msg gm-gm" style="">
+        <p>Player: C down C1 to R7C1, then right to R7C2 target.</p>
+    </div>
+</div><div class="game-round" data-round="64">
+    <div speaker="GM (Game Master) to Player 1 (SoloMatrixPlayer)" class="msg gm-player p1" style="">
+        <p>CURRENT BOARD:<br/>Objects: A@R6C2 B@R4C7 C@R5C1 D@R8C7 E@R1C2 F@R7C3<br/>Walls: R2C7 R3C3 R3C4 R3C5 R4C6 R5C2 R5C6 R5C8 R6C3 R6C4 R6C6 R6C8 R7C6 R7C8 R8C6 R8C8<br/><br/>GOAL BOARD:<br/>Targets: A-&gt;R6C2 B-&gt;R4C7 C-&gt;R7C2 D-&gt;R8C7 E-&gt;R1C2 F-&gt;R7C3<br/><br/>Your turn. Respond with:<br/>message: &lt;a brief note to yourself&gt;<br/>move: &lt;OBJECT&gt; &lt;DIRECTION&gt;</p>
+    </div>
+
+    <div speaker="Player 1 (SoloMatrixPlayer) to GM (Game Master)" class="msg player-gm p1" style="">
+        <p>message: C down C1 to R7C1, then right to R7C2.<br/>move: C down</p>
+    </div>
+
+    <div speaker="Game Master: move" class="msg gm-gm" style="">
+        <p>Player moved C down</p>
+    </div>
+
+    <div speaker="Game Master: message" class="msg gm-gm" style="">
+        <p>Player: C down C1 to R7C1, then right to R7C2.</p>
+    </div>
+</div><div class="game-round" data-round="65">
+    <div speaker="GM (Game Master) to Player 1 (SoloMatrixPlayer)" class="msg gm-player p1" style="">
+        <p>CURRENT BOARD:<br/>Objects: A@R6C2 B@R4C7 C@R6C1 D@R8C7 E@R1C2 F@R7C3<br/>Walls: R2C7 R3C3 R3C4 R3C5 R4C6 R5C2 R5C6 R5C8 R6C3 R6C4 R6C6 R6C8 R7C6 R7C8 R8C6 R8C8<br/><br/>GOAL BOARD:<br/>Targets: A-&gt;R6C2 B-&gt;R4C7 C-&gt;R7C2 D-&gt;R8C7 E-&gt;R1C2 F-&gt;R7C3<br/><br/>Your turn. Respond with:<br/>message: &lt;a brief note to yourself&gt;<br/>move: &lt;OBJECT&gt; &lt;DIRECTION&gt;</p>
+    </div>
+
+    <div speaker="Player 1 (SoloMatrixPlayer) to GM (Game Master)" class="msg player-gm p1" style="">
+        <p>message: C down C1 then right to R7C2 target.<br/>move: C down</p>
+    </div>
+
+    <div speaker="Game Master: move" class="msg gm-gm" style="">
+        <p>Player moved C down</p>
+    </div>
+
+    <div speaker="Game Master: message" class="msg gm-gm" style="">
+        <p>Player: C down C1 then right to R7C2 target.</p>
+    </div>
+</div><div class="game-round" data-round="66">
+    <div speaker="GM (Game Master) to Player 1 (SoloMatrixPlayer)" class="msg gm-player p1" style="">
+        <p>CURRENT BOARD:<br/>Objects: A@R6C2 B@R4C7 C@R7C1 D@R8C7 E@R1C2 F@R7C3<br/>Walls: R2C7 R3C3 R3C4 R3C5 R4C6 R5C2 R5C6 R5C8 R6C3 R6C4 R6C6 R6C8 R7C6 R7C8 R8C6 R8C8<br/><br/>GOAL BOARD:<br/>Targets: A-&gt;R6C2 B-&gt;R4C7 C-&gt;R7C2 D-&gt;R8C7 E-&gt;R1C2 F-&gt;R7C3<br/><br/>Your turn. Respond with:<br/>message: &lt;a brief note to yourself&gt;<br/>move: &lt;OBJECT&gt; &lt;DIRECTION&gt;</p>
+    </div>
+
+    <div speaker="Player 1 (SoloMatrixPlayer) to GM (Game Master)" class="msg player-gm p1" style="">
+        <p>message: C right to target completes all.<br/>move: C right</p>
+    </div>
+
+    <div speaker="Game Master: move" class="msg gm-gm" style="">
+        <p>Player moved C right</p>
+    </div>
+
+    <div speaker="Game Master: message" class="msg gm-gm" style="">
+        <p>Player: C right to target completes all.</p>
+    </div>
+
+    <div speaker="Game Master: success" class="msg gm-gm" style="">
+        <p>All objects have reached their targets</p>
+    </div>
+</div>
+</div>
+
+</body>
+</html>

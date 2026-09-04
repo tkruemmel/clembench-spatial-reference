@@ -1,0 +1,985 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+    <style>
+        /* This CSS is based on a stack overflow answer by Roko C. Buljan in https://stackoverflow.com/a/71155446 */ 
+
+* {margin: 0; box-sizing: border-box;}
+
+body {
+  background-color: rgb(157, 152, 150);
+}
+
+.top-info {
+	text-align: center;
+	font: 1.25rem/1.5 sans-serif;
+	display: flex;
+	flex-direction: column;
+	padding: 1.25em;
+	width: 80%;
+  max-width: 1200px;
+	margin: auto;
+	background: #3f3e3e;
+	color: #fff;
+}
+
+.chat {
+  --rad: 1.5rem;
+  --rad-sm: .3rem;
+  font: 1rem/1.5 sans-serif;
+  display: flex;
+  flex-direction: column;
+  padding: 1rem;
+  width: 80%;
+  max-width: 1200px;
+  margin: auto;
+  background: #fff;
+}
+
+.msg {
+  position: relative;
+  padding: .6rem 1.2rem;
+  margin-inline: 1rem;
+  margin-block: 2rem;
+}
+
+.game-round {
+  padding: 1.5rem 0 1.5rem 0;
+  background-color: #f0f8ff; /* light background for content */
+  position: relative; /* Important to position the badge */
+  border-radius: 1rem;
+  margin: 1rem;
+  box-shadow: 0 .5rem 1rem rgba(0, 0, 0, .1);
+}
+
+/* Badge in top-right corner */
+.game-round::before {
+  content: "Round " attr(data-round);
+  position: absolute;
+  top: .35rem;
+  right: 1.5rem;
+  color: #c4c3c3;
+  font-size: 0.8rem;
+  font-weight: bold;
+}
+
+/* For fenced code/monospace blocks */
+pre {
+  background: #e0e0e0;
+  border-left: .2rem solid #f36d33;
+  border-radius: .2rem;
+  color: #666;
+  font-family: monospace;
+  line-height: 1.0;
+  margin-top: 0.3rem;
+  margin-bottom: 0.5rem;
+  max-width: 100%;
+  overflow: auto;
+  padding: 0.5rem 0.2rem;
+}/* This CSS is based on a stack overflow answer by Roko C. Buljan in https://stackoverflow.com/a/71155446 */
+
+.msg.player-gm.p1 {
+  border-radius: var(--rad-sm) var(--rad) var(--rad) var(--rad-sm);
+  background: #f39109;
+  color: #fff;
+  margin-right: 40%;
+}
+
+.msg.player-gm.p2 {
+  border-radius: var(--rad) var(--rad-sm) var(--rad-sm) var(--rad);
+  background: #874aaf;
+  color: #fff;
+  margin-left: 40%;
+}
+.msg.player-gm::before {
+  right: 1rem;
+}
+
+.msg.gm-player {
+  background: #c4c3c3;
+  color: #0c0c0c;
+}
+
+.msg.gm-player.p1 {
+  border-radius: var(--rad) var(--rad-sm) var(--rad-sm) var(--rad);
+  margin-right: 20%;
+  margin-left: 10%;
+}
+
+.msg.gm-player.p2 {
+  border-radius: var(--rad-sm) var(--rad) var(--rad) var(--rad-sm);
+  margin-right: 10%;
+  margin-left: 20%;
+}
+
+.msg.gm-gm {
+  border-radius: var(--rad-sm) var(--rad-sm) var(--rad-sm) var(--rad-sm);
+  background: #f1f1f1;
+  color: #373636;
+  margin-left: 20%;
+  margin-right: 20%;
+  font-size: 0.8rem;
+
+}
+
+/* speaker labels */
+
+.msg::before {
+  content: attr(speaker);
+  font-size: 0.8rem;
+  position: absolute;
+  bottom: 100%;
+  color: #888;
+  white-space: nowrap;
+
+}
+
+/* Message info displayed on the right for GM to Player 1 */
+.msg.gm-player.a::before {
+  right: 1rem;
+}
+
+/* All other cases: message info on the left */
+.msg.player-gm.a::before, .msg.gm-player.b::before, .msg.gm-gm::before {
+  left: 1rem;
+}
+    </style>
+</head>
+<body>
+
+<br/>
+
+<div class="top-info">
+    <p>Interaction Transcript for game 'matrixgame_covered_comm', experiment 'S4_freeform_compact', episode 2 with DeepSeek-V4-Flash.</p>
+</div>
+
+<br/>
+
+<div class="chat">
+<div class="game-round" data-round="0">
+    <div speaker="GM (Game Master) to Player 1 (MatrixPlayer)" class="msg gm-player p1" style="">
+        <p>CURRENT BOARD:<br/>Objects: A@R7C7 X@R8C7 X@R3C6 D@R6C4 X@R7C1 F@R2C1<br/>Walls: R2C5 R2C7 R3C1 R3C2 R3C5 R3C7 R4C4 R5C2 R5C6 R5C8 R6C2 R6C5 R6C6 R6C8 R7C2 R7C6 R7C8 R8C6 R8C8<br/><br/>GOAL BOARD (where YOUR objects must end up):<br/>Targets: A-&gt;R8C7 D-&gt;R7C1 F-&gt;R2C8</p>
+    </div>
+
+    <div speaker="Player 1 (MatrixPlayer) to GM (Game Master)" class="msg player-gm p1" style="">
+        <p>message: I’m moving A up to R6C7 so your X at R8C7 can move out through R7C7. Please move that X next; I’ll keep clearing the corridor above. If X at R7C1 can vacate upward to R6C1, D can use the R8C1 route. F will use row 1 to R2C8.<br/>move: A up</p>
+    </div>
+
+    <div speaker="Game Master: move" class="msg gm-gm" style="">
+        <p>Player A moved A up</p>
+    </div>
+
+    <div speaker="Game Master: message" class="msg gm-gm" style="">
+        <p>Player A: I’m moving A up to R6C7 so your X at R8C7 can move out through R7C7. Please move that X next; I’ll keep clearing the corridor above. If X at R7C1 can vacate upward to R6C1, D can use the R8C1 route. F will use row 1 to R2C8.</p>
+    </div>
+
+    <div speaker="GM (Game Master) to Player 2 (MatrixPlayer)" class="msg gm-player p2" style="">
+        <p>Player A says: I’m moving A up to R6C7 so your X at R8C7 can move out through R7C7. Please move that X next; I’ll keep clearing the corridor above. If X at R7C1 can vacate upward to R6C1, D can use the R8C1 route. F will use row 1 to R2C8.<br/><br/>CURRENT BOARD:<br/>Objects: X@R6C7 B@R8C7 C@R3C6 X@R6C4 E@R7C1 X@R2C1<br/>Walls: R2C5 R2C7 R3C1 R3C2 R3C5 R3C7 R4C4 R5C2 R5C6 R5C8 R6C2 R6C5 R6C6 R6C8 R7C2 R7C6 R7C8 R8C6 R8C8<br/><br/>GOAL BOARD:<br/>Targets: B-&gt;R3C4 C-&gt;R6C4 E-&gt;R2C1<br/><br/>Your turn. Respond with:<br/>message: &lt;your message to your teammate&gt;<br/>move: &lt;OBJECT&gt; &lt;DIRECTION&gt;<br/><br/>OR, if ALL your objects are at their target positions:<br/>message: done<br/>done: all my objects are placed</p>
+    </div>
+
+    <div speaker="Player 2 (MatrixPlayer) to GM (Game Master)" class="msg player-gm p2" style="">
+        <p>message: Moving B up to (R7,C7) as requested. I’ll need the X at (R6,C7) to vacate next so B can keep climbing through (R5,C7). I’ll keep C at (R3,C6) for now to avoid blocking the R4C6 corridor B may need. E can move up from (R7,C1) soon if that helps clear the lower-left route.<br/><br/>move: B up</p>
+    </div>
+
+    <div speaker="Game Master: move" class="msg gm-gm" style="">
+        <p>Player B moved B up</p>
+    </div>
+
+    <div speaker="Game Master: message" class="msg gm-gm" style="">
+        <p>Player B: Moving B up to (R7,C7) as requested. I’ll need the X at (R6,C7) to vacate next so B can keep climbing through (R5,C7). I’ll keep C at (R3,C6) for now to avoid blocking the R4C6 corridor B may need. E can move up from (R7,C1) soon if that helps clear the lower-left route.</p>
+    </div>
+</div><div class="game-round" data-round="1">
+    <div speaker="GM (Game Master) to Player 1 (MatrixPlayer)" class="msg gm-player p1" style="">
+        <p>Player A (you) says: I’m moving A up to R6C7 so your X at R8C7 can move out through R7C7. Please move that X next; I’ll keep clearing the corridor above. If X at R7C1 can vacate upward to R6C1, D can use the R8C1 route. F will use row 1 to R2C8.<br/>Player B says: Moving B up to (R7,C7) as requested. I’ll need the X at (R6,C7) to vacate next so B can keep climbing through (R5,C7). I’ll keep C at (R3,C6) for now to avoid blocking the R4C6 corridor B may need. E can move up from (R7,C1) soon if that helps clear the lower-left route.<br/><br/>CURRENT BOARD:<br/>Objects: A@R6C7 X@R7C7 X@R3C6 D@R6C4 X@R7C1 F@R2C1<br/>Walls: R2C5 R2C7 R3C1 R3C2 R3C5 R3C7 R4C4 R5C2 R5C6 R5C8 R6C2 R6C5 R6C6 R6C8 R7C2 R7C6 R7C8 R8C6 R8C8<br/><br/>GOAL BOARD:<br/>Targets: A-&gt;R8C7 D-&gt;R7C1 F-&gt;R2C8<br/><br/>Your turn. Respond with:<br/>message: &lt;your message to your teammate&gt;<br/>move: &lt;OBJECT&gt; &lt;DIRECTION&gt;<br/><br/>OR, if ALL your objects are at their target positions:<br/>message: done<br/>done: all my objects are placed</p>
+    </div>
+
+    <div speaker="Player 1 (MatrixPlayer) to GM (Game Master)" class="msg player-gm p1" style="">
+        <p>message: Moving A up to R5C7 to clear R6C7 for B; I’ll move A to R4C7 next so B can keep climbing through R5C7. After B passes, I’ll bring A back down to R8C7. Please vacate R7C1 upward when possible so D can use the bottom route. F will head up through row 1 to R2C8, so no conflict with C at R3C6.<br/>move: A up</p>
+    </div>
+
+    <div speaker="Game Master: move" class="msg gm-gm" style="">
+        <p>Player A moved A up</p>
+    </div>
+
+    <div speaker="Game Master: message" class="msg gm-gm" style="">
+        <p>Player A: Moving A up to R5C7 to clear R6C7 for B; I’ll move A to R4C7 next so B can keep climbing through R5C7. After B passes, I’ll bring A back down to R8C7. Please vacate R7C1 upward when possible so D can use the bottom route. F will head up through row 1 to R2C8, so no conflict with C at R3C6.</p>
+    </div>
+
+    <div speaker="GM (Game Master) to Player 2 (MatrixPlayer)" class="msg gm-player p2" style="">
+        <p>Player A says: Moving A up to R5C7 to clear R6C7 for B; I’ll move A to R4C7 next so B can keep climbing through R5C7. After B passes, I’ll bring A back down to R8C7. Please vacate R7C1 upward when possible so D can use the bottom route. F will head up through row 1 to R2C8, so no conflict with C at R3C6.<br/>Player B (you) says: Moving B up to (R7,C7) as requested. I’ll need the X at (R6,C7) to vacate next so B can keep climbing through (R5,C7). I’ll keep C at (R3,C6) for now to avoid blocking the R4C6 corridor B may need. E can move up from (R7,C1) soon if that helps clear the lower-left route.<br/><br/>CURRENT BOARD:<br/>Objects: X@R5C7 B@R7C7 C@R3C6 X@R6C4 E@R7C1 X@R2C1<br/>Walls: R2C5 R2C7 R3C1 R3C2 R3C5 R3C7 R4C4 R5C2 R5C6 R5C8 R6C2 R6C5 R6C6 R6C8 R7C2 R7C6 R7C8 R8C6 R8C8<br/><br/>GOAL BOARD:<br/>Targets: B-&gt;R3C4 C-&gt;R6C4 E-&gt;R2C1<br/><br/>Your turn. Respond with:<br/>message: &lt;your message to your teammate&gt;<br/>move: &lt;OBJECT&gt; &lt;DIRECTION&gt;<br/><br/>OR, if ALL your objects are at their target positions:<br/>message: done<br/>done: all my objects are placed</p>
+    </div>
+
+    <div speaker="Player 2 (MatrixPlayer) to GM (Game Master)" class="msg player-gm p2" style="">
+        <p>message: Moving B up to (R6,C7). When A clears (R5,C7), I’ll move into it; then please shift A from (R4,C7) to (R4,C8) so B can take (R4,C7) and go left through (R4,C6). I’ll keep C at (R3,C6) until B is past (R4,C6). E will vacate (R7,C1) soon so D can use the bottom route; after D leaves (R6,C4), C can take it. Also, keep F moving off (R2,C1) for E.<br/>move: B up</p>
+    </div>
+
+    <div speaker="Game Master: move" class="msg gm-gm" style="">
+        <p>Player B moved B up</p>
+    </div>
+
+    <div speaker="Game Master: message" class="msg gm-gm" style="">
+        <p>Player B: Moving B up to (R6,C7). When A clears (R5,C7), I’ll move into it; then please shift A from (R4,C7) to (R4,C8) so B can take (R4,C7) and go left through (R4,C6). I’ll keep C at (R3,C6) until B is past (R4,C6). E will vacate (R7,C1) soon so D can use the bottom route; after D leaves (R6,C4), C can take it. Also, keep F moving off (R2,C1) for E.</p>
+    </div>
+</div><div class="game-round" data-round="2">
+    <div speaker="GM (Game Master) to Player 1 (MatrixPlayer)" class="msg gm-player p1" style="">
+        <p>Player A (you) says: Moving A up to R5C7 to clear R6C7 for B; I’ll move A to R4C7 next so B can keep climbing through R5C7. After B passes, I’ll bring A back down to R8C7. Please vacate R7C1 upward when possible so D can use the bottom route. F will head up through row 1 to R2C8, so no conflict with C at R3C6.<br/>Player B says: Moving B up to (R6,C7). When A clears (R5,C7), I’ll move into it; then please shift A from (R4,C7) to (R4,C8) so B can take (R4,C7) and go left through (R4,C6). I’ll keep C at (R3,C6) until B is past (R4,C6). E will vacate (R7,C1) soon so D can use the bottom route; after D leaves (R6,C4), C can take it. Also, keep F moving off (R2,C1) for E.<br/><br/>CURRENT BOARD:<br/>Objects: A@R5C7 X@R6C7 X@R3C6 D@R6C4 X@R7C1 F@R2C1<br/>Walls: R2C5 R2C7 R3C1 R3C2 R3C5 R3C7 R4C4 R5C2 R5C6 R5C8 R6C2 R6C5 R6C6 R6C8 R7C2 R7C6 R7C8 R8C6 R8C8<br/><br/>GOAL BOARD:<br/>Targets: A-&gt;R8C7 D-&gt;R7C1 F-&gt;R2C8<br/><br/>Your turn. Respond with:<br/>message: &lt;your message to your teammate&gt;<br/>move: &lt;OBJECT&gt; &lt;DIRECTION&gt;<br/><br/>OR, if ALL your objects are at their target positions:<br/>message: done<br/>done: all my objects are placed</p>
+    </div>
+
+    <div speaker="Player 1 (MatrixPlayer) to GM (Game Master)" class="msg player-gm p1" style="">
+        <p>message: Moving A up to (R4,C7) to clear (R5,C7) for B. Once B is on (R5,C7), I’ll shift A to (R4,C8) so B can take (R4,C7). I’ll keep D ready to free (R6,C4) for C, and F will continue off (R2,C1) for E.<br/>move: A up</p>
+    </div>
+
+    <div speaker="Game Master: move" class="msg gm-gm" style="">
+        <p>Player A moved A up</p>
+    </div>
+
+    <div speaker="Game Master: message" class="msg gm-gm" style="">
+        <p>Player A: Moving A up to (R4,C7) to clear (R5,C7) for B. Once B is on (R5,C7), I’ll shift A to (R4,C8) so B can take (R4,C7). I’ll keep D ready to free (R6,C4) for C, and F will continue off (R2,C1) for E.</p>
+    </div>
+
+    <div speaker="GM (Game Master) to Player 2 (MatrixPlayer)" class="msg gm-player p2" style="">
+        <p>Player A says: Moving A up to (R4,C7) to clear (R5,C7) for B. Once B is on (R5,C7), I’ll shift A to (R4,C8) so B can take (R4,C7). I’ll keep D ready to free (R6,C4) for C, and F will continue off (R2,C1) for E.<br/>Player B (you) says: Moving B up to (R6,C7). When A clears (R5,C7), I’ll move into it; then please shift A from (R4,C7) to (R4,C8) so B can take (R4,C7) and go left through (R4,C6). I’ll keep C at (R3,C6) until B is past (R4,C6). E will vacate (R7,C1) soon so D can use the bottom route; after D leaves (R6,C4), C can take it. Also, keep F moving off (R2,C1) for E.<br/><br/>CURRENT BOARD:<br/>Objects: X@R4C7 B@R6C7 C@R3C6 X@R6C4 E@R7C1 X@R2C1<br/>Walls: R2C5 R2C7 R3C1 R3C2 R3C5 R3C7 R4C4 R5C2 R5C6 R5C8 R6C2 R6C5 R6C6 R6C8 R7C2 R7C6 R7C8 R8C6 R8C8<br/><br/>GOAL BOARD:<br/>Targets: B-&gt;R3C4 C-&gt;R6C4 E-&gt;R2C1<br/><br/>Your turn. Respond with:<br/>message: &lt;your message to your teammate&gt;<br/>move: &lt;OBJECT&gt; &lt;DIRECTION&gt;<br/><br/>OR, if ALL your objects are at their target positions:<br/>message: done<br/>done: all my objects are placed</p>
+    </div>
+
+    <div speaker="Player 2 (MatrixPlayer) to GM (Game Master)" class="msg player-gm p2" style="">
+        <p>message: Moving B up to (R5,C7) as planned. Once there, please shift A from (R4,C7) to (R4,C8) so I can take (R4,C7) next, then head left through (R4,C6). I’ll keep C at (R3,C6) until that route clears, then move C toward (R6,C4) once D vacates. E is ready to advance on the left when F clears (R2,C1).<br/>move: B up</p>
+    </div>
+
+    <div speaker="Game Master: move" class="msg gm-gm" style="">
+        <p>Player B moved B up</p>
+    </div>
+
+    <div speaker="Game Master: message" class="msg gm-gm" style="">
+        <p>Player B: Moving B up to (R5,C7) as planned. Once there, please shift A from (R4,C7) to (R4,C8) so I can take (R4,C7) next, then head left through (R4,C6). I’ll keep C at (R3,C6) until that route clears, then move C toward (R6,C4) once D vacates. E is ready to advance on the left when F clears (R2,C1).</p>
+    </div>
+</div><div class="game-round" data-round="3">
+    <div speaker="GM (Game Master) to Player 1 (MatrixPlayer)" class="msg gm-player p1" style="">
+        <p>Player A (you) says: Moving A up to (R4,C7) to clear (R5,C7) for B. Once B is on (R5,C7), I’ll shift A to (R4,C8) so B can take (R4,C7). I’ll keep D ready to free (R6,C4) for C, and F will continue off (R2,C1) for E.<br/>Player B says: Moving B up to (R5,C7) as planned. Once there, please shift A from (R4,C7) to (R4,C8) so I can take (R4,C7) next, then head left through (R4,C6). I’ll keep C at (R3,C6) until that route clears, then move C toward (R6,C4) once D vacates. E is ready to advance on the left when F clears (R2,C1).<br/><br/>CURRENT BOARD:<br/>Objects: A@R4C7 X@R5C7 X@R3C6 D@R6C4 X@R7C1 F@R2C1<br/>Walls: R2C5 R2C7 R3C1 R3C2 R3C5 R3C7 R4C4 R5C2 R5C6 R5C8 R6C2 R6C5 R6C6 R6C8 R7C2 R7C6 R7C8 R8C6 R8C8<br/><br/>GOAL BOARD:<br/>Targets: A-&gt;R8C7 D-&gt;R7C1 F-&gt;R2C8<br/><br/>Your turn. Respond with:<br/>message: &lt;your message to your teammate&gt;<br/>move: &lt;OBJECT&gt; &lt;DIRECTION&gt;<br/><br/>OR, if ALL your objects are at their target positions:<br/>message: done<br/>done: all my objects are placed</p>
+    </div>
+
+    <div speaker="Player 1 (MatrixPlayer) to GM (Game Master)" class="msg player-gm p1" style="">
+        <p>message: Moving A right to (R4,C8), freeing (R4,C7) for B. I’ll keep D at (R6,C4) until C needs it, then route D toward (R7,C1) once E has moved out. F will head up to (R1,C1) next to clear (R2,C1) and go along row 1 to (R2,C8). A will later return via (R5,C7)/(R7,C7) to (R8,C7).<br/>move: A right</p>
+    </div>
+
+    <div speaker="Game Master: move" class="msg gm-gm" style="">
+        <p>Player A moved A right</p>
+    </div>
+
+    <div speaker="Game Master: message" class="msg gm-gm" style="">
+        <p>Player A: Moving A right to (R4,C8), freeing (R4,C7) for B. I’ll keep D at (R6,C4) until C needs it, then route D toward (R7,C1) once E has moved out. F will head up to (R1,C1) next to clear (R2,C1) and go along row 1 to (R2,C8). A will later return via (R5,C7)/(R7,C7) to (R8,C7).</p>
+    </div>
+
+    <div speaker="GM (Game Master) to Player 2 (MatrixPlayer)" class="msg gm-player p2" style="">
+        <p>Player A says: Moving A right to (R4,C8), freeing (R4,C7) for B. I’ll keep D at (R6,C4) until C needs it, then route D toward (R7,C1) once E has moved out. F will head up to (R1,C1) next to clear (R2,C1) and go along row 1 to (R2,C8). A will later return via (R5,C7)/(R7,C7) to (R8,C7).<br/>Player B (you) says: Moving B up to (R5,C7) as planned. Once there, please shift A from (R4,C7) to (R4,C8) so I can take (R4,C7) next, then head left through (R4,C6). I’ll keep C at (R3,C6) until that route clears, then move C toward (R6,C4) once D vacates. E is ready to advance on the left when F clears (R2,C1).<br/><br/>CURRENT BOARD:<br/>Objects: X@R4C8 B@R5C7 C@R3C6 X@R6C4 E@R7C1 X@R2C1<br/>Walls: R2C5 R2C7 R3C1 R3C2 R3C5 R3C7 R4C4 R5C2 R5C6 R5C8 R6C2 R6C5 R6C6 R6C8 R7C2 R7C6 R7C8 R8C6 R8C8<br/><br/>GOAL BOARD:<br/>Targets: B-&gt;R3C4 C-&gt;R6C4 E-&gt;R2C1<br/><br/>Your turn. Respond with:<br/>message: &lt;your message to your teammate&gt;<br/>move: &lt;OBJECT&gt; &lt;DIRECTION&gt;<br/><br/>OR, if ALL your objects are at their target positions:<br/>message: done<br/>done: all my objects are placed</p>
+    </div>
+
+    <div speaker="Player 2 (MatrixPlayer) to GM (Game Master)" class="msg player-gm p2" style="">
+        <p>message: Taking B up to R4C7 as planned. I’ll leave it toward R4C6 next turn, so A can pass from R4C8 through R4C7 down to R5C7—A may wait one turn there. C stays at R3C6 until B clears the shared corridor. E is ready to move when F clears R2C1; please start moving D from R6C4 so C can finish there.<br/>move: B up</p>
+    </div>
+
+    <div speaker="Game Master: move" class="msg gm-gm" style="">
+        <p>Player B moved B up</p>
+    </div>
+
+    <div speaker="Game Master: message" class="msg gm-gm" style="">
+        <p>Player B: Taking B up to R4C7 as planned. I’ll leave it toward R4C6 next turn, so A can pass from R4C8 through R4C7 down to R5C7—A may wait one turn there. C stays at R3C6 until B clears the shared corridor. E is ready to move when F clears R2C1; please start moving D from R6C4 so C can finish there.</p>
+    </div>
+</div><div class="game-round" data-round="4">
+    <div speaker="GM (Game Master) to Player 1 (MatrixPlayer)" class="msg gm-player p1" style="">
+        <p>Player A (you) says: Moving A right to (R4,C8), freeing (R4,C7) for B. I’ll keep D at (R6,C4) until C needs it, then route D toward (R7,C1) once E has moved out. F will head up to (R1,C1) next to clear (R2,C1) and go along row 1 to (R2,C8). A will later return via (R5,C7)/(R7,C7) to (R8,C7).<br/>Player B says: Taking B up to R4C7 as planned. I’ll leave it toward R4C6 next turn, so A can pass from R4C8 through R4C7 down to R5C7—A may wait one turn there. C stays at R3C6 until B clears the shared corridor. E is ready to move when F clears R2C1; please start moving D from R6C4 so C can finish there.<br/><br/>CURRENT BOARD:<br/>Objects: A@R4C8 X@R4C7 X@R3C6 D@R6C4 X@R7C1 F@R2C1<br/>Walls: R2C5 R2C7 R3C1 R3C2 R3C5 R3C7 R4C4 R5C2 R5C6 R5C8 R6C2 R6C5 R6C6 R6C8 R7C2 R7C6 R7C8 R8C6 R8C8<br/><br/>GOAL BOARD:<br/>Targets: A-&gt;R8C7 D-&gt;R7C1 F-&gt;R2C8<br/><br/>Your turn. Respond with:<br/>message: &lt;your message to your teammate&gt;<br/>move: &lt;OBJECT&gt; &lt;DIRECTION&gt;<br/><br/>OR, if ALL your objects are at their target positions:<br/>message: done<br/>done: all my objects are placed</p>
+    </div>
+
+    <div speaker="Player 1 (MatrixPlayer) to GM (Game Master)" class="msg player-gm p1" style="">
+        <p>message: Moving F up to (R1,C1) now, freeing (R2,C1) so E can start. I’ll move D out of (R6,C4) next turn to free it for C. Please keep E moving out of (R7,C1); D can wait at (R8,C1). A can wait at (R4,C8) until B clears (R4,C7), then I’ll route it down.<br/>move: F up</p>
+    </div>
+
+    <div speaker="Game Master: move" class="msg gm-gm" style="">
+        <p>Player A moved F up</p>
+    </div>
+
+    <div speaker="Game Master: message" class="msg gm-gm" style="">
+        <p>Player A: Moving F up to (R1,C1) now, freeing (R2,C1) so E can start. I’ll move D out of (R6,C4) next turn to free it for C. Please keep E moving out of (R7,C1); D can wait at (R8,C1). A can wait at (R4,C8) until B clears (R4,C7), then I’ll route it down.</p>
+    </div>
+
+    <div speaker="GM (Game Master) to Player 2 (MatrixPlayer)" class="msg gm-player p2" style="">
+        <p>Player A says: Moving F up to (R1,C1) now, freeing (R2,C1) so E can start. I’ll move D out of (R6,C4) next turn to free it for C. Please keep E moving out of (R7,C1); D can wait at (R8,C1). A can wait at (R4,C8) until B clears (R4,C7), then I’ll route it down.<br/>Player B (you) says: Taking B up to R4C7 as planned. I’ll leave it toward R4C6 next turn, so A can pass from R4C8 through R4C7 down to R5C7—A may wait one turn there. C stays at R3C6 until B clears the shared corridor. E is ready to move when F clears R2C1; please start moving D from R6C4 so C can finish there.<br/><br/>CURRENT BOARD:<br/>Objects: X@R4C8 B@R4C7 C@R3C6 X@R6C4 E@R7C1 X@R1C1<br/>Walls: R2C5 R2C7 R3C1 R3C2 R3C5 R3C7 R4C4 R5C2 R5C6 R5C8 R6C2 R6C5 R6C6 R6C8 R7C2 R7C6 R7C8 R8C6 R8C8<br/><br/>GOAL BOARD:<br/>Targets: B-&gt;R3C4 C-&gt;R6C4 E-&gt;R2C1<br/><br/>Your turn. Respond with:<br/>message: &lt;your message to your teammate&gt;<br/>move: &lt;OBJECT&gt; &lt;DIRECTION&gt;<br/><br/>OR, if ALL your objects are at their target positions:<br/>message: done<br/>done: all my objects are placed</p>
+    </div>
+
+    <div speaker="Player 2 (MatrixPlayer) to GM (Game Master)" class="msg player-gm p2" style="">
+        <p>message: Moving B left to R4C6 now, freeing R4C7 for your A to go down to R5C7. I’ll move B to R4C5 next turn, which opens R4C6 for C; C stays at R3C6 until then. D moving off R6C4 is great—C can finish there once corridor clears. E will advance up the left side soon; please keep R2C1 open.<br/>move: B left</p>
+    </div>
+
+    <div speaker="Game Master: move" class="msg gm-gm" style="">
+        <p>Player B moved B left</p>
+    </div>
+
+    <div speaker="Game Master: message" class="msg gm-gm" style="">
+        <p>Player B: Moving B left to R4C6 now, freeing R4C7 for your A to go down to R5C7. I’ll move B to R4C5 next turn, which opens R4C6 for C; C stays at R3C6 until then. D moving off R6C4 is great—C can finish there once corridor clears. E will advance up the left side soon; please keep R2C1 open.</p>
+    </div>
+</div><div class="game-round" data-round="5">
+    <div speaker="GM (Game Master) to Player 1 (MatrixPlayer)" class="msg gm-player p1" style="">
+        <p>Player A (you) says: Moving F up to (R1,C1) now, freeing (R2,C1) so E can start. I’ll move D out of (R6,C4) next turn to free it for C. Please keep E moving out of (R7,C1); D can wait at (R8,C1). A can wait at (R4,C8) until B clears (R4,C7), then I’ll route it down.<br/>Player B says: Moving B left to R4C6 now, freeing R4C7 for your A to go down to R5C7. I’ll move B to R4C5 next turn, which opens R4C6 for C; C stays at R3C6 until then. D moving off R6C4 is great—C can finish there once corridor clears. E will advance up the left side soon; please keep R2C1 open.<br/><br/>CURRENT BOARD:<br/>Objects: A@R4C8 X@R4C6 X@R3C6 D@R6C4 X@R7C1 F@R1C1<br/>Walls: R2C5 R2C7 R3C1 R3C2 R3C5 R3C7 R4C4 R5C2 R5C6 R5C8 R6C2 R6C5 R6C6 R6C8 R7C2 R7C6 R7C8 R8C6 R8C8<br/><br/>GOAL BOARD:<br/>Targets: A-&gt;R8C7 D-&gt;R7C1 F-&gt;R2C8<br/><br/>Your turn. Respond with:<br/>message: &lt;your message to your teammate&gt;<br/>move: &lt;OBJECT&gt; &lt;DIRECTION&gt;<br/><br/>OR, if ALL your objects are at their target positions:<br/>message: done<br/>done: all my objects are placed</p>
+    </div>
+
+    <div speaker="Player 1 (MatrixPlayer) to GM (Game Master)" class="msg player-gm p1" style="">
+        <p>message: Moving D down to (R7,C4), freeing (R6,C4) for C. D will head to (R8,C1) to wait until E leaves (R7,C1). A stays at (R4,C8) until B opens (R4,C7). F will continue right along the top row next turn; R2C1 is open for E.<br/>move: D down</p>
+    </div>
+
+    <div speaker="Game Master: move" class="msg gm-gm" style="">
+        <p>Player A moved D down</p>
+    </div>
+
+    <div speaker="Game Master: message" class="msg gm-gm" style="">
+        <p>Player A: Moving D down to (R7,C4), freeing (R6,C4) for C. D will head to (R8,C1) to wait until E leaves (R7,C1). A stays at (R4,C8) until B opens (R4,C7). F will continue right along the top row next turn; R2C1 is open for E.</p>
+    </div>
+
+    <div speaker="GM (Game Master) to Player 2 (MatrixPlayer)" class="msg gm-player p2" style="">
+        <p>Player A says: Moving D down to (R7,C4), freeing (R6,C4) for C. D will head to (R8,C1) to wait until E leaves (R7,C1). A stays at (R4,C8) until B opens (R4,C7). F will continue right along the top row next turn; R2C1 is open for E.<br/>Player B (you) says: Moving B left to R4C6 now, freeing R4C7 for your A to go down to R5C7. I’ll move B to R4C5 next turn, which opens R4C6 for C; C stays at R3C6 until then. D moving off R6C4 is great—C can finish there once corridor clears. E will advance up the left side soon; please keep R2C1 open.<br/><br/>CURRENT BOARD:<br/>Objects: X@R4C8 B@R4C6 C@R3C6 X@R7C4 E@R7C1 X@R1C1<br/>Walls: R2C5 R2C7 R3C1 R3C2 R3C5 R3C7 R4C4 R5C2 R5C6 R5C8 R6C2 R6C5 R6C6 R6C8 R7C2 R7C6 R7C8 R8C6 R8C8<br/><br/>GOAL BOARD:<br/>Targets: B-&gt;R3C4 C-&gt;R6C4 E-&gt;R2C1<br/><br/>Your turn. Respond with:<br/>message: &lt;your message to your teammate&gt;<br/>move: &lt;OBJECT&gt; &lt;DIRECTION&gt;<br/><br/>OR, if ALL your objects are at their target positions:<br/>message: done<br/>done: all my objects are placed</p>
+    </div>
+
+    <div speaker="Player 2 (MatrixPlayer) to GM (Game Master)" class="msg player-gm p2" style="">
+        <p>message: Moving B left to R4C5 as planned; this opens R4C6 for C and keeps R4C7 clear for your A. C will wait until B clears the corridor, then head to R6C4. E will move up the left side soon and free R7C1; please keep R2C1 open for E.<br/>move: B left</p>
+    </div>
+
+    <div speaker="Game Master: move" class="msg gm-gm" style="">
+        <p>Player B moved B left</p>
+    </div>
+
+    <div speaker="Game Master: message" class="msg gm-gm" style="">
+        <p>Player B: Moving B left to R4C5 as planned; this opens R4C6 for C and keeps R4C7 clear for your A. C will wait until B clears the corridor, then head to R6C4. E will move up the left side soon and free R7C1; please keep R2C1 open for E.</p>
+    </div>
+</div><div class="game-round" data-round="6">
+    <div speaker="GM (Game Master) to Player 1 (MatrixPlayer)" class="msg gm-player p1" style="">
+        <p>Player A (you) says: Moving D down to (R7,C4), freeing (R6,C4) for C. D will head to (R8,C1) to wait until E leaves (R7,C1). A stays at (R4,C8) until B opens (R4,C7). F will continue right along the top row next turn; R2C1 is open for E.<br/>Player B says: Moving B left to R4C5 as planned; this opens R4C6 for C and keeps R4C7 clear for your A. C will wait until B clears the corridor, then head to R6C4. E will move up the left side soon and free R7C1; please keep R2C1 open for E.<br/><br/>CURRENT BOARD:<br/>Objects: A@R4C8 X@R4C5 X@R3C6 D@R7C4 X@R7C1 F@R1C1<br/>Walls: R2C5 R2C7 R3C1 R3C2 R3C5 R3C7 R4C4 R5C2 R5C6 R5C8 R6C2 R6C5 R6C6 R6C8 R7C2 R7C6 R7C8 R8C6 R8C8<br/><br/>GOAL BOARD:<br/>Targets: A-&gt;R8C7 D-&gt;R7C1 F-&gt;R2C8<br/><br/>Your turn. Respond with:<br/>message: &lt;your message to your teammate&gt;<br/>move: &lt;OBJECT&gt; &lt;DIRECTION&gt;<br/><br/>OR, if ALL your objects are at their target positions:<br/>message: done<br/>done: all my objects are placed</p>
+    </div>
+
+    <div speaker="Player 1 (MatrixPlayer) to GM (Game Master)" class="msg player-gm p1" style="">
+        <p>message: Moving F right along top row to R1C2; R2C1 remains open for E, and R1C1 is now free too. D will stay at R7C4 until E leaves R7C1, then head to R8C1. A is ready to take R4C7 as soon as you keep it clear; I won&#x27;t block R4C6 for C.<br/>move: F right</p>
+    </div>
+
+    <div speaker="Game Master: move" class="msg gm-gm" style="">
+        <p>Player A moved F right</p>
+    </div>
+
+    <div speaker="Game Master: message" class="msg gm-gm" style="">
+        <p>Player A: Moving F right along top row to R1C2; R2C1 remains open for E, and R1C1 is now free too. D will stay at R7C4 until E leaves R7C1, then head to R8C1. A is ready to take R4C7 as soon as you keep it clear; I won&#x27;t block R4C6 for C.</p>
+    </div>
+
+    <div speaker="GM (Game Master) to Player 2 (MatrixPlayer)" class="msg gm-player p2" style="">
+        <p>Player A says: Moving F right along top row to R1C2; R2C1 remains open for E, and R1C1 is now free too. D will stay at R7C4 until E leaves R7C1, then head to R8C1. A is ready to take R4C7 as soon as you keep it clear; I won&#x27;t block R4C6 for C.<br/>Player B (you) says: Moving B left to R4C5 as planned; this opens R4C6 for C and keeps R4C7 clear for your A. C will wait until B clears the corridor, then head to R6C4. E will move up the left side soon and free R7C1; please keep R2C1 open for E.<br/><br/>CURRENT BOARD:<br/>Objects: X@R4C8 B@R4C5 C@R3C6 X@R7C4 E@R7C1 X@R1C2<br/>Walls: R2C5 R2C7 R3C1 R3C2 R3C5 R3C7 R4C4 R5C2 R5C6 R5C8 R6C2 R6C5 R6C6 R6C8 R7C2 R7C6 R7C8 R8C6 R8C8<br/><br/>GOAL BOARD:<br/>Targets: B-&gt;R3C4 C-&gt;R6C4 E-&gt;R2C1<br/><br/>Your turn. Respond with:<br/>message: &lt;your message to your teammate&gt;<br/>move: &lt;OBJECT&gt; &lt;DIRECTION&gt;<br/><br/>OR, if ALL your objects are at their target positions:<br/>message: done<br/>done: all my objects are placed</p>
+    </div>
+
+    <div speaker="Player 2 (MatrixPlayer) to GM (Game Master)" class="msg player-gm p2" style="">
+        <p>message: Moving B down to R5C5 to clear R4C5. I&#x27;ll then take B left and up to R3C4 so C can follow through R4C6-R4C5-R5C5-R5C4 to R6C4. E will move up next, freeing R7C1 for D; please keep R2C1 open for E. R4C7 is clear for A, and I won&#x27;t block it.<br/>move: B down</p>
+    </div>
+
+    <div speaker="Game Master: move" class="msg gm-gm" style="">
+        <p>Player B moved B down</p>
+    </div>
+
+    <div speaker="Game Master: message" class="msg gm-gm" style="">
+        <p>Player B: Moving B down to R5C5 to clear R4C5. I&#x27;ll then take B left and up to R3C4 so C can follow through R4C6-R4C5-R5C5-R5C4 to R6C4. E will move up next, freeing R7C1 for D; please keep R2C1 open for E. R4C7 is clear for A, and I won&#x27;t block it.</p>
+    </div>
+</div><div class="game-round" data-round="7">
+    <div speaker="GM (Game Master) to Player 1 (MatrixPlayer)" class="msg gm-player p1" style="">
+        <p>Player A (you) says: Moving F right along top row to R1C2; R2C1 remains open for E, and R1C1 is now free too. D will stay at R7C4 until E leaves R7C1, then head to R8C1. A is ready to take R4C7 as soon as you keep it clear; I won&#x27;t block R4C6 for C.<br/>Player B says: Moving B down to R5C5 to clear R4C5. I&#x27;ll then take B left and up to R3C4 so C can follow through R4C6-R4C5-R5C5-R5C4 to R6C4. E will move up next, freeing R7C1 for D; please keep R2C1 open for E. R4C7 is clear for A, and I won&#x27;t block it.<br/><br/>CURRENT BOARD:<br/>Objects: A@R4C8 X@R5C5 X@R3C6 D@R7C4 X@R7C1 F@R1C2<br/>Walls: R2C5 R2C7 R3C1 R3C2 R3C5 R3C7 R4C4 R5C2 R5C6 R5C8 R6C2 R6C5 R6C6 R6C8 R7C2 R7C6 R7C8 R8C6 R8C8<br/><br/>GOAL BOARD:<br/>Targets: A-&gt;R8C7 D-&gt;R7C1 F-&gt;R2C8<br/><br/>Your turn. Respond with:<br/>message: &lt;your message to your teammate&gt;<br/>move: &lt;OBJECT&gt; &lt;DIRECTION&gt;<br/><br/>OR, if ALL your objects are at their target positions:<br/>message: done<br/>done: all my objects are placed</p>
+    </div>
+
+    <div speaker="Player 1 (MatrixPlayer) to GM (Game Master)" class="msg player-gm p1" style="">
+        <p>message: Taking A left to R4C7 now; thanks for keeping it clear. A will head down C7 to R8C7, so I won&#x27;t need R4C6/R4C5. F will continue right along R1 to R1C8 then down to R2C8. D will wait, then go down to R8C4 and across bottom once E leaves R7C1. I&#x27;ll keep R2C1 open for E.<br/>move: A left</p>
+    </div>
+
+    <div speaker="Game Master: move" class="msg gm-gm" style="">
+        <p>Player A moved A left</p>
+    </div>
+
+    <div speaker="Game Master: message" class="msg gm-gm" style="">
+        <p>Player A: Taking A left to R4C7 now; thanks for keeping it clear. A will head down C7 to R8C7, so I won&#x27;t need R4C6/R4C5. F will continue right along R1 to R1C8 then down to R2C8. D will wait, then go down to R8C4 and across bottom once E leaves R7C1. I&#x27;ll keep R2C1 open for E.</p>
+    </div>
+
+    <div speaker="GM (Game Master) to Player 2 (MatrixPlayer)" class="msg gm-player p2" style="">
+        <p>Player A says: Taking A left to R4C7 now; thanks for keeping it clear. A will head down C7 to R8C7, so I won&#x27;t need R4C6/R4C5. F will continue right along R1 to R1C8 then down to R2C8. D will wait, then go down to R8C4 and across bottom once E leaves R7C1. I&#x27;ll keep R2C1 open for E.<br/>Player B (you) says: Moving B down to R5C5 to clear R4C5. I&#x27;ll then take B left and up to R3C4 so C can follow through R4C6-R4C5-R5C5-R5C4 to R6C4. E will move up next, freeing R7C1 for D; please keep R2C1 open for E. R4C7 is clear for A, and I won&#x27;t block it.<br/><br/>CURRENT BOARD:<br/>Objects: X@R4C7 B@R5C5 C@R3C6 X@R7C4 E@R7C1 X@R1C2<br/>Walls: R2C5 R2C7 R3C1 R3C2 R3C5 R3C7 R4C4 R5C2 R5C6 R5C8 R6C2 R6C5 R6C6 R6C8 R7C2 R7C6 R7C8 R8C6 R8C8<br/><br/>GOAL BOARD:<br/>Targets: B-&gt;R3C4 C-&gt;R6C4 E-&gt;R2C1<br/><br/>Your turn. Respond with:<br/>message: &lt;your message to your teammate&gt;<br/>move: &lt;OBJECT&gt; &lt;DIRECTION&gt;<br/><br/>OR, if ALL your objects are at their target positions:<br/>message: done<br/>done: all my objects are placed</p>
+    </div>
+
+    <div speaker="Player 2 (MatrixPlayer) to GM (Game Master)" class="msg player-gm p2" style="">
+        <p>message: Moving E up to R6C1, freeing R7C1 for D. I’ll continue E along the left side, then through R4C3/R3C3 to R2C1; I’ll coordinate with B so we don’t collide. B will clear R5C5/R5C4 so C can follow to R6C4. Please keep R2C1 open for E, and I won’t block A’s path down C7.<br/>move: E up</p>
+    </div>
+
+    <div speaker="Game Master: move" class="msg gm-gm" style="">
+        <p>Player B moved E up</p>
+    </div>
+
+    <div speaker="Game Master: message" class="msg gm-gm" style="">
+        <p>Player B: Moving E up to R6C1, freeing R7C1 for D. I’ll continue E along the left side, then through R4C3/R3C3 to R2C1; I’ll coordinate with B so we don’t collide. B will clear R5C5/R5C4 so C can follow to R6C4. Please keep R2C1 open for E, and I won’t block A’s path down C7.</p>
+    </div>
+</div><div class="game-round" data-round="8">
+    <div speaker="GM (Game Master) to Player 1 (MatrixPlayer)" class="msg gm-player p1" style="">
+        <p>Player A (you) says: Taking A left to R4C7 now; thanks for keeping it clear. A will head down C7 to R8C7, so I won&#x27;t need R4C6/R4C5. F will continue right along R1 to R1C8 then down to R2C8. D will wait, then go down to R8C4 and across bottom once E leaves R7C1. I&#x27;ll keep R2C1 open for E.<br/>Player B says: Moving E up to R6C1, freeing R7C1 for D. I’ll continue E along the left side, then through R4C3/R3C3 to R2C1; I’ll coordinate with B so we don’t collide. B will clear R5C5/R5C4 so C can follow to R6C4. Please keep R2C1 open for E, and I won’t block A’s path down C7.<br/><br/>CURRENT BOARD:<br/>Objects: A@R4C7 X@R5C5 X@R3C6 D@R7C4 X@R6C1 F@R1C2<br/>Walls: R2C5 R2C7 R3C1 R3C2 R3C5 R3C7 R4C4 R5C2 R5C6 R5C8 R6C2 R6C5 R6C6 R6C8 R7C2 R7C6 R7C8 R8C6 R8C8<br/><br/>GOAL BOARD:<br/>Targets: A-&gt;R8C7 D-&gt;R7C1 F-&gt;R2C8<br/><br/>Your turn. Respond with:<br/>message: &lt;your message to your teammate&gt;<br/>move: &lt;OBJECT&gt; &lt;DIRECTION&gt;<br/><br/>OR, if ALL your objects are at their target positions:<br/>message: done<br/>done: all my objects are placed</p>
+    </div>
+
+    <div speaker="Player 1 (MatrixPlayer) to GM (Game Master)" class="msg player-gm p1" style="">
+        <p>message: Moving A down C7 to R5C7, continuing to R8C7. I’ll take D down to R8C4 then across bottom to R7C1, so E can keep the left side clear for R2C1. Thanks for freeing R7C1. F will head right along R1 to R1C8, then down to R2C8. I’ll keep R2C1 open for E and won’t block your path.<br/>move: A down</p>
+    </div>
+
+    <div speaker="Game Master: move" class="msg gm-gm" style="">
+        <p>Player A moved A down</p>
+    </div>
+
+    <div speaker="Game Master: message" class="msg gm-gm" style="">
+        <p>Player A: Moving A down C7 to R5C7, continuing to R8C7. I’ll take D down to R8C4 then across bottom to R7C1, so E can keep the left side clear for R2C1. Thanks for freeing R7C1. F will head right along R1 to R1C8, then down to R2C8. I’ll keep R2C1 open for E and won’t block your path.</p>
+    </div>
+
+    <div speaker="GM (Game Master) to Player 2 (MatrixPlayer)" class="msg gm-player p2" style="">
+        <p>Player A says: Moving A down C7 to R5C7, continuing to R8C7. I’ll take D down to R8C4 then across bottom to R7C1, so E can keep the left side clear for R2C1. Thanks for freeing R7C1. F will head right along R1 to R1C8, then down to R2C8. I’ll keep R2C1 open for E and won’t block your path.<br/>Player B (you) says: Moving E up to R6C1, freeing R7C1 for D. I’ll continue E along the left side, then through R4C3/R3C3 to R2C1; I’ll coordinate with B so we don’t collide. B will clear R5C5/R5C4 so C can follow to R6C4. Please keep R2C1 open for E, and I won’t block A’s path down C7.<br/><br/>CURRENT BOARD:<br/>Objects: X@R5C7 B@R5C5 C@R3C6 X@R7C4 E@R6C1 X@R1C2<br/>Walls: R2C5 R2C7 R3C1 R3C2 R3C5 R3C7 R4C4 R5C2 R5C6 R5C8 R6C2 R6C5 R6C6 R6C8 R7C2 R7C6 R7C8 R8C6 R8C8<br/><br/>GOAL BOARD:<br/>Targets: B-&gt;R3C4 C-&gt;R6C4 E-&gt;R2C1<br/><br/>Your turn. Respond with:<br/>message: &lt;your message to your teammate&gt;<br/>move: &lt;OBJECT&gt; &lt;DIRECTION&gt;<br/><br/>OR, if ALL your objects are at their target positions:<br/>message: done<br/>done: all my objects are placed</p>
+    </div>
+
+    <div speaker="Player 2 (MatrixPlayer) to GM (Game Master)" class="msg player-gm p2" style="">
+        <p>message: Moving B left to R5C4, clearing R5C5 so C can follow through R4C6/R4C5/R5C5/R5C4 to R6C4. B will continue via R5C3, R4C3, R3C3 to R3C4; I’ll keep R4C3/R3C3 coordinated for E’s route to R2C1. E stays ready. R7C1 remains free for D, and I won’t block A or F.<br/>move: B left</p>
+    </div>
+
+    <div speaker="Game Master: move" class="msg gm-gm" style="">
+        <p>Player B moved B left</p>
+    </div>
+
+    <div speaker="Game Master: message" class="msg gm-gm" style="">
+        <p>Player B: Moving B left to R5C4, clearing R5C5 so C can follow through R4C6/R4C5/R5C5/R5C4 to R6C4. B will continue via R5C3, R4C3, R3C3 to R3C4; I’ll keep R4C3/R3C3 coordinated for E’s route to R2C1. E stays ready. R7C1 remains free for D, and I won’t block A or F.</p>
+    </div>
+</div><div class="game-round" data-round="9">
+    <div speaker="GM (Game Master) to Player 1 (MatrixPlayer)" class="msg gm-player p1" style="">
+        <p>Player A (you) says: Moving A down C7 to R5C7, continuing to R8C7. I’ll take D down to R8C4 then across bottom to R7C1, so E can keep the left side clear for R2C1. Thanks for freeing R7C1. F will head right along R1 to R1C8, then down to R2C8. I’ll keep R2C1 open for E and won’t block your path.<br/>Player B says: Moving B left to R5C4, clearing R5C5 so C can follow through R4C6/R4C5/R5C5/R5C4 to R6C4. B will continue via R5C3, R4C3, R3C3 to R3C4; I’ll keep R4C3/R3C3 coordinated for E’s route to R2C1. E stays ready. R7C1 remains free for D, and I won’t block A or F.<br/><br/>CURRENT BOARD:<br/>Objects: A@R5C7 X@R5C4 X@R3C6 D@R7C4 X@R6C1 F@R1C2<br/>Walls: R2C5 R2C7 R3C1 R3C2 R3C5 R3C7 R4C4 R5C2 R5C6 R5C8 R6C2 R6C5 R6C6 R6C8 R7C2 R7C6 R7C8 R8C6 R8C8<br/><br/>GOAL BOARD:<br/>Targets: A-&gt;R8C7 D-&gt;R7C1 F-&gt;R2C8<br/><br/>Your turn. Respond with:<br/>message: &lt;your message to your teammate&gt;<br/>move: &lt;OBJECT&gt; &lt;DIRECTION&gt;<br/><br/>OR, if ALL your objects are at their target positions:<br/>message: done<br/>done: all my objects are placed</p>
+    </div>
+
+    <div speaker="Player 1 (MatrixPlayer) to GM (Game Master)" class="msg player-gm p1" style="">
+        <p>message: Moving A down to R6C7, continuing toward R8C7. This won’t block your B/C corridor via R5C5/R4C3/R3C3 or E’s route to R2C1. D still plans to go down to R8C4 then across to R7C1; F will head right along R1 to R1C8 then down to R2C8. Let me know if you need any of those cells.<br/>move: A down</p>
+    </div>
+
+    <div speaker="Game Master: move" class="msg gm-gm" style="">
+        <p>Player A moved A down</p>
+    </div>
+
+    <div speaker="Game Master: message" class="msg gm-gm" style="">
+        <p>Player A: Moving A down to R6C7, continuing toward R8C7. This won’t block your B/C corridor via R5C5/R4C3/R3C3 or E’s route to R2C1. D still plans to go down to R8C4 then across to R7C1; F will head right along R1 to R1C8 then down to R2C8. Let me know if you need any of those cells.</p>
+    </div>
+
+    <div speaker="GM (Game Master) to Player 2 (MatrixPlayer)" class="msg gm-player p2" style="">
+        <p>Player A says: Moving A down to R6C7, continuing toward R8C7. This won’t block your B/C corridor via R5C5/R4C3/R3C3 or E’s route to R2C1. D still plans to go down to R8C4 then across to R7C1; F will head right along R1 to R1C8 then down to R2C8. Let me know if you need any of those cells.<br/>Player B (you) says: Moving B left to R5C4, clearing R5C5 so C can follow through R4C6/R4C5/R5C5/R5C4 to R6C4. B will continue via R5C3, R4C3, R3C3 to R3C4; I’ll keep R4C3/R3C3 coordinated for E’s route to R2C1. E stays ready. R7C1 remains free for D, and I won’t block A or F.<br/><br/>CURRENT BOARD:<br/>Objects: X@R6C7 B@R5C4 C@R3C6 X@R7C4 E@R6C1 X@R1C2<br/>Walls: R2C5 R2C7 R3C1 R3C2 R3C5 R3C7 R4C4 R5C2 R5C6 R5C8 R6C2 R6C5 R6C6 R6C8 R7C2 R7C6 R7C8 R8C6 R8C8<br/><br/>GOAL BOARD:<br/>Targets: B-&gt;R3C4 C-&gt;R6C4 E-&gt;R2C1<br/><br/>Your turn. Respond with:<br/>message: &lt;your message to your teammate&gt;<br/>move: &lt;OBJECT&gt; &lt;DIRECTION&gt;<br/><br/>OR, if ALL your objects are at their target positions:<br/>message: done<br/>done: all my objects are placed</p>
+    </div>
+
+    <div speaker="Player 2 (MatrixPlayer) to GM (Game Master)" class="msg player-gm p2" style="">
+        <p>message: Moving B left to R5C3, clearing R5C4 for C’s route via R4C6/R4C5/R5C5/R5C4 to R6C4. I’ll continue B to R4C3 then R3C3/R3C4; once B leaves R4C3/R3C3, E can follow through to R2C1. R7C1 and R8 corridor remain free for D, and A has R7C7/R8C7. Let me know if you need R5C5 sooner.<br/>move: B left</p>
+    </div>
+
+    <div speaker="Game Master: move" class="msg gm-gm" style="">
+        <p>Player B moved B left</p>
+    </div>
+
+    <div speaker="Game Master: message" class="msg gm-gm" style="">
+        <p>Player B: Moving B left to R5C3, clearing R5C4 for C’s route via R4C6/R4C5/R5C5/R5C4 to R6C4. I’ll continue B to R4C3 then R3C3/R3C4; once B leaves R4C3/R3C3, E can follow through to R2C1. R7C1 and R8 corridor remain free for D, and A has R7C7/R8C7. Let me know if you need R5C5 sooner.</p>
+    </div>
+</div><div class="game-round" data-round="10">
+    <div speaker="GM (Game Master) to Player 1 (MatrixPlayer)" class="msg gm-player p1" style="">
+        <p>Player A (you) says: Moving A down to R6C7, continuing toward R8C7. This won’t block your B/C corridor via R5C5/R4C3/R3C3 or E’s route to R2C1. D still plans to go down to R8C4 then across to R7C1; F will head right along R1 to R1C8 then down to R2C8. Let me know if you need any of those cells.<br/>Player B says: Moving B left to R5C3, clearing R5C4 for C’s route via R4C6/R4C5/R5C5/R5C4 to R6C4. I’ll continue B to R4C3 then R3C3/R3C4; once B leaves R4C3/R3C3, E can follow through to R2C1. R7C1 and R8 corridor remain free for D, and A has R7C7/R8C7. Let me know if you need R5C5 sooner.<br/><br/>CURRENT BOARD:<br/>Objects: A@R6C7 X@R5C3 X@R3C6 D@R7C4 X@R6C1 F@R1C2<br/>Walls: R2C5 R2C7 R3C1 R3C2 R3C5 R3C7 R4C4 R5C2 R5C6 R5C8 R6C2 R6C5 R6C6 R6C8 R7C2 R7C6 R7C8 R8C6 R8C8<br/><br/>GOAL BOARD:<br/>Targets: A-&gt;R8C7 D-&gt;R7C1 F-&gt;R2C8<br/><br/>Your turn. Respond with:<br/>message: &lt;your message to your teammate&gt;<br/>move: &lt;OBJECT&gt; &lt;DIRECTION&gt;<br/><br/>OR, if ALL your objects are at their target positions:<br/>message: done<br/>done: all my objects are placed</p>
+    </div>
+
+    <div speaker="Player 1 (MatrixPlayer) to GM (Game Master)" class="msg player-gm p1" style="">
+        <p>message: Moving A down to R7C7, then final R8C7. D will take the lower route: R7C4→R8C4→R8C3→R8C2→R8C1→R7C1. F will head right along row1 to R1C8 then down to R2C8. I’ll keep clear of your B/C corridor and E’s route to R2C1; let me know if you need R5C5 or any of those cells earlier.<br/>move: A down</p>
+    </div>
+
+    <div speaker="Game Master: move" class="msg gm-gm" style="">
+        <p>Player A moved A down</p>
+    </div>
+
+    <div speaker="Game Master: message" class="msg gm-gm" style="">
+        <p>Player A: Moving A down to R7C7, then final R8C7. D will take the lower route: R7C4→R8C4→R8C3→R8C2→R8C1→R7C1. F will head right along row1 to R1C8 then down to R2C8. I’ll keep clear of your B/C corridor and E’s route to R2C1; let me know if you need R5C5 or any of those cells earlier.</p>
+    </div>
+
+    <div speaker="GM (Game Master) to Player 2 (MatrixPlayer)" class="msg gm-player p2" style="">
+        <p>Player A says: Moving A down to R7C7, then final R8C7. D will take the lower route: R7C4→R8C4→R8C3→R8C2→R8C1→R7C1. F will head right along row1 to R1C8 then down to R2C8. I’ll keep clear of your B/C corridor and E’s route to R2C1; let me know if you need R5C5 or any of those cells earlier.<br/>Player B (you) says: Moving B left to R5C3, clearing R5C4 for C’s route via R4C6/R4C5/R5C5/R5C4 to R6C4. I’ll continue B to R4C3 then R3C3/R3C4; once B leaves R4C3/R3C3, E can follow through to R2C1. R7C1 and R8 corridor remain free for D, and A has R7C7/R8C7. Let me know if you need R5C5 sooner.<br/><br/>CURRENT BOARD:<br/>Objects: X@R7C7 B@R5C3 C@R3C6 X@R7C4 E@R6C1 X@R1C2<br/>Walls: R2C5 R2C7 R3C1 R3C2 R3C5 R3C7 R4C4 R5C2 R5C6 R5C8 R6C2 R6C5 R6C6 R6C8 R7C2 R7C6 R7C8 R8C6 R8C8<br/><br/>GOAL BOARD:<br/>Targets: B-&gt;R3C4 C-&gt;R6C4 E-&gt;R2C1<br/><br/>Your turn. Respond with:<br/>message: &lt;your message to your teammate&gt;<br/>move: &lt;OBJECT&gt; &lt;DIRECTION&gt;<br/><br/>OR, if ALL your objects are at their target positions:<br/>message: done<br/>done: all my objects are placed</p>
+    </div>
+
+    <div speaker="Player 2 (MatrixPlayer) to GM (Game Master)" class="msg player-gm p2" style="">
+        <p>message: Moving B up to R4C3, continuing toward R3C3/R3C4. This frees R5C3 and keeps C’s route via R4C6/R4C5/R5C5/R5C4 open. E will wait at R6C1 until R3C3 clears, then follow R5C1/R4C1/R4C2/R4C3/R3C3 to R2C1. Your D lower route and A’s R7C7/R8C7 path stay clear; I don’t need R5C5 early.<br/>move: B up</p>
+    </div>
+
+    <div speaker="Game Master: move" class="msg gm-gm" style="">
+        <p>Player B moved B up</p>
+    </div>
+
+    <div speaker="Game Master: message" class="msg gm-gm" style="">
+        <p>Player B: Moving B up to R4C3, continuing toward R3C3/R3C4. This frees R5C3 and keeps C’s route via R4C6/R4C5/R5C5/R5C4 open. E will wait at R6C1 until R3C3 clears, then follow R5C1/R4C1/R4C2/R4C3/R3C3 to R2C1. Your D lower route and A’s R7C7/R8C7 path stay clear; I don’t need R5C5 early.</p>
+    </div>
+</div><div class="game-round" data-round="11">
+    <div speaker="GM (Game Master) to Player 1 (MatrixPlayer)" class="msg gm-player p1" style="">
+        <p>Player A (you) says: Moving A down to R7C7, then final R8C7. D will take the lower route: R7C4→R8C4→R8C3→R8C2→R8C1→R7C1. F will head right along row1 to R1C8 then down to R2C8. I’ll keep clear of your B/C corridor and E’s route to R2C1; let me know if you need R5C5 or any of those cells earlier.<br/>Player B says: Moving B up to R4C3, continuing toward R3C3/R3C4. This frees R5C3 and keeps C’s route via R4C6/R4C5/R5C5/R5C4 open. E will wait at R6C1 until R3C3 clears, then follow R5C1/R4C1/R4C2/R4C3/R3C3 to R2C1. Your D lower route and A’s R7C7/R8C7 path stay clear; I don’t need R5C5 early.<br/><br/>CURRENT BOARD:<br/>Objects: A@R7C7 X@R4C3 X@R3C6 D@R7C4 X@R6C1 F@R1C2<br/>Walls: R2C5 R2C7 R3C1 R3C2 R3C5 R3C7 R4C4 R5C2 R5C6 R5C8 R6C2 R6C5 R6C6 R6C8 R7C2 R7C6 R7C8 R8C6 R8C8<br/><br/>GOAL BOARD:<br/>Targets: A-&gt;R8C7 D-&gt;R7C1 F-&gt;R2C8<br/><br/>Your turn. Respond with:<br/>message: &lt;your message to your teammate&gt;<br/>move: &lt;OBJECT&gt; &lt;DIRECTION&gt;<br/><br/>OR, if ALL your objects are at their target positions:<br/>message: done<br/>done: all my objects are placed</p>
+    </div>
+
+    <div speaker="Player 1 (MatrixPlayer) to GM (Game Master)" class="msg player-gm p1" style="">
+        <p>message: Moving A down to R8C7 to finish A. D will continue via R8C4→R8C3→R8C2→R8C1→R7C1. F heads along row 1 to R1C8, then down to R2C8. I’ll avoid your B/C/E corridor and won’t need R5C5 early. Let me know if you need any cells near R7/R8 before I use them.<br/>move: A down</p>
+    </div>
+
+    <div speaker="Game Master: move" class="msg gm-gm" style="">
+        <p>Player A moved A down</p>
+    </div>
+
+    <div speaker="Game Master: message" class="msg gm-gm" style="">
+        <p>Player A: Moving A down to R8C7 to finish A. D will continue via R8C4→R8C3→R8C2→R8C1→R7C1. F heads along row 1 to R1C8, then down to R2C8. I’ll avoid your B/C/E corridor and won’t need R5C5 early. Let me know if you need any cells near R7/R8 before I use them.</p>
+    </div>
+
+    <div speaker="GM (Game Master) to Player 2 (MatrixPlayer)" class="msg gm-player p2" style="">
+        <p>Player A says: Moving A down to R8C7 to finish A. D will continue via R8C4→R8C3→R8C2→R8C1→R7C1. F heads along row 1 to R1C8, then down to R2C8. I’ll avoid your B/C/E corridor and won’t need R5C5 early. Let me know if you need any cells near R7/R8 before I use them.<br/>Player B (you) says: Moving B up to R4C3, continuing toward R3C3/R3C4. This frees R5C3 and keeps C’s route via R4C6/R4C5/R5C5/R5C4 open. E will wait at R6C1 until R3C3 clears, then follow R5C1/R4C1/R4C2/R4C3/R3C3 to R2C1. Your D lower route and A’s R7C7/R8C7 path stay clear; I don’t need R5C5 early.<br/><br/>CURRENT BOARD:<br/>Objects: X@R8C7 B@R4C3 C@R3C6 X@R7C4 E@R6C1 X@R1C2<br/>Walls: R2C5 R2C7 R3C1 R3C2 R3C5 R3C7 R4C4 R5C2 R5C6 R5C8 R6C2 R6C5 R6C6 R6C8 R7C2 R7C6 R7C8 R8C6 R8C8<br/><br/>GOAL BOARD:<br/>Targets: B-&gt;R3C4 C-&gt;R6C4 E-&gt;R2C1<br/><br/>Your turn. Respond with:<br/>message: &lt;your message to your teammate&gt;<br/>move: &lt;OBJECT&gt; &lt;DIRECTION&gt;<br/><br/>OR, if ALL your objects are at their target positions:<br/>message: done<br/>done: all my objects are placed</p>
+    </div>
+
+    <div speaker="Player 2 (MatrixPlayer) to GM (Game Master)" class="msg player-gm p2" style="">
+        <p>message: Moving B up to R3C3, then next to R3C4 to finish B. This frees R4C3 and later R3C3 for E’s route to R2C1. C’s corridor via R4C6/R4C5/R5C5/R5C4 to R6C4 stays clear. Your A at R8C7, D’s lower R8 path, and F along row 1 all look clear; I won’t need R5C5 early.<br/>move: B up</p>
+    </div>
+
+    <div speaker="Game Master: move" class="msg gm-gm" style="">
+        <p>Player B moved B up</p>
+    </div>
+
+    <div speaker="Game Master: message" class="msg gm-gm" style="">
+        <p>Player B: Moving B up to R3C3, then next to R3C4 to finish B. This frees R4C3 and later R3C3 for E’s route to R2C1. C’s corridor via R4C6/R4C5/R5C5/R5C4 to R6C4 stays clear. Your A at R8C7, D’s lower R8 path, and F along row 1 all look clear; I won’t need R5C5 early.</p>
+    </div>
+</div><div class="game-round" data-round="12">
+    <div speaker="GM (Game Master) to Player 1 (MatrixPlayer)" class="msg gm-player p1" style="">
+        <p>Player A (you) says: Moving A down to R8C7 to finish A. D will continue via R8C4→R8C3→R8C2→R8C1→R7C1. F heads along row 1 to R1C8, then down to R2C8. I’ll avoid your B/C/E corridor and won’t need R5C5 early. Let me know if you need any cells near R7/R8 before I use them.<br/>Player B says: Moving B up to R3C3, then next to R3C4 to finish B. This frees R4C3 and later R3C3 for E’s route to R2C1. C’s corridor via R4C6/R4C5/R5C5/R5C4 to R6C4 stays clear. Your A at R8C7, D’s lower R8 path, and F along row 1 all look clear; I won’t need R5C5 early.<br/><br/>CURRENT BOARD:<br/>Objects: A@R8C7 X@R3C3 X@R3C6 D@R7C4 X@R6C1 F@R1C2<br/>Walls: R2C5 R2C7 R3C1 R3C2 R3C5 R3C7 R4C4 R5C2 R5C6 R5C8 R6C2 R6C5 R6C6 R6C8 R7C2 R7C6 R7C8 R8C6 R8C8<br/><br/>GOAL BOARD:<br/>Targets: A-&gt;R8C7 D-&gt;R7C1 F-&gt;R2C8<br/><br/>Your turn. Respond with:<br/>message: &lt;your message to your teammate&gt;<br/>move: &lt;OBJECT&gt; &lt;DIRECTION&gt;<br/><br/>OR, if ALL your objects are at their target positions:<br/>message: done<br/>done: all my objects are placed</p>
+    </div>
+
+    <div speaker="Player 1 (MatrixPlayer) to GM (Game Master)" class="msg player-gm p1" style="">
+        <p>message: A is already at R8C7. I’m moving D down to R8C4, then along R8 to R8C1 and up to R7C1. F will head along row 1 to R1C8 and down to R2C8. Your B at R3C3 moving to R3C4 should be clear; I won’t need R5C5 early and will keep out of your C corridor.<br/>move: D down</p>
+    </div>
+
+    <div speaker="Game Master: move" class="msg gm-gm" style="">
+        <p>Player A moved D down</p>
+    </div>
+
+    <div speaker="Game Master: message" class="msg gm-gm" style="">
+        <p>Player A: A is already at R8C7. I’m moving D down to R8C4, then along R8 to R8C1 and up to R7C1. F will head along row 1 to R1C8 and down to R2C8. Your B at R3C3 moving to R3C4 should be clear; I won’t need R5C5 early and will keep out of your C corridor.</p>
+    </div>
+
+    <div speaker="GM (Game Master) to Player 2 (MatrixPlayer)" class="msg gm-player p2" style="">
+        <p>Player A says: A is already at R8C7. I’m moving D down to R8C4, then along R8 to R8C1 and up to R7C1. F will head along row 1 to R1C8 and down to R2C8. Your B at R3C3 moving to R3C4 should be clear; I won’t need R5C5 early and will keep out of your C corridor.<br/>Player B (you) says: Moving B up to R3C3, then next to R3C4 to finish B. This frees R4C3 and later R3C3 for E’s route to R2C1. C’s corridor via R4C6/R4C5/R5C5/R5C4 to R6C4 stays clear. Your A at R8C7, D’s lower R8 path, and F along row 1 all look clear; I won’t need R5C5 early.<br/><br/>CURRENT BOARD:<br/>Objects: X@R8C7 B@R3C3 C@R3C6 X@R8C4 E@R6C1 X@R1C2<br/>Walls: R2C5 R2C7 R3C1 R3C2 R3C5 R3C7 R4C4 R5C2 R5C6 R5C8 R6C2 R6C5 R6C6 R6C8 R7C2 R7C6 R7C8 R8C6 R8C8<br/><br/>GOAL BOARD:<br/>Targets: B-&gt;R3C4 C-&gt;R6C4 E-&gt;R2C1<br/><br/>Your turn. Respond with:<br/>message: &lt;your message to your teammate&gt;<br/>move: &lt;OBJECT&gt; &lt;DIRECTION&gt;<br/><br/>OR, if ALL your objects are at their target positions:<br/>message: done<br/>done: all my objects are placed</p>
+    </div>
+
+    <div speaker="Player 2 (MatrixPlayer) to GM (Game Master)" class="msg player-gm p2" style="">
+        <p>message: I’m moving B right into (R3,C4), its target. This frees (R3,C3) for E’s route up the left side. C’s corridor via (R4,C6)/(R4,C5)/(R5,C5)/(R5,C4) to (R6,C4) stays clear. Your D at (R8,C4) heading along row 8 to (R7,C1), and F along row 1 to (R2,C8), look clear; I won’t need (R5,C5) early.<br/>move: B right</p>
+    </div>
+
+    <div speaker="Game Master: move" class="msg gm-gm" style="">
+        <p>Player B moved B right</p>
+    </div>
+
+    <div speaker="Game Master: message" class="msg gm-gm" style="">
+        <p>Player B: I’m moving B right into (R3,C4), its target. This frees (R3,C3) for E’s route up the left side. C’s corridor via (R4,C6)/(R4,C5)/(R5,C5)/(R5,C4) to (R6,C4) stays clear. Your D at (R8,C4) heading along row 8 to (R7,C1), and F along row 1 to (R2,C8), look clear; I won’t need (R5,C5) early.</p>
+    </div>
+</div><div class="game-round" data-round="13">
+    <div speaker="GM (Game Master) to Player 1 (MatrixPlayer)" class="msg gm-player p1" style="">
+        <p>Player A (you) says: A is already at R8C7. I’m moving D down to R8C4, then along R8 to R8C1 and up to R7C1. F will head along row 1 to R1C8 and down to R2C8. Your B at R3C3 moving to R3C4 should be clear; I won’t need R5C5 early and will keep out of your C corridor.<br/>Player B says: I’m moving B right into (R3,C4), its target. This frees (R3,C3) for E’s route up the left side. C’s corridor via (R4,C6)/(R4,C5)/(R5,C5)/(R5,C4) to (R6,C4) stays clear. Your D at (R8,C4) heading along row 8 to (R7,C1), and F along row 1 to (R2,C8), look clear; I won’t need (R5,C5) early.<br/><br/>CURRENT BOARD:<br/>Objects: A@R8C7 X@R3C4 X@R3C6 D@R8C4 X@R6C1 F@R1C2<br/>Walls: R2C5 R2C7 R3C1 R3C2 R3C5 R3C7 R4C4 R5C2 R5C6 R5C8 R6C2 R6C5 R6C6 R6C8 R7C2 R7C6 R7C8 R8C6 R8C8<br/><br/>GOAL BOARD:<br/>Targets: A-&gt;R8C7 D-&gt;R7C1 F-&gt;R2C8<br/><br/>Your turn. Respond with:<br/>message: &lt;your message to your teammate&gt;<br/>move: &lt;OBJECT&gt; &lt;DIRECTION&gt;<br/><br/>OR, if ALL your objects are at their target positions:<br/>message: done<br/>done: all my objects are placed</p>
+    </div>
+
+    <div speaker="Player 1 (MatrixPlayer) to GM (Game Master)" class="msg player-gm p1" style="">
+        <p>message: I&#x27;m moving D left from (R8,C4) to (R8,C3), continuing toward (R8,C1) then up to (R7,C1). F will follow row 1 to (R2,C8); that stays clear of your B/C/E routes. Your B at (R3,C4) looks set, and your left-side E route should be unaffected by D at (R7,C1). I&#x27;ll keep out of your C corridor.<br/>move: D left</p>
+    </div>
+
+    <div speaker="Game Master: move" class="msg gm-gm" style="">
+        <p>Player A moved D left</p>
+    </div>
+
+    <div speaker="Game Master: message" class="msg gm-gm" style="">
+        <p>Player A: I&#x27;m moving D left from (R8,C4) to (R8,C3), continuing toward (R8,C1) then up to (R7,C1). F will follow row 1 to (R2,C8); that stays clear of your B/C/E routes. Your B at (R3,C4) looks set, and your left-side E route should be unaffected by D at (R7,C1). I&#x27;ll keep out of your C corridor.</p>
+    </div>
+
+    <div speaker="GM (Game Master) to Player 2 (MatrixPlayer)" class="msg gm-player p2" style="">
+        <p>Player A says: I&#x27;m moving D left from (R8,C4) to (R8,C3), continuing toward (R8,C1) then up to (R7,C1). F will follow row 1 to (R2,C8); that stays clear of your B/C/E routes. Your B at (R3,C4) looks set, and your left-side E route should be unaffected by D at (R7,C1). I&#x27;ll keep out of your C corridor.<br/>Player B (you) says: I’m moving B right into (R3,C4), its target. This frees (R3,C3) for E’s route up the left side. C’s corridor via (R4,C6)/(R4,C5)/(R5,C5)/(R5,C4) to (R6,C4) stays clear. Your D at (R8,C4) heading along row 8 to (R7,C1), and F along row 1 to (R2,C8), look clear; I won’t need (R5,C5) early.<br/><br/>CURRENT BOARD:<br/>Objects: X@R8C7 B@R3C4 C@R3C6 X@R8C3 E@R6C1 X@R1C2<br/>Walls: R2C5 R2C7 R3C1 R3C2 R3C5 R3C7 R4C4 R5C2 R5C6 R5C8 R6C2 R6C5 R6C6 R6C8 R7C2 R7C6 R7C8 R8C6 R8C8<br/><br/>GOAL BOARD:<br/>Targets: B-&gt;R3C4 C-&gt;R6C4 E-&gt;R2C1<br/><br/>Your turn. Respond with:<br/>message: &lt;your message to your teammate&gt;<br/>move: &lt;OBJECT&gt; &lt;DIRECTION&gt;<br/><br/>OR, if ALL your objects are at their target positions:<br/>message: done<br/>done: all my objects are placed</p>
+    </div>
+
+    <div speaker="Player 2 (MatrixPlayer) to GM (Game Master)" class="msg player-gm p2" style="">
+        <p>message: B is already placed at (R3,C4). I’m starting C down from (R3,C6) to (R4,C6), then through (R4,C5), (R5,C5), (R5,C4) to its target (R6,C4). E will head up the left side via (R5,C1), (R4,C1), (R4,C2), (R4,C3), (R3,C3), (R2,C3), (R2,C2), then to (R2,C1). I’ll keep clear of your D and F routes; your paths look unaffected by my moves.<br/>move: C down</p>
+    </div>
+
+    <div speaker="Game Master: move" class="msg gm-gm" style="">
+        <p>Player B moved C down</p>
+    </div>
+
+    <div speaker="Game Master: message" class="msg gm-gm" style="">
+        <p>Player B: B is already placed at (R3,C4). I’m starting C down from (R3,C6) to (R4,C6), then through (R4,C5), (R5,C5), (R5,C4) to its target (R6,C4). E will head up the left side via (R5,C1), (R4,C1), (R4,C2), (R4,C3), (R3,C3), (R2,C3), (R2,C2), then to (R2,C1). I’ll keep clear of your D and F routes; your paths look unaffected by my moves.</p>
+    </div>
+</div><div class="game-round" data-round="14">
+    <div speaker="GM (Game Master) to Player 1 (MatrixPlayer)" class="msg gm-player p1" style="">
+        <p>Player A (you) says: I&#x27;m moving D left from (R8,C4) to (R8,C3), continuing toward (R8,C1) then up to (R7,C1). F will follow row 1 to (R2,C8); that stays clear of your B/C/E routes. Your B at (R3,C4) looks set, and your left-side E route should be unaffected by D at (R7,C1). I&#x27;ll keep out of your C corridor.<br/>Player B says: B is already placed at (R3,C4). I’m starting C down from (R3,C6) to (R4,C6), then through (R4,C5), (R5,C5), (R5,C4) to its target (R6,C4). E will head up the left side via (R5,C1), (R4,C1), (R4,C2), (R4,C3), (R3,C3), (R2,C3), (R2,C2), then to (R2,C1). I’ll keep clear of your D and F routes; your paths look unaffected by my moves.<br/><br/>CURRENT BOARD:<br/>Objects: A@R8C7 X@R3C4 X@R4C6 D@R8C3 X@R6C1 F@R1C2<br/>Walls: R2C5 R2C7 R3C1 R3C2 R3C5 R3C7 R4C4 R5C2 R5C6 R5C8 R6C2 R6C5 R6C6 R6C8 R7C2 R7C6 R7C8 R8C6 R8C8<br/><br/>GOAL BOARD:<br/>Targets: A-&gt;R8C7 D-&gt;R7C1 F-&gt;R2C8<br/><br/>Your turn. Respond with:<br/>message: &lt;your message to your teammate&gt;<br/>move: &lt;OBJECT&gt; &lt;DIRECTION&gt;<br/><br/>OR, if ALL your objects are at their target positions:<br/>message: done<br/>done: all my objects are placed</p>
+    </div>
+
+    <div speaker="Player 1 (MatrixPlayer) to GM (Game Master)" class="msg player-gm p1" style="">
+        <p>message: D is moving left to (R8,C2), then (R8,C1) and up to its target (R7,C1). F will follow row 1 later to (R2,C8). A is already placed at (R8,C7). Your E route up the left side stays clear, and C’s downward route is unaffected by my bottom-left path.<br/>move: D left</p>
+    </div>
+
+    <div speaker="Game Master: move" class="msg gm-gm" style="">
+        <p>Player A moved D left</p>
+    </div>
+
+    <div speaker="Game Master: message" class="msg gm-gm" style="">
+        <p>Player A: D is moving left to (R8,C2), then (R8,C1) and up to its target (R7,C1). F will follow row 1 later to (R2,C8). A is already placed at (R8,C7). Your E route up the left side stays clear, and C’s downward route is unaffected by my bottom-left path.</p>
+    </div>
+
+    <div speaker="GM (Game Master) to Player 2 (MatrixPlayer)" class="msg gm-player p2" style="">
+        <p>Player A says: D is moving left to (R8,C2), then (R8,C1) and up to its target (R7,C1). F will follow row 1 later to (R2,C8). A is already placed at (R8,C7). Your E route up the left side stays clear, and C’s downward route is unaffected by my bottom-left path.<br/>Player B (you) says: B is already placed at (R3,C4). I’m starting C down from (R3,C6) to (R4,C6), then through (R4,C5), (R5,C5), (R5,C4) to its target (R6,C4). E will head up the left side via (R5,C1), (R4,C1), (R4,C2), (R4,C3), (R3,C3), (R2,C3), (R2,C2), then to (R2,C1). I’ll keep clear of your D and F routes; your paths look unaffected by my moves.<br/><br/>CURRENT BOARD:<br/>Objects: X@R8C7 B@R3C4 C@R4C6 X@R8C2 E@R6C1 X@R1C2<br/>Walls: R2C5 R2C7 R3C1 R3C2 R3C5 R3C7 R4C4 R5C2 R5C6 R5C8 R6C2 R6C5 R6C6 R6C8 R7C2 R7C6 R7C8 R8C6 R8C8<br/><br/>GOAL BOARD:<br/>Targets: B-&gt;R3C4 C-&gt;R6C4 E-&gt;R2C1<br/><br/>Your turn. Respond with:<br/>message: &lt;your message to your teammate&gt;<br/>move: &lt;OBJECT&gt; &lt;DIRECTION&gt;<br/><br/>OR, if ALL your objects are at their target positions:<br/>message: done<br/>done: all my objects are placed</p>
+    </div>
+
+    <div speaker="Player 2 (MatrixPlayer) to GM (Game Master)" class="msg player-gm p2" style="">
+        <p>message: C is at R4C6, moving left to R4C5 next, then R5C5/R5C4 to target R6C4. E remains at R6C1 for now, will head up the left side after C gets moving; I’ll keep R6C1/R5C1 clear. Your D path to R8C1/R7C1 won’t be blocked, and F’s row-1 route stays open.<br/>move: C left</p>
+    </div>
+
+    <div speaker="Game Master: move" class="msg gm-gm" style="">
+        <p>Player B moved C left</p>
+    </div>
+
+    <div speaker="Game Master: message" class="msg gm-gm" style="">
+        <p>Player B: C is at R4C6, moving left to R4C5 next, then R5C5/R5C4 to target R6C4. E remains at R6C1 for now, will head up the left side after C gets moving; I’ll keep R6C1/R5C1 clear. Your D path to R8C1/R7C1 won’t be blocked, and F’s row-1 route stays open.</p>
+    </div>
+</div><div class="game-round" data-round="15">
+    <div speaker="GM (Game Master) to Player 1 (MatrixPlayer)" class="msg gm-player p1" style="">
+        <p>Player A (you) says: D is moving left to (R8,C2), then (R8,C1) and up to its target (R7,C1). F will follow row 1 later to (R2,C8). A is already placed at (R8,C7). Your E route up the left side stays clear, and C’s downward route is unaffected by my bottom-left path.<br/>Player B says: C is at R4C6, moving left to R4C5 next, then R5C5/R5C4 to target R6C4. E remains at R6C1 for now, will head up the left side after C gets moving; I’ll keep R6C1/R5C1 clear. Your D path to R8C1/R7C1 won’t be blocked, and F’s row-1 route stays open.<br/><br/>CURRENT BOARD:<br/>Objects: A@R8C7 X@R3C4 X@R4C5 D@R8C2 X@R6C1 F@R1C2<br/>Walls: R2C5 R2C7 R3C1 R3C2 R3C5 R3C7 R4C4 R5C2 R5C6 R5C8 R6C2 R6C5 R6C6 R6C8 R7C2 R7C6 R7C8 R8C6 R8C8<br/><br/>GOAL BOARD:<br/>Targets: A-&gt;R8C7 D-&gt;R7C1 F-&gt;R2C8<br/><br/>Your turn. Respond with:<br/>message: &lt;your message to your teammate&gt;<br/>move: &lt;OBJECT&gt; &lt;DIRECTION&gt;<br/><br/>OR, if ALL your objects are at their target positions:<br/>message: done<br/>done: all my objects are placed</p>
+    </div>
+
+    <div speaker="Player 1 (MatrixPlayer) to GM (Game Master)" class="msg player-gm p1" style="">
+        <p>message: Moving D left to (R8,C1), next up to target (R7,C1). A stays at (R8,C7). F will later go right along row 1 to (R1,C8), then down to (R2,C8); row 1 stays open. I won’t interfere with C/E: D’s path uses bottom-left only, so E can move up from (R6,C1) without me blocking. Let me know if you need R8C1 or R7C1 cleared.<br/>move: D left</p>
+    </div>
+
+    <div speaker="Game Master: move" class="msg gm-gm" style="">
+        <p>Player A moved D left</p>
+    </div>
+
+    <div speaker="Game Master: message" class="msg gm-gm" style="">
+        <p>Player A: Moving D left to (R8,C1), next up to target (R7,C1). A stays at (R8,C7). F will later go right along row 1 to (R1,C8), then down to (R2,C8); row 1 stays open. I won’t interfere with C/E: D’s path uses bottom-left only, so E can move up from (R6,C1) without me blocking. Let me know if you need R8C1 or R7C1 cleared.</p>
+    </div>
+
+    <div speaker="GM (Game Master) to Player 2 (MatrixPlayer)" class="msg gm-player p2" style="">
+        <p>Player A says: Moving D left to (R8,C1), next up to target (R7,C1). A stays at (R8,C7). F will later go right along row 1 to (R1,C8), then down to (R2,C8); row 1 stays open. I won’t interfere with C/E: D’s path uses bottom-left only, so E can move up from (R6,C1) without me blocking. Let me know if you need R8C1 or R7C1 cleared.<br/>Player B (you) says: C is at R4C6, moving left to R4C5 next, then R5C5/R5C4 to target R6C4. E remains at R6C1 for now, will head up the left side after C gets moving; I’ll keep R6C1/R5C1 clear. Your D path to R8C1/R7C1 won’t be blocked, and F’s row-1 route stays open.<br/><br/>CURRENT BOARD:<br/>Objects: X@R8C7 B@R3C4 C@R4C5 X@R8C1 E@R6C1 X@R1C2<br/>Walls: R2C5 R2C7 R3C1 R3C2 R3C5 R3C7 R4C4 R5C2 R5C6 R5C8 R6C2 R6C5 R6C6 R6C8 R7C2 R7C6 R7C8 R8C6 R8C8<br/><br/>GOAL BOARD:<br/>Targets: B-&gt;R3C4 C-&gt;R6C4 E-&gt;R2C1<br/><br/>Your turn. Respond with:<br/>message: &lt;your message to your teammate&gt;<br/>move: &lt;OBJECT&gt; &lt;DIRECTION&gt;<br/><br/>OR, if ALL your objects are at their target positions:<br/>message: done<br/>done: all my objects are placed</p>
+    </div>
+
+    <div speaker="Player 2 (MatrixPlayer) to GM (Game Master)" class="msg player-gm p2" style="">
+        <p>message: C moving down to R5C5, then left to R5C4 and down to target R6C4. B is already at R3C4. E will later go up the left side via R5C1/R4C1/R4C3/R3C3/R2C3/R2C2 to R2C1, staying clear of row 1. Your D can move from R8C1 to R7C1 safely; E doesn’t need that cell. F’s row-1 route remains open.<br/>move: C down</p>
+    </div>
+
+    <div speaker="Game Master: move" class="msg gm-gm" style="">
+        <p>Player B moved C down</p>
+    </div>
+
+    <div speaker="Game Master: message" class="msg gm-gm" style="">
+        <p>Player B: C moving down to R5C5, then left to R5C4 and down to target R6C4. B is already at R3C4. E will later go up the left side via R5C1/R4C1/R4C3/R3C3/R2C3/R2C2 to R2C1, staying clear of row 1. Your D can move from R8C1 to R7C1 safely; E doesn’t need that cell. F’s row-1 route remains open.</p>
+    </div>
+</div><div class="game-round" data-round="16">
+    <div speaker="GM (Game Master) to Player 1 (MatrixPlayer)" class="msg gm-player p1" style="">
+        <p>Player A (you) says: Moving D left to (R8,C1), next up to target (R7,C1). A stays at (R8,C7). F will later go right along row 1 to (R1,C8), then down to (R2,C8); row 1 stays open. I won’t interfere with C/E: D’s path uses bottom-left only, so E can move up from (R6,C1) without me blocking. Let me know if you need R8C1 or R7C1 cleared.<br/>Player B says: C moving down to R5C5, then left to R5C4 and down to target R6C4. B is already at R3C4. E will later go up the left side via R5C1/R4C1/R4C3/R3C3/R2C3/R2C2 to R2C1, staying clear of row 1. Your D can move from R8C1 to R7C1 safely; E doesn’t need that cell. F’s row-1 route remains open.<br/><br/>CURRENT BOARD:<br/>Objects: A@R8C7 X@R3C4 X@R5C5 D@R8C1 X@R6C1 F@R1C2<br/>Walls: R2C5 R2C7 R3C1 R3C2 R3C5 R3C7 R4C4 R5C2 R5C6 R5C8 R6C2 R6C5 R6C6 R6C8 R7C2 R7C6 R7C8 R8C6 R8C8<br/><br/>GOAL BOARD:<br/>Targets: A-&gt;R8C7 D-&gt;R7C1 F-&gt;R2C8<br/><br/>Your turn. Respond with:<br/>message: &lt;your message to your teammate&gt;<br/>move: &lt;OBJECT&gt; &lt;DIRECTION&gt;<br/><br/>OR, if ALL your objects are at their target positions:<br/>message: done<br/>done: all my objects are placed</p>
+    </div>
+
+    <div speaker="Player 1 (MatrixPlayer) to GM (Game Master)" class="msg player-gm p1" style="">
+        <p>message: Moving D up to its target at (R7,C1). A is already placed at (R8,C7). F will later move right along row 1 toward (R2,C8), so I’ll keep row 1 open. D’s final position shouldn’t block E’s left-side route; let me know if you need R7C1 or R8C1 for anything.<br/>move: D up</p>
+    </div>
+
+    <div speaker="Game Master: move" class="msg gm-gm" style="">
+        <p>Player A moved D up</p>
+    </div>
+
+    <div speaker="Game Master: message" class="msg gm-gm" style="">
+        <p>Player A: Moving D up to its target at (R7,C1). A is already placed at (R8,C7). F will later move right along row 1 toward (R2,C8), so I’ll keep row 1 open. D’s final position shouldn’t block E’s left-side route; let me know if you need R7C1 or R8C1 for anything.</p>
+    </div>
+
+    <div speaker="GM (Game Master) to Player 2 (MatrixPlayer)" class="msg gm-player p2" style="">
+        <p>Player A says: Moving D up to its target at (R7,C1). A is already placed at (R8,C7). F will later move right along row 1 toward (R2,C8), so I’ll keep row 1 open. D’s final position shouldn’t block E’s left-side route; let me know if you need R7C1 or R8C1 for anything.<br/>Player B (you) says: C moving down to R5C5, then left to R5C4 and down to target R6C4. B is already at R3C4. E will later go up the left side via R5C1/R4C1/R4C3/R3C3/R2C3/R2C2 to R2C1, staying clear of row 1. Your D can move from R8C1 to R7C1 safely; E doesn’t need that cell. F’s row-1 route remains open.<br/><br/>CURRENT BOARD:<br/>Objects: X@R8C7 B@R3C4 C@R5C5 X@R7C1 E@R6C1 X@R1C2<br/>Walls: R2C5 R2C7 R3C1 R3C2 R3C5 R3C7 R4C4 R5C2 R5C6 R5C8 R6C2 R6C5 R6C6 R6C8 R7C2 R7C6 R7C8 R8C6 R8C8<br/><br/>GOAL BOARD:<br/>Targets: B-&gt;R3C4 C-&gt;R6C4 E-&gt;R2C1<br/><br/>Your turn. Respond with:<br/>message: &lt;your message to your teammate&gt;<br/>move: &lt;OBJECT&gt; &lt;DIRECTION&gt;<br/><br/>OR, if ALL your objects are at their target positions:<br/>message: done<br/>done: all my objects are placed</p>
+    </div>
+
+    <div speaker="Player 2 (MatrixPlayer) to GM (Game Master)" class="msg player-gm p2" style="">
+        <p>message: Moving C left to R5C4; next it goes down to R6C4. B is already at R3C4. My E will later head up through R5C1, R4C1, R4C2, R4C3, R3C3, R2C3, R2C2 to R2C1, so please keep those cells clear if possible. This move doesn’t touch row 1 or R7C1/R8C1, so your D and F paths should stay open.<br/>move: C left</p>
+    </div>
+
+    <div speaker="Game Master: move" class="msg gm-gm" style="">
+        <p>Player B moved C left</p>
+    </div>
+
+    <div speaker="Game Master: message" class="msg gm-gm" style="">
+        <p>Player B: Moving C left to R5C4; next it goes down to R6C4. B is already at R3C4. My E will later head up through R5C1, R4C1, R4C2, R4C3, R3C3, R2C3, R2C2 to R2C1, so please keep those cells clear if possible. This move doesn’t touch row 1 or R7C1/R8C1, so your D and F paths should stay open.</p>
+    </div>
+</div><div class="game-round" data-round="17">
+    <div speaker="GM (Game Master) to Player 1 (MatrixPlayer)" class="msg gm-player p1" style="">
+        <p>Player A (you) says: Moving D up to its target at (R7,C1). A is already placed at (R8,C7). F will later move right along row 1 toward (R2,C8), so I’ll keep row 1 open. D’s final position shouldn’t block E’s left-side route; let me know if you need R7C1 or R8C1 for anything.<br/>Player B says: Moving C left to R5C4; next it goes down to R6C4. B is already at R3C4. My E will later head up through R5C1, R4C1, R4C2, R4C3, R3C3, R2C3, R2C2 to R2C1, so please keep those cells clear if possible. This move doesn’t touch row 1 or R7C1/R8C1, so your D and F paths should stay open.<br/><br/>CURRENT BOARD:<br/>Objects: A@R8C7 X@R3C4 X@R5C4 D@R7C1 X@R6C1 F@R1C2<br/>Walls: R2C5 R2C7 R3C1 R3C2 R3C5 R3C7 R4C4 R5C2 R5C6 R5C8 R6C2 R6C5 R6C6 R6C8 R7C2 R7C6 R7C8 R8C6 R8C8<br/><br/>GOAL BOARD:<br/>Targets: A-&gt;R8C7 D-&gt;R7C1 F-&gt;R2C8<br/><br/>Your turn. Respond with:<br/>message: &lt;your message to your teammate&gt;<br/>move: &lt;OBJECT&gt; &lt;DIRECTION&gt;<br/><br/>OR, if ALL your objects are at their target positions:<br/>message: done<br/>done: all my objects are placed</p>
+    </div>
+
+    <div speaker="Player 1 (MatrixPlayer) to GM (Game Master)" class="msg player-gm p1" style="">
+        <p>message: A and D are already on target. I’m moving F right along row 1 toward R2C8; after reaching R1C8 I’ll go down. This keeps your E corridor via R5C1/R4C1/R4C2/R4C3/R3C3/R2C3/R2C2/R2C1 clear. Let me know if you need row 1 later, but F needs it now.<br/>move: F right</p>
+    </div>
+
+    <div speaker="Game Master: move" class="msg gm-gm" style="">
+        <p>Player A moved F right</p>
+    </div>
+
+    <div speaker="Game Master: message" class="msg gm-gm" style="">
+        <p>Player A: A and D are already on target. I’m moving F right along row 1 toward R2C8; after reaching R1C8 I’ll go down. This keeps your E corridor via R5C1/R4C1/R4C2/R4C3/R3C3/R2C3/R2C2/R2C1 clear. Let me know if you need row 1 later, but F needs it now.</p>
+    </div>
+
+    <div speaker="GM (Game Master) to Player 2 (MatrixPlayer)" class="msg gm-player p2" style="">
+        <p>Player A says: A and D are already on target. I’m moving F right along row 1 toward R2C8; after reaching R1C8 I’ll go down. This keeps your E corridor via R5C1/R4C1/R4C2/R4C3/R3C3/R2C3/R2C2/R2C1 clear. Let me know if you need row 1 later, but F needs it now.<br/>Player B (you) says: Moving C left to R5C4; next it goes down to R6C4. B is already at R3C4. My E will later head up through R5C1, R4C1, R4C2, R4C3, R3C3, R2C3, R2C2 to R2C1, so please keep those cells clear if possible. This move doesn’t touch row 1 or R7C1/R8C1, so your D and F paths should stay open.<br/><br/>CURRENT BOARD:<br/>Objects: X@R8C7 B@R3C4 C@R5C4 X@R7C1 E@R6C1 X@R1C3<br/>Walls: R2C5 R2C7 R3C1 R3C2 R3C5 R3C7 R4C4 R5C2 R5C6 R5C8 R6C2 R6C5 R6C6 R6C8 R7C2 R7C6 R7C8 R8C6 R8C8<br/><br/>GOAL BOARD:<br/>Targets: B-&gt;R3C4 C-&gt;R6C4 E-&gt;R2C1<br/><br/>Your turn. Respond with:<br/>message: &lt;your message to your teammate&gt;<br/>move: &lt;OBJECT&gt; &lt;DIRECTION&gt;<br/><br/>OR, if ALL your objects are at their target positions:<br/>message: done<br/>done: all my objects are placed</p>
+    </div>
+
+    <div speaker="Player 2 (MatrixPlayer) to GM (Game Master)" class="msg player-gm p2" style="">
+        <p>message: C is at R5C4 and I’m moving it down to R6C4, which is its target. B is already at R3C4. After this, E will start heading up via R5C1, R4C1, R4C2, R4C3, R3C3, R2C3, R2C2 to R2C1; please keep those cells clear if you can. This move doesn’t affect row 1 or R7C1/R8C1, so your F and D paths should stay open.<br/>move: C down</p>
+    </div>
+
+    <div speaker="Game Master: move" class="msg gm-gm" style="">
+        <p>Player B moved C down</p>
+    </div>
+
+    <div speaker="Game Master: message" class="msg gm-gm" style="">
+        <p>Player B: C is at R5C4 and I’m moving it down to R6C4, which is its target. B is already at R3C4. After this, E will start heading up via R5C1, R4C1, R4C2, R4C3, R3C3, R2C3, R2C2 to R2C1; please keep those cells clear if you can. This move doesn’t affect row 1 or R7C1/R8C1, so your F and D paths should stay open.</p>
+    </div>
+</div><div class="game-round" data-round="18">
+    <div speaker="GM (Game Master) to Player 1 (MatrixPlayer)" class="msg gm-player p1" style="">
+        <p>Player A (you) says: A and D are already on target. I’m moving F right along row 1 toward R2C8; after reaching R1C8 I’ll go down. This keeps your E corridor via R5C1/R4C1/R4C2/R4C3/R3C3/R2C3/R2C2/R2C1 clear. Let me know if you need row 1 later, but F needs it now.<br/>Player B says: C is at R5C4 and I’m moving it down to R6C4, which is its target. B is already at R3C4. After this, E will start heading up via R5C1, R4C1, R4C2, R4C3, R3C3, R2C3, R2C2 to R2C1; please keep those cells clear if you can. This move doesn’t affect row 1 or R7C1/R8C1, so your F and D paths should stay open.<br/><br/>CURRENT BOARD:<br/>Objects: A@R8C7 X@R3C4 X@R6C4 D@R7C1 X@R6C1 F@R1C3<br/>Walls: R2C5 R2C7 R3C1 R3C2 R3C5 R3C7 R4C4 R5C2 R5C6 R5C8 R6C2 R6C5 R6C6 R6C8 R7C2 R7C6 R7C8 R8C6 R8C8<br/><br/>GOAL BOARD:<br/>Targets: A-&gt;R8C7 D-&gt;R7C1 F-&gt;R2C8<br/><br/>Your turn. Respond with:<br/>message: &lt;your message to your teammate&gt;<br/>move: &lt;OBJECT&gt; &lt;DIRECTION&gt;<br/><br/>OR, if ALL your objects are at their target positions:<br/>message: done<br/>done: all my objects are placed</p>
+    </div>
+
+    <div speaker="Player 1 (MatrixPlayer) to GM (Game Master)" class="msg player-gm p1" style="">
+        <p>message: A and D are already on target. I’m moving F right along row 1 toward R1C8, then down to R2C8; this stays out of your E corridor. I’ll keep R5C1/R4C1/R4C2/R4C3/R3C3/R2C3/R2C2/R2C1 clear. Let me know if you need row 1 later, but F needs it now.<br/>move: F right</p>
+    </div>
+
+    <div speaker="Game Master: move" class="msg gm-gm" style="">
+        <p>Player A moved F right</p>
+    </div>
+
+    <div speaker="Game Master: message" class="msg gm-gm" style="">
+        <p>Player A: A and D are already on target. I’m moving F right along row 1 toward R1C8, then down to R2C8; this stays out of your E corridor. I’ll keep R5C1/R4C1/R4C2/R4C3/R3C3/R2C3/R2C2/R2C1 clear. Let me know if you need row 1 later, but F needs it now.</p>
+    </div>
+
+    <div speaker="GM (Game Master) to Player 2 (MatrixPlayer)" class="msg gm-player p2" style="">
+        <p>Player A says: A and D are already on target. I’m moving F right along row 1 toward R1C8, then down to R2C8; this stays out of your E corridor. I’ll keep R5C1/R4C1/R4C2/R4C3/R3C3/R2C3/R2C2/R2C1 clear. Let me know if you need row 1 later, but F needs it now.<br/>Player B (you) says: C is at R5C4 and I’m moving it down to R6C4, which is its target. B is already at R3C4. After this, E will start heading up via R5C1, R4C1, R4C2, R4C3, R3C3, R2C3, R2C2 to R2C1; please keep those cells clear if you can. This move doesn’t affect row 1 or R7C1/R8C1, so your F and D paths should stay open.<br/><br/>CURRENT BOARD:<br/>Objects: X@R8C7 B@R3C4 C@R6C4 X@R7C1 E@R6C1 X@R1C4<br/>Walls: R2C5 R2C7 R3C1 R3C2 R3C5 R3C7 R4C4 R5C2 R5C6 R5C8 R6C2 R6C5 R6C6 R6C8 R7C2 R7C6 R7C8 R8C6 R8C8<br/><br/>GOAL BOARD:<br/>Targets: B-&gt;R3C4 C-&gt;R6C4 E-&gt;R2C1<br/><br/>Your turn. Respond with:<br/>message: &lt;your message to your teammate&gt;<br/>move: &lt;OBJECT&gt; &lt;DIRECTION&gt;<br/><br/>OR, if ALL your objects are at their target positions:<br/>message: done<br/>done: all my objects are placed</p>
+    </div>
+
+    <div speaker="Player 2 (MatrixPlayer) to GM (Game Master)" class="msg player-gm p2" style="">
+        <p>message: B and C are already on target. I’m moving E up from R6C1, heading via R5C1, R4C1, R4C2, R4C3, R3C3, R2C3, R2C2 to R2C1. Could you keep those cells clear if possible? This path avoids row 1 and your F/D routes, so it shouldn’t conflict.<br/>move: E up</p>
+    </div>
+
+    <div speaker="Game Master: move" class="msg gm-gm" style="">
+        <p>Player B moved E up</p>
+    </div>
+
+    <div speaker="Game Master: message" class="msg gm-gm" style="">
+        <p>Player B: B and C are already on target. I’m moving E up from R6C1, heading via R5C1, R4C1, R4C2, R4C3, R3C3, R2C3, R2C2 to R2C1. Could you keep those cells clear if possible? This path avoids row 1 and your F/D routes, so it shouldn’t conflict.</p>
+    </div>
+</div><div class="game-round" data-round="19">
+    <div speaker="GM (Game Master) to Player 1 (MatrixPlayer)" class="msg gm-player p1" style="">
+        <p>Player A (you) says: A and D are already on target. I’m moving F right along row 1 toward R1C8, then down to R2C8; this stays out of your E corridor. I’ll keep R5C1/R4C1/R4C2/R4C3/R3C3/R2C3/R2C2/R2C1 clear. Let me know if you need row 1 later, but F needs it now.<br/>Player B says: B and C are already on target. I’m moving E up from R6C1, heading via R5C1, R4C1, R4C2, R4C3, R3C3, R2C3, R2C2 to R2C1. Could you keep those cells clear if possible? This path avoids row 1 and your F/D routes, so it shouldn’t conflict.<br/><br/>CURRENT BOARD:<br/>Objects: A@R8C7 X@R3C4 X@R6C4 D@R7C1 X@R5C1 F@R1C4<br/>Walls: R2C5 R2C7 R3C1 R3C2 R3C5 R3C7 R4C4 R5C2 R5C6 R5C8 R6C2 R6C5 R6C6 R6C8 R7C2 R7C6 R7C8 R8C6 R8C8<br/><br/>GOAL BOARD:<br/>Targets: A-&gt;R8C7 D-&gt;R7C1 F-&gt;R2C8<br/><br/>Your turn. Respond with:<br/>message: &lt;your message to your teammate&gt;<br/>move: &lt;OBJECT&gt; &lt;DIRECTION&gt;<br/><br/>OR, if ALL your objects are at their target positions:<br/>message: done<br/>done: all my objects are placed</p>
+    </div>
+
+    <div speaker="Player 1 (MatrixPlayer) to GM (Game Master)" class="msg player-gm p1" style="">
+        <p>message: A and D are on target. I&#x27;m moving F right along row 1 from (R1,C4) to (R1,C5), then toward (R1,C8) and down to (R2,C8). This avoids your E corridor; I&#x27;ll keep R5C1/R4C1/R4C2/R4C3/R3C3/R2C3/R2C2/R2C1 clear. Let me know if you need row 1 soon, since F will be crossing it next.<br/>move: F right</p>
+    </div>
+
+    <div speaker="Game Master: move" class="msg gm-gm" style="">
+        <p>Player A moved F right</p>
+    </div>
+
+    <div speaker="Game Master: message" class="msg gm-gm" style="">
+        <p>Player A: A and D are on target. I&#x27;m moving F right along row 1 from (R1,C4) to (R1,C5), then toward (R1,C8) and down to (R2,C8). This avoids your E corridor; I&#x27;ll keep R5C1/R4C1/R4C2/R4C3/R3C3/R2C3/R2C2/R2C1 clear. Let me know if you need row 1 soon, since F will be crossing it next.</p>
+    </div>
+
+    <div speaker="GM (Game Master) to Player 2 (MatrixPlayer)" class="msg gm-player p2" style="">
+        <p>Player A says: A and D are on target. I&#x27;m moving F right along row 1 from (R1,C4) to (R1,C5), then toward (R1,C8) and down to (R2,C8). This avoids your E corridor; I&#x27;ll keep R5C1/R4C1/R4C2/R4C3/R3C3/R2C3/R2C2/R2C1 clear. Let me know if you need row 1 soon, since F will be crossing it next.<br/>Player B (you) says: B and C are already on target. I’m moving E up from R6C1, heading via R5C1, R4C1, R4C2, R4C3, R3C3, R2C3, R2C2 to R2C1. Could you keep those cells clear if possible? This path avoids row 1 and your F/D routes, so it shouldn’t conflict.<br/><br/>CURRENT BOARD:<br/>Objects: X@R8C7 B@R3C4 C@R6C4 X@R7C1 E@R5C1 X@R1C5<br/>Walls: R2C5 R2C7 R3C1 R3C2 R3C5 R3C7 R4C4 R5C2 R5C6 R5C8 R6C2 R6C5 R6C6 R6C8 R7C2 R7C6 R7C8 R8C6 R8C8<br/><br/>GOAL BOARD:<br/>Targets: B-&gt;R3C4 C-&gt;R6C4 E-&gt;R2C1<br/><br/>Your turn. Respond with:<br/>message: &lt;your message to your teammate&gt;<br/>move: &lt;OBJECT&gt; &lt;DIRECTION&gt;<br/><br/>OR, if ALL your objects are at their target positions:<br/>message: done<br/>done: all my objects are placed</p>
+    </div>
+
+    <div speaker="Player 2 (MatrixPlayer) to GM (Game Master)" class="msg player-gm p2" style="">
+        <p>message: B and C are on target. E is at R5C1; I’m moving it up to R4C1, then via R4C2/R4C3/R3C3/R2C3/R2C2 to R2C1 as planned. Please keep those cells clear as you can. I see F at R1C5 heading along row 1; my path stays below row 1, so no conflict. Let me know if you need row 1 before F crosses.<br/>move: E up</p>
+    </div>
+
+    <div speaker="Game Master: move" class="msg gm-gm" style="">
+        <p>Player B moved E up</p>
+    </div>
+
+    <div speaker="Game Master: message" class="msg gm-gm" style="">
+        <p>Player B: B and C are on target. E is at R5C1; I’m moving it up to R4C1, then via R4C2/R4C3/R3C3/R2C3/R2C2 to R2C1 as planned. Please keep those cells clear as you can. I see F at R1C5 heading along row 1; my path stays below row 1, so no conflict. Let me know if you need row 1 before F crosses.</p>
+    </div>
+</div><div class="game-round" data-round="20">
+    <div speaker="GM (Game Master) to Player 1 (MatrixPlayer)" class="msg gm-player p1" style="">
+        <p>Player A (you) says: A and D are on target. I&#x27;m moving F right along row 1 from (R1,C4) to (R1,C5), then toward (R1,C8) and down to (R2,C8). This avoids your E corridor; I&#x27;ll keep R5C1/R4C1/R4C2/R4C3/R3C3/R2C3/R2C2/R2C1 clear. Let me know if you need row 1 soon, since F will be crossing it next.<br/>Player B says: B and C are on target. E is at R5C1; I’m moving it up to R4C1, then via R4C2/R4C3/R3C3/R2C3/R2C2 to R2C1 as planned. Please keep those cells clear as you can. I see F at R1C5 heading along row 1; my path stays below row 1, so no conflict. Let me know if you need row 1 before F crosses.<br/><br/>CURRENT BOARD:<br/>Objects: A@R8C7 X@R3C4 X@R6C4 D@R7C1 X@R4C1 F@R1C5<br/>Walls: R2C5 R2C7 R3C1 R3C2 R3C5 R3C7 R4C4 R5C2 R5C6 R5C8 R6C2 R6C5 R6C6 R6C8 R7C2 R7C6 R7C8 R8C6 R8C8<br/><br/>GOAL BOARD:<br/>Targets: A-&gt;R8C7 D-&gt;R7C1 F-&gt;R2C8<br/><br/>Your turn. Respond with:<br/>message: &lt;your message to your teammate&gt;<br/>move: &lt;OBJECT&gt; &lt;DIRECTION&gt;<br/><br/>OR, if ALL your objects are at their target positions:<br/>message: done<br/>done: all my objects are placed</p>
+    </div>
+
+    <div speaker="Player 1 (MatrixPlayer) to GM (Game Master)" class="msg player-gm p1" style="">
+        <p>message: A and D are already on target. I’m moving F right along row 1 toward (R1,C8), then down to (R2,C8). I see your E at (R4,C1); my path stays above row 2, so I won’t block your corridor through R4C2/R4C3/R3C3/R2C3/R2C2/R2C1. Let me know if you need row 1 after I pass.<br/>move: F right</p>
+    </div>
+
+    <div speaker="Game Master: move" class="msg gm-gm" style="">
+        <p>Player A moved F right</p>
+    </div>
+
+    <div speaker="Game Master: message" class="msg gm-gm" style="">
+        <p>Player A: A and D are already on target. I’m moving F right along row 1 toward (R1,C8), then down to (R2,C8). I see your E at (R4,C1); my path stays above row 2, so I won’t block your corridor through R4C2/R4C3/R3C3/R2C3/R2C2/R2C1. Let me know if you need row 1 after I pass.</p>
+    </div>
+
+    <div speaker="GM (Game Master) to Player 2 (MatrixPlayer)" class="msg gm-player p2" style="">
+        <p>Player A says: A and D are already on target. I’m moving F right along row 1 toward (R1,C8), then down to (R2,C8). I see your E at (R4,C1); my path stays above row 2, so I won’t block your corridor through R4C2/R4C3/R3C3/R2C3/R2C2/R2C1. Let me know if you need row 1 after I pass.<br/>Player B (you) says: B and C are on target. E is at R5C1; I’m moving it up to R4C1, then via R4C2/R4C3/R3C3/R2C3/R2C2 to R2C1 as planned. Please keep those cells clear as you can. I see F at R1C5 heading along row 1; my path stays below row 1, so no conflict. Let me know if you need row 1 before F crosses.<br/><br/>CURRENT BOARD:<br/>Objects: X@R8C7 B@R3C4 C@R6C4 X@R7C1 E@R4C1 X@R1C6<br/>Walls: R2C5 R2C7 R3C1 R3C2 R3C5 R3C7 R4C4 R5C2 R5C6 R5C8 R6C2 R6C5 R6C6 R6C8 R7C2 R7C6 R7C8 R8C6 R8C8<br/><br/>GOAL BOARD:<br/>Targets: B-&gt;R3C4 C-&gt;R6C4 E-&gt;R2C1<br/><br/>Your turn. Respond with:<br/>message: &lt;your message to your teammate&gt;<br/>move: &lt;OBJECT&gt; &lt;DIRECTION&gt;<br/><br/>OR, if ALL your objects are at their target positions:<br/>message: done<br/>done: all my objects are placed</p>
+    </div>
+
+    <div speaker="Player 2 (MatrixPlayer) to GM (Game Master)" class="msg player-gm p2" style="">
+        <p>message: E is at R4C1 and I’m starting the planned corridor: E right to R4C2, then R4C3/R3C3/R2C3/R2C2/R2C1. Please keep those cells clear if possible. I see F heading along row 1; my route stays below row 1, so no conflict. B and C are already on target. Let me know if you need any cells I’m stepping through.<br/>move: E right</p>
+    </div>
+
+    <div speaker="Game Master: move" class="msg gm-gm" style="">
+        <p>Player B moved E right</p>
+    </div>
+
+    <div speaker="Game Master: message" class="msg gm-gm" style="">
+        <p>Player B: E is at R4C1 and I’m starting the planned corridor: E right to R4C2, then R4C3/R3C3/R2C3/R2C2/R2C1. Please keep those cells clear if possible. I see F heading along row 1; my route stays below row 1, so no conflict. B and C are already on target. Let me know if you need any cells I’m stepping through.</p>
+    </div>
+</div><div class="game-round" data-round="21">
+    <div speaker="GM (Game Master) to Player 1 (MatrixPlayer)" class="msg gm-player p1" style="">
+        <p>Player A (you) says: A and D are already on target. I’m moving F right along row 1 toward (R1,C8), then down to (R2,C8). I see your E at (R4,C1); my path stays above row 2, so I won’t block your corridor through R4C2/R4C3/R3C3/R2C3/R2C2/R2C1. Let me know if you need row 1 after I pass.<br/>Player B says: E is at R4C1 and I’m starting the planned corridor: E right to R4C2, then R4C3/R3C3/R2C3/R2C2/R2C1. Please keep those cells clear if possible. I see F heading along row 1; my route stays below row 1, so no conflict. B and C are already on target. Let me know if you need any cells I’m stepping through.<br/><br/>CURRENT BOARD:<br/>Objects: A@R8C7 X@R3C4 X@R6C4 D@R7C1 X@R4C2 F@R1C6<br/>Walls: R2C5 R2C7 R3C1 R3C2 R3C5 R3C7 R4C4 R5C2 R5C6 R5C8 R6C2 R6C5 R6C6 R6C8 R7C2 R7C6 R7C8 R8C6 R8C8<br/><br/>GOAL BOARD:<br/>Targets: A-&gt;R8C7 D-&gt;R7C1 F-&gt;R2C8<br/><br/>Your turn. Respond with:<br/>message: &lt;your message to your teammate&gt;<br/>move: &lt;OBJECT&gt; &lt;DIRECTION&gt;<br/><br/>OR, if ALL your objects are at their target positions:<br/>message: done<br/>done: all my objects are placed</p>
+    </div>
+
+    <div speaker="Player 1 (MatrixPlayer) to GM (Game Master)" class="msg player-gm p1" style="">
+        <p>message: F continues right along row 1 toward R1C8, then down to target R2C8. I see your E is now at R4C2; my path stays on row 1 and only uses R2C8 at the end, so your corridor through R4C3/R3C3/R2C3/R2C2/R2C1 remains clear. Let me know if you need any of those cells later.<br/>move: F right</p>
+    </div>
+
+    <div speaker="Game Master: move" class="msg gm-gm" style="">
+        <p>Player A moved F right</p>
+    </div>
+
+    <div speaker="Game Master: message" class="msg gm-gm" style="">
+        <p>Player A: F continues right along row 1 toward R1C8, then down to target R2C8. I see your E is now at R4C2; my path stays on row 1 and only uses R2C8 at the end, so your corridor through R4C3/R3C3/R2C3/R2C2/R2C1 remains clear. Let me know if you need any of those cells later.</p>
+    </div>
+
+    <div speaker="GM (Game Master) to Player 2 (MatrixPlayer)" class="msg gm-player p2" style="">
+        <p>Player A says: F continues right along row 1 toward R1C8, then down to target R2C8. I see your E is now at R4C2; my path stays on row 1 and only uses R2C8 at the end, so your corridor through R4C3/R3C3/R2C3/R2C2/R2C1 remains clear. Let me know if you need any of those cells later.<br/>Player B (you) says: E is at R4C1 and I’m starting the planned corridor: E right to R4C2, then R4C3/R3C3/R2C3/R2C2/R2C1. Please keep those cells clear if possible. I see F heading along row 1; my route stays below row 1, so no conflict. B and C are already on target. Let me know if you need any cells I’m stepping through.<br/><br/>CURRENT BOARD:<br/>Objects: X@R8C7 B@R3C4 C@R6C4 X@R7C1 E@R4C2 X@R1C7<br/>Walls: R2C5 R2C7 R3C1 R3C2 R3C5 R3C7 R4C4 R5C2 R5C6 R5C8 R6C2 R6C5 R6C6 R6C8 R7C2 R7C6 R7C8 R8C6 R8C8<br/><br/>GOAL BOARD:<br/>Targets: B-&gt;R3C4 C-&gt;R6C4 E-&gt;R2C1<br/><br/>Your turn. Respond with:<br/>message: &lt;your message to your teammate&gt;<br/>move: &lt;OBJECT&gt; &lt;DIRECTION&gt;<br/><br/>OR, if ALL your objects are at their target positions:<br/>message: done<br/>done: all my objects are placed</p>
+    </div>
+
+    <div speaker="Player 2 (MatrixPlayer) to GM (Game Master)" class="msg player-gm p2" style="">
+        <p>message: E is at R4C2, moving right to R4C3 as planned. Continuing corridor R3C3, R2C3, R2C2, R2C1. I’ll keep clear of row 1 and R2C8 for F. B and C are already on target. My path only uses R4C3/R3C3/R2C3/R2C2/R2C1; let me know if you need any of those later.<br/>move: E right</p>
+    </div>
+
+    <div speaker="Game Master: move" class="msg gm-gm" style="">
+        <p>Player B moved E right</p>
+    </div>
+
+    <div speaker="Game Master: message" class="msg gm-gm" style="">
+        <p>Player B: E is at R4C2, moving right to R4C3 as planned. Continuing corridor R3C3, R2C3, R2C2, R2C1. I’ll keep clear of row 1 and R2C8 for F. B and C are already on target. My path only uses R4C3/R3C3/R2C3/R2C2/R2C1; let me know if you need any of those later.</p>
+    </div>
+</div><div class="game-round" data-round="22">
+    <div speaker="GM (Game Master) to Player 1 (MatrixPlayer)" class="msg gm-player p1" style="">
+        <p>Player A (you) says: F continues right along row 1 toward R1C8, then down to target R2C8. I see your E is now at R4C2; my path stays on row 1 and only uses R2C8 at the end, so your corridor through R4C3/R3C3/R2C3/R2C2/R2C1 remains clear. Let me know if you need any of those cells later.<br/>Player B says: E is at R4C2, moving right to R4C3 as planned. Continuing corridor R3C3, R2C3, R2C2, R2C1. I’ll keep clear of row 1 and R2C8 for F. B and C are already on target. My path only uses R4C3/R3C3/R2C3/R2C2/R2C1; let me know if you need any of those later.<br/><br/>CURRENT BOARD:<br/>Objects: A@R8C7 X@R3C4 X@R6C4 D@R7C1 X@R4C3 F@R1C7<br/>Walls: R2C5 R2C7 R3C1 R3C2 R3C5 R3C7 R4C4 R5C2 R5C6 R5C8 R6C2 R6C5 R6C6 R6C8 R7C2 R7C6 R7C8 R8C6 R8C8<br/><br/>GOAL BOARD:<br/>Targets: A-&gt;R8C7 D-&gt;R7C1 F-&gt;R2C8<br/><br/>Your turn. Respond with:<br/>message: &lt;your message to your teammate&gt;<br/>move: &lt;OBJECT&gt; &lt;DIRECTION&gt;<br/><br/>OR, if ALL your objects are at their target positions:<br/>message: done<br/>done: all my objects are placed</p>
+    </div>
+
+    <div speaker="Player 1 (MatrixPlayer) to GM (Game Master)" class="msg player-gm p1" style="">
+        <p>message: F continues right to R1C8 then down to R2C8 target. A and D are already on their targets. Your E at R4C3 looks on plan; I don’t need R4C3/R3C3/R2C3/R2C2/R2C1. Row 1 and R2C8 are clear for F. Let me know if you need anything.<br/>move: F right</p>
+    </div>
+
+    <div speaker="Game Master: move" class="msg gm-gm" style="">
+        <p>Player A moved F right</p>
+    </div>
+
+    <div speaker="Game Master: message" class="msg gm-gm" style="">
+        <p>Player A: F continues right to R1C8 then down to R2C8 target. A and D are already on their targets. Your E at R4C3 looks on plan; I don’t need R4C3/R3C3/R2C3/R2C2/R2C1. Row 1 and R2C8 are clear for F. Let me know if you need anything.</p>
+    </div>
+
+    <div speaker="GM (Game Master) to Player 2 (MatrixPlayer)" class="msg gm-player p2" style="">
+        <p>Player A says: F continues right to R1C8 then down to R2C8 target. A and D are already on their targets. Your E at R4C3 looks on plan; I don’t need R4C3/R3C3/R2C3/R2C2/R2C1. Row 1 and R2C8 are clear for F. Let me know if you need anything.<br/>Player B (you) says: E is at R4C2, moving right to R4C3 as planned. Continuing corridor R3C3, R2C3, R2C2, R2C1. I’ll keep clear of row 1 and R2C8 for F. B and C are already on target. My path only uses R4C3/R3C3/R2C3/R2C2/R2C1; let me know if you need any of those later.<br/><br/>CURRENT BOARD:<br/>Objects: X@R8C7 B@R3C4 C@R6C4 X@R7C1 E@R4C3 X@R1C8<br/>Walls: R2C5 R2C7 R3C1 R3C2 R3C5 R3C7 R4C4 R5C2 R5C6 R5C8 R6C2 R6C5 R6C6 R6C8 R7C2 R7C6 R7C8 R8C6 R8C8<br/><br/>GOAL BOARD:<br/>Targets: B-&gt;R3C4 C-&gt;R6C4 E-&gt;R2C1<br/><br/>Your turn. Respond with:<br/>message: &lt;your message to your teammate&gt;<br/>move: &lt;OBJECT&gt; &lt;DIRECTION&gt;<br/><br/>OR, if ALL your objects are at their target positions:<br/>message: done<br/>done: all my objects are placed</p>
+    </div>
+
+    <div speaker="Player 2 (MatrixPlayer) to GM (Game Master)" class="msg player-gm p2" style="">
+        <p>message: E continues up to R3C3, then R2C3, R2C2, R2C1. B and C are already on target. I’ll keep clear of row 1 and R2C8 so F can finish. Let me know if you need any cells on my path later.<br/>move: E up</p>
+    </div>
+
+    <div speaker="Game Master: move" class="msg gm-gm" style="">
+        <p>Player B moved E up</p>
+    </div>
+
+    <div speaker="Game Master: message" class="msg gm-gm" style="">
+        <p>Player B: E continues up to R3C3, then R2C3, R2C2, R2C1. B and C are already on target. I’ll keep clear of row 1 and R2C8 so F can finish. Let me know if you need any cells on my path later.</p>
+    </div>
+</div><div class="game-round" data-round="23">
+    <div speaker="GM (Game Master) to Player 1 (MatrixPlayer)" class="msg gm-player p1" style="">
+        <p>Player A (you) says: F continues right to R1C8 then down to R2C8 target. A and D are already on their targets. Your E at R4C3 looks on plan; I don’t need R4C3/R3C3/R2C3/R2C2/R2C1. Row 1 and R2C8 are clear for F. Let me know if you need anything.<br/>Player B says: E continues up to R3C3, then R2C3, R2C2, R2C1. B and C are already on target. I’ll keep clear of row 1 and R2C8 so F can finish. Let me know if you need any cells on my path later.<br/><br/>CURRENT BOARD:<br/>Objects: A@R8C7 X@R3C4 X@R6C4 D@R7C1 X@R3C3 F@R1C8<br/>Walls: R2C5 R2C7 R3C1 R3C2 R3C5 R3C7 R4C4 R5C2 R5C6 R5C8 R6C2 R6C5 R6C6 R6C8 R7C2 R7C6 R7C8 R8C6 R8C8<br/><br/>GOAL BOARD:<br/>Targets: A-&gt;R8C7 D-&gt;R7C1 F-&gt;R2C8<br/><br/>Your turn. Respond with:<br/>message: &lt;your message to your teammate&gt;<br/>move: &lt;OBJECT&gt; &lt;DIRECTION&gt;<br/><br/>OR, if ALL your objects are at their target positions:<br/>message: done<br/>done: all my objects are placed</p>
+    </div>
+
+    <div speaker="Player 1 (MatrixPlayer) to GM (Game Master)" class="msg player-gm p1" style="">
+        <p>message: F is at R1C8 and I’m moving it down to its target at R2C8. A and D are already placed. I’ll keep clear of E’s path up the left side. Thanks for keeping row 1 and R2C8 open.<br/>move: F down</p>
+    </div>
+
+    <div speaker="Game Master: move" class="msg gm-gm" style="">
+        <p>Player A moved F down</p>
+    </div>
+
+    <div speaker="Game Master: message" class="msg gm-gm" style="">
+        <p>Player A: F is at R1C8 and I’m moving it down to its target at R2C8. A and D are already placed. I’ll keep clear of E’s path up the left side. Thanks for keeping row 1 and R2C8 open.</p>
+    </div>
+
+    <div speaker="GM (Game Master) to Player 2 (MatrixPlayer)" class="msg gm-player p2" style="">
+        <p>Player A says: F is at R1C8 and I’m moving it down to its target at R2C8. A and D are already placed. I’ll keep clear of E’s path up the left side. Thanks for keeping row 1 and R2C8 open.<br/>Player B (you) says: E continues up to R3C3, then R2C3, R2C2, R2C1. B and C are already on target. I’ll keep clear of row 1 and R2C8 so F can finish. Let me know if you need any cells on my path later.<br/><br/>CURRENT BOARD:<br/>Objects: X@R8C7 B@R3C4 C@R6C4 X@R7C1 E@R3C3 X@R2C8<br/>Walls: R2C5 R2C7 R3C1 R3C2 R3C5 R3C7 R4C4 R5C2 R5C6 R5C8 R6C2 R6C5 R6C6 R6C8 R7C2 R7C6 R7C8 R8C6 R8C8<br/><br/>GOAL BOARD:<br/>Targets: B-&gt;R3C4 C-&gt;R6C4 E-&gt;R2C1<br/><br/>Your turn. Respond with:<br/>message: &lt;your message to your teammate&gt;<br/>move: &lt;OBJECT&gt; &lt;DIRECTION&gt;<br/><br/>OR, if ALL your objects are at their target positions:<br/>message: done<br/>done: all my objects are placed</p>
+    </div>
+
+    <div speaker="Player 2 (MatrixPlayer) to GM (Game Master)" class="msg player-gm p2" style="">
+        <p>message: E is at R3C3; moving it up to R2C3, then left through R2C2 to R2C1. B and C are already on target. I’ll keep row 1 and R2C8 clear for F. Let me know if you need anything else on row 2 besides R2C3/R2C2.<br/>move: E up</p>
+    </div>
+
+    <div speaker="Game Master: move" class="msg gm-gm" style="">
+        <p>Player B moved E up</p>
+    </div>
+
+    <div speaker="Game Master: message" class="msg gm-gm" style="">
+        <p>Player B: E is at R3C3; moving it up to R2C3, then left through R2C2 to R2C1. B and C are already on target. I’ll keep row 1 and R2C8 clear for F. Let me know if you need anything else on row 2 besides R2C3/R2C2.</p>
+    </div>
+</div><div class="game-round" data-round="24">
+    <div speaker="GM (Game Master) to Player 1 (MatrixPlayer)" class="msg gm-player p1" style="">
+        <p>Player A (you) says: F is at R1C8 and I’m moving it down to its target at R2C8. A and D are already placed. I’ll keep clear of E’s path up the left side. Thanks for keeping row 1 and R2C8 open.<br/>Player B says: E is at R3C3; moving it up to R2C3, then left through R2C2 to R2C1. B and C are already on target. I’ll keep row 1 and R2C8 clear for F. Let me know if you need anything else on row 2 besides R2C3/R2C2.<br/><br/>CURRENT BOARD:<br/>Objects: A@R8C7 X@R3C4 X@R6C4 D@R7C1 X@R2C3 F@R2C8<br/>Walls: R2C5 R2C7 R3C1 R3C2 R3C5 R3C7 R4C4 R5C2 R5C6 R5C8 R6C2 R6C5 R6C6 R6C8 R7C2 R7C6 R7C8 R8C6 R8C8<br/><br/>GOAL BOARD:<br/>Targets: A-&gt;R8C7 D-&gt;R7C1 F-&gt;R2C8<br/><br/>Your turn. Respond with:<br/>message: &lt;your message to your teammate&gt;<br/>move: &lt;OBJECT&gt; &lt;DIRECTION&gt;<br/><br/>OR, if ALL your objects are at their target positions:<br/>message: done<br/>done: all my objects are placed</p>
+    </div>
+
+    <div speaker="Player 1 (MatrixPlayer) to GM (Game Master)" class="msg player-gm p1" style="">
+        <p>message: done<br/>done: all my objects are placed</p>
+    </div>
+
+    <div speaker="Game Master: player_done" class="msg gm-gm" style="">
+        <p>Player A declared done</p>
+    </div>
+
+    <div speaker="Game Master: message" class="msg gm-gm" style="">
+        <p>Player A: done</p>
+    </div>
+
+    <div speaker="GM (Game Master) to Player 2 (MatrixPlayer)" class="msg gm-player p2" style="">
+        <p>Player A says: done<br/>Player B (you) says: E is at R3C3; moving it up to R2C3, then left through R2C2 to R2C1. B and C are already on target. I’ll keep row 1 and R2C8 clear for F. Let me know if you need anything else on row 2 besides R2C3/R2C2.<br/><br/>Player A has finished. All their objects are at their target positions. Continue alone until all objects are placed.<br/><br/>CURRENT BOARD:<br/>Objects: X@R8C7 B@R3C4 C@R6C4 X@R7C1 E@R2C3 X@R2C8<br/>Walls: R2C5 R2C7 R3C1 R3C2 R3C5 R3C7 R4C4 R5C2 R5C6 R5C8 R6C2 R6C5 R6C6 R6C8 R7C2 R7C6 R7C8 R8C6 R8C8<br/><br/>GOAL BOARD:<br/>Targets: B-&gt;R3C4 C-&gt;R6C4 E-&gt;R2C1<br/><br/>Your turn. Respond with:<br/>message: &lt;your message to your teammate&gt;<br/>move: &lt;OBJECT&gt; &lt;DIRECTION&gt;<br/><br/>OR, if ALL your objects are at their target positions:<br/>message: done<br/>done: all my objects are placed</p>
+    </div>
+
+    <div speaker="Player 2 (MatrixPlayer) to GM (Game Master)" class="msg player-gm p2" style="">
+        <p>message: B and C are already on target. I’m moving E left from R2C3 to R2C2; next I’ll move it to R2C1. No conflict with your objects. <br/>move: E left</p>
+    </div>
+
+    <div speaker="Game Master: move" class="msg gm-gm" style="">
+        <p>Player B moved E left</p>
+    </div>
+
+    <div speaker="Game Master: message" class="msg gm-gm" style="">
+        <p>Player B: B and C are already on target. I’m moving E left from R2C3 to R2C2; next I’ll move it to R2C1. No conflict with your objects.</p>
+    </div>
+
+    <div speaker="GM (Game Master) to Player 2 (MatrixPlayer)" class="msg gm-player p2" style="">
+        <p>Player A says: done<br/>Player B (you) says: B and C are already on target. I’m moving E left from R2C3 to R2C2; next I’ll move it to R2C1. No conflict with your objects.<br/><br/>Your teammate has finished. Continue placing your remaining objects alone.<br/><br/>CURRENT BOARD:<br/>Objects: X@R8C7 B@R3C4 C@R6C4 X@R7C1 E@R2C2 X@R2C8<br/>Walls: R2C5 R2C7 R3C1 R3C2 R3C5 R3C7 R4C4 R5C2 R5C6 R5C8 R6C2 R6C5 R6C6 R6C8 R7C2 R7C6 R7C8 R8C6 R8C8<br/><br/>GOAL BOARD:<br/>Targets: B-&gt;R3C4 C-&gt;R6C4 E-&gt;R2C1<br/><br/>Your turn. Respond with:<br/>message: &lt;your message to your teammate&gt;<br/>move: &lt;OBJECT&gt; &lt;DIRECTION&gt;<br/><br/>OR, if ALL your objects are at their target positions:<br/>message: done<br/>done: all my objects are placed</p>
+    </div>
+
+    <div speaker="Player 2 (MatrixPlayer) to GM (Game Master)" class="msg player-gm p2" style="">
+        <p>message: B and C are already on target. I’m moving E left into R2C1, its final target. No conflicts with your objects.<br/>move: E left</p>
+    </div>
+
+    <div speaker="Game Master: move" class="msg gm-gm" style="">
+        <p>Player B moved E left</p>
+    </div>
+
+    <div speaker="Game Master: message" class="msg gm-gm" style="">
+        <p>Player B: B and C are already on target. I’m moving E left into R2C1, its final target. No conflicts with your objects.</p>
+    </div>
+
+    <div speaker="Game Master: success" class="msg gm-gm" style="">
+        <p>All objects have reached their target positions!</p>
+    </div>
+</div>
+</div>
+
+</body>
+</html>
