@@ -359,11 +359,19 @@ class NPlayerMatrixGameMaster(DialogueGameMaster):
 
     def _render_for(self, player: Player) -> str:
         visible = self._objects_for(player) if self.use_masking else None
-        return self.board.render_compact(visible_objects=visible)
+        if self.compact_board:
+            return self.board.render_compact(visible_objects=visible)
+        if visible is not None:
+            return self.board.render_for_player(visible)
+        return self.board.render()
 
     def _render_targets_for(self, player: Player) -> str:
         visible = self._objects_for(player) if self.use_masking else None
-        return self.board.render_targets_compact(visible_objects=visible)
+        if self.compact_board:
+            return self.board.render_targets_compact(visible_objects=visible)
+        if visible is not None:
+            return self.board.render_targets_for_player(visible)
+        return self.board.render_targets()
 
     def _masked_move_message(self, player: Player) -> str:
         """Targeted redirect for a player that tried to move a masked ('X')

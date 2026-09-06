@@ -65,9 +65,11 @@ class MatrixGameInstanceGenerator(GameInstanceGenerator):
 
         num_instances = kwargs.get("num_instances", 8)
 
+        # Rendering suffix. This package ships compact-only variants; the grid
+        # twin (matrixgame_covered_comm_grid) reuses this generator with
+        # compact_board=false and its own templates.
         experiment_name = f"{spatial_level}_{comm_protocol}"
-        if compact_board:
-            experiment_name += "_compact"
+        experiment_name += "_compact" if compact_board else "_grid"
 
         experiment = self.add_experiment(experiment_name)
         experiment["common_config"] = common_config

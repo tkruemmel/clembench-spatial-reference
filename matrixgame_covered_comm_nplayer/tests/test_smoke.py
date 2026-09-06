@@ -958,6 +958,37 @@ def test_clemgame_json_has_both_entries():
         assert e["main_game"] == "matrixgame_covered_comm_nplayer"
 
 
+def test_render_uses_ascii_grid_when_compact_board_false():
+    """compact_board=false instances (the *_grid packages) must be sent the ASCII
+    grid: masked teammates as X, walls as ##, and no inventory listing."""
+    from master import NPlayerMatrixGameMaster
+    instance = _make_game_instance(num_players=3)
+    instance["compact_board"] = False
+    instance["walls"] = [[4, 4]]
+    master = NPlayerMatrixGameMaster(
+        game_spec=_make_game_spec(num_players=3),
+        experiment={"variant_config": {"comm_protocol": instance["comm_protocol"]}},
+        player_models=[_DummyModel(f"m{i}") for i in range(3)],
+    )
+    master._on_setup(**instance)
+    player = master.get_players()[0]
+
+    board = master._render_for(player)
+    assert "Objects:" not in board
+    assert "C1" in board and "+----+" in board, "expected the boxed grid header"
+    assert "| ## |" in board, "walls must render as ##"
+    assert "| X  |" in board, "teammates' objects must be masked as X on the grid"
+    assert "| A  |" in board and "| B  |" in board, "own objects keep their letters"
+
+    goal = master._render_targets_for(player)
+    assert "Targets:" not in goal
+    assert "+----+" in goal
+    assert "X" not in goal, "teammates' targets are omitted, never masked"
+    assert "| A  |" in goal and "| B  |" in goal
+    for other in "CDEF":
+        assert f"| {other}  |" not in goal, f"teammate target {other} must be omitted"
+
+
 def _setup_lone_player_master(comm_protocol="none"):
     """3p master where Players B and C have already declared done, leaving
     Player A to finish alone. Returns (master, player_a)."""
