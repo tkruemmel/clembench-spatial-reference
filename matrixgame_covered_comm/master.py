@@ -189,7 +189,11 @@ def _parse_response(response: str, with_message: bool) -> Optional[Dict[str, str
             result["message"] = match.group("message").strip()
         return result
 
-    # Try done pattern
+    # Try done pattern. Under a messaging protocol the canonical form is
+    # "message: done" + "done: ...", but a bare "done: ..." line is accepted too:
+    # a done declaration ends the player's participation and its message part
+    # carries no information, so rejecting the bare form only produced format
+    # errors for players who followed the DONE OPTION text literally.
     done_pattern = COMM_DONE_PATTERN if with_message else DONE_ONLY_PATTERN
     match = done_pattern.match(response)
     if match:
@@ -199,6 +203,10 @@ def _parse_response(response: str, with_message: bool) -> Optional[Dict[str, str
         if with_message:
             result["message"] = match.group("message").strip()
         return result
+    if with_message:
+        match = DONE_ONLY_PATTERN.match(response)
+        if match:
+            return {"is_done": True}
 
     return None
 
@@ -422,6 +430,13 @@ class MatrixGameMaster(DialogueGameMaster):
             self.lost = True
             self.log_to_self("lose", f"Max turns ({self.max_turns}) reached without success")
             return False
+        if self.player_a_done and self.player_b_done:
+            # Structurally unreachable (the last done triggers success when the
+            # board is solved); defensive stop so the game can never cycle
+            # through done players.
+            self.lost = True
+            self.log_to_self("lose", "All players declared done but the board is not solved")
+            return False
         return True
 
     def _validate_player_response(self, player: Player, response: str) -> bool:
@@ -473,6 +488,9 @@ class MatrixGameMaster(DialogueGameMaster):
             self.parsed_request_counts += 1
             self.current_parsed = parsed
             self.reprompt_attempts = 0
+            # A valid done ends this player's participation; clear any pending
+            # reprompt so the turn passes instead of re-asking the done player.
+            self.reprompt_pending = False
             return True
 
         # Structured & hybrid protocols prescribe a message schema (structure +

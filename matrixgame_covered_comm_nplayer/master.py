@@ -187,7 +187,11 @@ def _parse_response(response: str, with_message: bool) -> Optional[Dict[str, str
             result["message"] = match.group("message").strip()
         return result
 
-    # Try done pattern
+    # Try done pattern. Under a messaging protocol the canonical form is
+    # "message: done" + "done: ...", but a bare "done: ..." line is accepted too:
+    # a done declaration ends the player's participation and its message part
+    # carries no information, so rejecting the bare form only produced format
+    # errors for players who followed the DONE OPTION text literally.
     done_pattern = COMM_DONE_PATTERN if with_message else DONE_ONLY_PATTERN
     match = done_pattern.match(response)
     if match:
@@ -197,6 +201,10 @@ def _parse_response(response: str, with_message: bool) -> Optional[Dict[str, str
         if with_message:
             result["message"] = match.group("message").strip()
         return result
+    if with_message:
+        match = DONE_ONLY_PATTERN.match(response)
+        if match:
+            return {"is_done": True}
 
     return None
 
@@ -399,6 +407,13 @@ class NPlayerMatrixGameMaster(DialogueGameMaster):
             self.lost = True
             self.log_to_self("lose", f"Max turns ({self.max_turns}) reached without success")
             return False
+        if all(self.player_done):
+            # Structurally unreachable (the last done triggers success when the
+            # board is solved); defensive stop so the game can never cycle
+            # through done players.
+            self.lost = True
+            self.log_to_self("lose", "All players declared done but the board is not solved")
+            return False
         return True
 
     def _validate_player_response(self, player: Player, response: str) -> bool:
@@ -450,6 +465,9 @@ class NPlayerMatrixGameMaster(DialogueGameMaster):
             self.parsed_request_counts += 1
             self.current_parsed = parsed
             self.reprompt_attempts = 0
+            # A valid done ends this player's participation; clear any pending
+            # reprompt so the turn passes instead of re-asking the done player.
+            self.reprompt_pending = False
             return True
 
         # Structured & hybrid protocols prescribe a message schema (structure +
@@ -619,10 +637,22 @@ class NPlayerMatrixGameMaster(DialogueGameMaster):
 
         # Broadcast the move to every other active player. Players learn of the
         # move only from the board listing, not from master narration.
+        others_active = False
         for other_idx, other in enumerate(self.get_players()):
             if other_idx == player_idx or self.player_done[other_idx]:
                 continue
+            others_active = True
             self.set_context_for(other, self._build_broadcast_context(other))
+
+        if not others_active:
+            # Every teammate has finished; the mover keeps the turn. Refresh its
+            # own context, otherwise the game master would re-serve the previous
+            # context (stale board, possibly a stale reprompt error) unchanged.
+            # Mirrors the dyad master's "partner finished" branch.
+            self.set_context_for(player, self._build_broadcast_context(
+                player,
+                move_desc="Your teammates have finished. Continue placing your remaining objects alone.",
+            ))
 
     def _build_broadcast_context(self, recipient: Player, move_desc: str = "") -> str:
         """Build the next-turn context for a recipient: every player's last

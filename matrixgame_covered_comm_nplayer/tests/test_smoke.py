@@ -956,3 +956,120 @@ def test_clemgame_json_has_both_entries():
     ]
     for e in entries:
         assert e["main_game"] == "matrixgame_covered_comm_nplayer"
+
+
+def _setup_lone_player_master(comm_protocol="none"):
+    """3p master where Players B and C have already declared done, leaving
+    Player A to finish alone. Returns (master, player_a)."""
+    from master import NPlayerMatrixGameMaster
+    instance = _make_game_instance(num_players=3, comm_protocol=comm_protocol)
+    master = NPlayerMatrixGameMaster(
+        game_spec=_make_game_spec(num_players=3),
+        experiment={"variant_config": {"comm_protocol": comm_protocol}},
+        player_models=[_DummyModel(f"m{i}") for i in range(3)],
+    )
+    master._on_setup(**instance)
+    master.player_done[1] = True
+    master.player_done[2] = True
+    return master, master.get_players()[0]
+
+
+def test_lone_player_sees_fresh_board_after_own_move():
+    """Once every teammate is done, the remaining player's next context must
+    show the board AFTER its own move. (Regression: the master only refreshed
+    the *other* players' contexts, so the lone player was re-served its
+    previous context with a stale board.)"""
+    master, player_a = _setup_lone_player_master()
+    assert master._validate_player_response(player_a, "move: A down")
+    master._on_valid_player_response(player_a, "A down")
+
+    ctx = master.get_context_for(player_a)["content"]
+    assert "A@R2C1" in ctx, ctx      # A started at R1C1 and moved down
+    assert "A@R1C1" not in ctx, ctx
+    assert "Your turn." in ctx, ctx  # a proper turn context, not the initial one
+
+
+def test_lone_player_context_drops_stale_reprompt_error():
+    """A lone player that was reprompted and then moved validly must not be
+    shown the old 'Invalid move' error again on its next turn."""
+    master, player_a = _setup_lone_player_master()
+    # First an invalid move (up from the top row) -> reprompt context stored.
+    assert not master._validate_player_response(player_a, "move: A up")
+    assert "Invalid move" in master.get_context_for(player_a)["content"]
+    # Then a valid move.
+    assert master._validate_player_response(player_a, "move: A down")
+    master._on_valid_player_response(player_a, "A down")
+
+    ctx = master.get_context_for(player_a)["content"]
+    assert "Invalid move" not in ctx, ctx
+    assert "A@R2C1" in ctx, ctx
+
+
+def _setup_master_with_player_a_placed(comm_protocol="none"):
+    """3p master where Player A's objects already sit on their targets."""
+    from master import NPlayerMatrixGameMaster
+    instance = _make_game_instance(num_players=3, comm_protocol=comm_protocol)
+    for o in instance["player_objects"][0]:
+        instance["target_positions"][o] = instance["start_positions"][o]
+    master = NPlayerMatrixGameMaster(
+        game_spec=_make_game_spec(num_players=3),
+        experiment={"variant_config": {"comm_protocol": comm_protocol}},
+        player_models=[_DummyModel(f"m{i}") for i in range(3)],
+    )
+    master._on_setup(**instance)
+    return master, master.get_players()[0]
+
+
+def test_done_after_reprompt_passes_the_turn():
+    """A valid done declaration must pass the turn even if the same player was
+    reprompted just before. (Regression: reprompt_pending stayed True, so the
+    done player kept being asked, could then move an object off its target,
+    and the game never terminated cleanly.)"""
+    master, player_a = _setup_master_with_player_a_placed()
+    assert not master._validate_player_response(player_a, "move: A up")   # off-grid -> reprompt
+    assert master._should_pass_turn() is False
+    assert master._validate_player_response(player_a, "done: all my objects are placed")
+    master._on_valid_player_response(player_a, "done")
+    assert master.player_done[0] is True
+    assert master._should_pass_turn() is True
+    assert master._next_player() is master.get_players()[1]
+
+
+def test_game_ends_when_all_players_done_but_board_unsolved():
+    """Defensive: if every player is marked done while the board is not solved,
+    the game must stop instead of cycling through done players forever."""
+    master, _ = _setup_master_with_player_a_placed()
+    master.player_done = [True] * master.num_players
+    assert master.board.is_solved() is False
+    assert master._does_game_proceed() is False
+    assert master.lost is True
+    assert master.aborted is False
+
+
+def test_bare_done_accepted_under_message_protocol():
+    """Under a messaging protocol a bare `done:` line (no message: line) is a
+    valid done declaration: the DONE OPTION is about ending participation, and
+    the message part carries no information."""
+    from master import _parse_response
+    parsed = _parse_response("done: all my objects are placed", with_message=True)
+    assert parsed is not None and parsed["is_done"] is True
+    assert not parsed.get("message")
+    master, player_a = _setup_master_with_player_a_placed(comm_protocol="freeform")
+    assert master._validate_player_response(player_a, "done: all my objects are placed") is True
+    master._on_valid_player_response(player_a, "done")
+    assert master.player_done[0] is True
+    assert master.last_message[0] is None
+
+
+def test_bare_done_still_loses_when_objects_not_placed():
+    """Accepting the bare form must not weaken the premature-done rule."""
+    from master import NPlayerMatrixGameMaster
+    instance = _make_game_instance(num_players=3, comm_protocol="freeform")
+    master = NPlayerMatrixGameMaster(
+        game_spec=_make_game_spec(num_players=3),
+        experiment={"variant_config": {"comm_protocol": "freeform"}},
+        player_models=[_DummyModel(f"m{i}") for i in range(3)],
+    )
+    master._on_setup(**instance)
+    assert master._validate_player_response(master.get_players()[0], "done: all my objects are placed") is False
+    assert master.lost is True

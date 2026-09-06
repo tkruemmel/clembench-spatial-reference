@@ -445,3 +445,66 @@ def test_old_coordinate_move_grammar_does_not_parse():
     assert ok is False
     assert master.reprompt_pending is True
     assert "could not be parsed" in _reprompt_text(master, master.player_a)
+
+
+def _setup_master_with_player_a_placed(comm_protocol="none"):
+    """Dyad master where Player A's objects already sit on their targets."""
+    from master import MatrixGameMaster
+    instance = _make_game_instance(comm_protocol=comm_protocol)
+    for o in instance["player_a_objects"]:
+        instance["target_positions"][o] = instance["start_positions"][o]
+    master = MatrixGameMaster(
+        game_spec=_make_game_spec(),
+        experiment={"variant_config": {"comm_protocol": comm_protocol}},
+        player_models=[_DummyModel("a"), _DummyModel("b")],
+    )
+    master._on_setup(**instance)
+    return master
+
+
+def test_done_after_reprompt_passes_the_turn():
+    """A valid done declaration must pass the turn even if the same player was
+    reprompted just before. (Regression: reprompt_pending stayed True, so the
+    done player kept being asked and could then move an object off target.)"""
+    master = _setup_master_with_player_a_placed()
+    a, b = master.player_a, master.player_b
+    assert not master._validate_player_response(a, "move: A up")   # off-grid -> reprompt
+    assert master._should_pass_turn() is False
+    assert master._validate_player_response(a, "done: all my objects are placed")
+    master._on_valid_player_response(a, "done")
+    assert master.player_a_done is True
+    assert master._should_pass_turn() is True
+    assert master._next_player() is b
+
+
+def test_game_ends_when_all_players_done_but_board_unsolved():
+    """Defensive: both players marked done while the board is not solved must
+    end the game rather than keep asking done players."""
+    master = _setup_master_with_player_a_placed()
+    master.player_a_done = True
+    master.player_b_done = True
+    assert master.board.is_solved() is False
+    assert master._does_game_proceed() is False
+    assert master.lost is True
+    assert master.aborted is False
+
+
+def test_bare_done_accepted_under_message_protocol():
+    """Under a messaging protocol a bare `done:` line (no message: line) is a
+    valid done declaration; the message part carries no information."""
+    from master import _parse_response
+    parsed = _parse_response("done: all my objects are placed", with_message=True)
+    assert parsed is not None and parsed["is_done"] is True
+    assert not parsed.get("message")
+    master = _setup_master_with_player_a_placed(comm_protocol="freeform")
+    assert master._validate_player_response(master.player_a, "done: all my objects are placed") is True
+    master._on_valid_player_response(master.player_a, "done")
+    assert master.player_a_done is True
+    assert master.last_message["Player A"] is None
+
+
+def test_bare_done_still_loses_when_objects_not_placed():
+    """Accepting the bare form must not weaken the premature-done rule."""
+    master = _setup_master("freeform")
+    assert master._validate_player_response(master.player_a, "done: all my objects are placed") is False
+    assert master.lost is True
