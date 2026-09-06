@@ -88,14 +88,26 @@ def test_initial_context_substitutes_placeholders():
     # via player.messages or master.messages_by_names depending on clemcore version.
     # Easier: just check that the build helper produces a string containing both
     # the placeholder expansion and the rendered board.
-    ctx = master._build_initial_context(
+    preamble, first_ctx = master._build_initial_context(
         "PROMPT objects=$YOUR_OBJECTS$ grid=$GRID_SIZE$",
         "A, B, C, D, E, F",
     )
-    assert "objects=A, B, C, D, E, F" in ctx
-    assert "grid=4" in ctx
-    assert "CURRENT BOARD:" in ctx
-    assert "GOAL BOARD" in ctx
+    assert "objects=A, B, C, D, E, F" in preamble
+    assert "grid=4" in preamble
+    assert "CURRENT BOARD:" in first_ctx
+    assert "GOAL BOARD" in first_ctx
+
+
+def test_markovian_perspective_pins_preamble():
+    master = _make_master(thinking=False)
+    player = master.player
+    assert player.preamble is not None
+    assert "PROMPT" in player.preamble or player.preamble  # rules preamble set at setup
+    # Even after turns are memorized, the perspective must stay pinned to the
+    # preamble — the transcript must never be replayed to the model.
+    player._messages.append({"role": "user", "content": "CURRENT BOARD: stale"})
+    player._messages.append({"role": "assistant", "content": "move: A down"})
+    assert player.get_perspective() == [{"role": "user", "content": player.preamble}]
 
 
 # ── Turn loop ──────────────────────────────────────────────────────────

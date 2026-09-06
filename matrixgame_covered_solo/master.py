@@ -90,6 +90,17 @@ class SoloMatrixPlayer(Player):
         super().__init__(model)
         self.role_name = role_name
         self.own_objects = own_objects
+        # Pinned rules/instructions, set once at setup. When present, the player's
+        # perspective is Markovian: the model sees the fixed preamble plus only the
+        # current turn's context (appended by the caller), never the whole transcript.
+        # The board fully re-describes the state each turn, so no history is needed,
+        # and the per-turn prompt stays bounded regardless of episode length.
+        self.preamble: Optional[str] = None
+
+    def get_perspective(self):
+        if self.preamble is not None:
+            return [{"role": "user", "content": self.preamble}]
+        return self._messages
 
     def _custom_response(self, context):
         # Used by clemcore's mock player; emit a deterministic valid-format move.
@@ -172,6 +183,7 @@ class SoloMatrixGameMaster(DialogueGameMaster):
         self.reprompt_attempts = 0
         self.reprompt_pending: bool = False
         self.current_parsed: Optional[Dict[str, str]] = None
+        self.last_note: Optional[str] = None
         self.seen_states: Dict[str, int] = {self.board.state_key(): 1}
 
         model = self.player_models[0]
@@ -179,19 +191,23 @@ class SoloMatrixGameMaster(DialogueGameMaster):
 
         prompt_template = game_instance["player_prompt"]
         objs_str = ", ".join(sorted(self.objects))
-        ctx = self._build_initial_context(prompt_template, objs_str)
-        self.add_player(self.player, initial_context=ctx)
+        preamble, first_ctx = self._build_initial_context(prompt_template, objs_str)
+        self.player.preamble = preamble
+        self.add_player(self.player, initial_context=first_ctx)
 
-    def _build_initial_context(self, template: str, own_objects_str: str) -> str:
+    def _build_initial_context(self, template: str, own_objects_str: str) -> tuple:
         prompt = template.replace("$YOUR_OBJECTS$", own_objects_str)
         prompt = prompt.replace("$GRID_SIZE$", str(self.grid_size))
         board_view = _render_view(self.board, self.compact_board)
         goal_view = _render_targets_view(self.board, self.compact_board)
-        return (
-            f"{prompt}\n\n"
+        # Return the fixed rules preamble and the first turn's context separately.
+        # The preamble is pinned on the player (Markovian perspective); the context
+        # mirrors the per-turn contexts built in _on_valid_player_response.
+        first_ctx = (
             f"CURRENT BOARD:\n{board_view}\n\n"
             f"GOAL BOARD (where each object must end up):\n{goal_view}"
         )
+        return prompt, first_ctx
 
     def _format_reminder(self) -> str:
         if self.with_message:
@@ -312,6 +328,10 @@ class SoloMatrixGameMaster(DialogueGameMaster):
         self.log_to_self("move", f"{player.role_name} moved {obj} {direction}")
         if message:
             self.log_to_self("message", f"{player.role_name}: {message}")
+        # Markovian perspective: carry the player's own note forward explicitly,
+        # mirroring the comm games where every player's last message (including
+        # one's own) is part of the next turn's context.
+        self.last_note = message if message else None
 
         state = self.board.state_key()
         self.seen_states[state] = self.seen_states.get(state, 0) + 1
@@ -326,7 +346,9 @@ class SoloMatrixGameMaster(DialogueGameMaster):
             return
 
         # Build next-turn context
+        note_block = f"Your note from last turn: {self.last_note}\n\n" if self.last_note else ""
         self.set_context_for(player, (
+            f"{note_block}"
             f"CURRENT BOARD:\n{self._render_board()}\n\n"
             f"GOAL BOARD:\n{self._render_goal()}\n\n"
             f"Your turn. Respond with:\n{self._format_reminder()}"
