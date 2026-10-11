@@ -42,10 +42,10 @@ for tier, models in (("strong", STRONG), ("weak", ("nemotron",))):
                 o = sum(bool(r["alts"][r["chosen"]]["kill"]) for r in rs)
                 out.append((name, sub, o, len(rs), sum(pr), poibin_p(o, pr)))
         print("  %-6s %-10s " % (tier, lab) + " | ".join(
-            "%s %s: obs %d/%d (%.0f%%) exp %.1f (%.0f%%) p=%.2g" % (nm, sub, o, n, 100 * o / n, e, 100 * e / n, p)
+            "%s %s: obs %d/%d (%.0f%%) exp %.1f (%.0f%%) p=%.2g" % (nm, sub, o, n, 100 * o / max(n, 1), e, 100 * e / max(n, 1), p)
             for nm, sub, o, n, e, p in out if sub == "costly") )
         print("  %-6s %-10s " % ("", "") + " | ".join(
-            "%s %s: obs %d/%d (%.0f%%) exp %.1f (%.0f%%) p=%.2g" % (nm, sub, o, n, 100 * o / n, e, 100 * e / n, p)
+            "%s %s: obs %d/%d (%.0f%%) exp %.1f (%.0f%%) p=%.2g" % (nm, sub, o, n, 100 * o / max(n, 1), e, 100 * e / max(n, 1), p)
             for nm, sub, o, n, e, p in out if sub == "all-free"))
 
 # protocol interaction on the lethal-specific term, strong tier, all plies

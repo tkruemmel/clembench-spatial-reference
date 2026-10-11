@@ -1,18 +1,17 @@
 """The counterfactual of S9.3.1: enclosure hazards that were *not* taken.
 
-S9.3.1 shows 32 enclosure aborts: a player steps into the one free cell a
-teammate had left, the teammate has no legal move, and with no pass action the
-episode aborts. `seal_alt.py` shows the sealer had a harmless alternative in 30
-of them and played the sealing move because it was the only one that made
-progress. This asks the opposite question of the same corpus: how often did a
-player stand in front of that move and decline it, and do its own messages say
-why?
+S9.3.1 shows the enclosure aborts (30 on the updated arm, 32 on the original):
+a player steps into the one free cell a teammate had left, the teammate has no
+legal move, and with no pass action the episode aborts. `seal_alt.py` shows the
+sealer had a harmless alternative (30 of 30; original arm 30 of 32). This asks
+the opposite question of the same corpus: how often did a player stand in
+front of that move and decline it, and do its own messages say why?
 
 The decision point is the *pinch*: the moving player has a legal move that
 would leave an active teammate with no legal move at all. The sharp subset is
 the *costly pinch*, where the sealing move is the only one that takes the
-mover nearer its own target -- the configuration all 30 free-choice aborts came
-from, so declining there costs a tempo rather than costing nothing. The same
+mover nearer its own target -- the configuration most free-choice aborts came
+from (tab:seal-greedy), so declining there costs a tempo rather than nothing. The same
 hazard seen from the victim's side is the *spell*: a stretch with no legal move,
 which ends in a rescue or in the abort.
 
@@ -23,14 +22,13 @@ which ends in a rescue or in the abort.
     python3 analysis/qualitative_analysis/seal_averted.py --proto none structured
     python3 analysis/qualitative_analysis/seal_averted.py --check    # re-derive the counts
 
-The answer, in one line: unlike the cut hazard of S9.3.2, this one shows no
-protocol effect at all -- in the strong tier, 43 of 73 free pinches declined
-with prose against 62 of 106 without, 59% against 58%, p = 1 -- and in the
-whole corpus exactly four pinches are preceded by a teammate spelling out that
-the cell is its last square. Three of the four are Nemotron's and are taken
-anyway; the one that is heeded is `dsv41 6p S4 freeform instance_00010`, where
-the warning is issued, relayed by a third player and obeyed, and the episode is
-won.
+The answer, in one line (updated arm): in the strong tier prose declines 58
+of 88 free pinches against 77 of 133 without, 66% against 58% (Fisher p =
+.26, exploratory); three pinches corpus-wide are preceded by a teammate
+spelling out that the cell is its last square, the two strong-tier ones are
+heeded (both Qwen3.8 6p S4 hybrid, both won) and Nemotron's one is taken.
+On the original arm it was 43 of 73 against 62 of 106 (p = 1), with one
+heeded warning and three of Nemotron's ignored. `--check` pins both arms.
 """
 import argparse
 import collections
@@ -346,96 +344,127 @@ def reason(r, window=1):
     return out
 
 
+# The pinned counts, per arm. The original arm's are the values the first
+# write-up quoted; the updated arm's are what the reported campaign gives.
+WANT = {
+    "original": dict(
+        scanned=(1080, 1080), pinches=(93, 110), free=(91, 106), declined=(45, 62),
+        costly=(56, 72), costly_declined=(21, 32),
+        tiers={"strong": ((73, 73, 43, 46, 20), (110, 106, 62, 72, 32)),
+               "weak": ((20, 18, 2, 10, 1), (0, 0, 0, 0, 0))},
+        spells=276, opening=180, opening_freed=149, mid=96, mid_freed=51,
+        spells_by_tier=(198, 78), opening_relief=[(120, 120), (60, 29)],
+        mid_relief=[(19, 30), (25, 48), (7, 18), (0, 0)],
+        named_declines=(42, 2),
+        warnings=[
+            ("dsv41", "S4", "freeform", "instance_00010", 8, False, "success"),
+            ("nemotron", "S3", "freeform", "instance_00013", 4, True, "lose"),
+            ("nemotron", "S3", "freeform", "instance_00015", 20, True, "abort"),
+            ("nemotron", "S4", "freeform", "instance_00012", 31, True, "abort")]),
+    "updated": dict(
+        scanned=(1080, 1080), pinches=(103, 140), free=(98, 134), declined=(63, 78),
+        costly=(46, 88), costly_declined=(17, 40),
+        tiers={"strong": ((91, 88, 58, 41, 16), (139, 133, 77, 87, 39)),
+               "weak": ((12, 10, 5, 5, 1), (1, 1, 1, 1, 1))},
+        spells=282, opening=180, opening_freed=149, mid=102, mid_freed=69,
+        spells_by_tier=(215, 67), opening_relief=[(120, 120), (60, 29)],
+        mid_relief=[(22, 33), (43, 62), (4, 7), (0, 0)],
+        named_declines=(55, 2),
+        warnings=[
+            ("nemotron", "S3", "freeform", "instance_00015", 20, True, "abort"),
+            ("qwen38", "S4", "hybrid", "instance_00010", 7, False, "success"),
+            ("qwen38", "S4", "hybrid", "instance_00013", 21, False, "success")]),
+}
+
+
 def selftest():
-    """Every count this module reports, re-derived. Fails loudly if data moves."""
+    """Every count this module reports, re-derived against WANT[ARM]."""
+    want, got = WANT[ARM], {}
     ff, n_ff = rows(protos=("freeform", "hybrid"))
     ns, n_ns = rows(protos=("none", "structured"))
-    assert (n_ff, n_ns) == (1080, 1080), (n_ff, n_ns)
-    assert (len(ff), len(ns)) == (93, 110), (len(ff), len(ns))
+    got["scanned"] = (n_ff, n_ns)
+    got["pinches"] = (len(ff), len(ns))
     assert all(r["meta"]["suite"] == "6p" for r in ff + ns)      # one object per player
     free = lambda rs: [r for r in rs if r["safe"]]
-    assert (len(free(ff)), len(free(ns))) == (91, 106)
-    assert (sum(not r["taken"] for r in free(ff)),
-            sum(not r["taken"] for r in free(ns))) == (45, 62)
+    got["free"] = (len(free(ff)), len(free(ns)))
+    got["declined"] = (sum(not r["taken"] for r in free(ff)),
+                       sum(not r["taken"] for r in free(ns)))
     cost = lambda rs: [r for r in free(rs) if r["costly"]]
-    assert (len(cost(ff)), len(cost(ns))) == (56, 72)
-    assert (sum(not r["taken"] for r in cost(ff)),
-            sum(not r["taken"] for r in cost(ns))) == (21, 32)
+    got["costly"] = (len(cost(ff)), len(cost(ns)))
+    got["costly_declined"] = (sum(not r["taken"] for r in cost(ff)),
+                              sum(not r["taken"] for r in cost(ns)))
 
-    # split by tier: pooling hides that the strong tier is flat to three
-    # decimal places and that the whole pooled tilt is Nemotron's 16 of 18
-    for tier, want in (("strong", ((73, 73, 43, 46, 20), (110, 106, 62, 72, 32))),
-                       ("weak", ((20, 18, 2, 10, 1), (0, 0, 0, 0, 0)))):
-        for rs, w in zip((ff, ns), want):
+    # split by tier: pooling the tiers is what manufactures a protocol effect
+    got["tiers"] = {}
+    for tier in ("strong", "weak"):
+        out = []
+        for rs in (ff, ns):
             d = [r for r in rs if r["meta"]["model"] in TIERS[tier]]
             fr = [r for r in d if r["safe"]]
             co = [r for r in fr if r["costly"]]
-            got = (len(d), len(fr), sum(not r["taken"] for r in fr), len(co),
-                   sum(not r["taken"] for r in co))
-            assert got == w, (tier, got, w)
+            out.append((len(d), len(fr), sum(not r["taken"] for r in fr), len(co),
+                        sum(not r["taken"] for r in co)))
+        got["tiers"][tier] = tuple(out)
 
     sp = [s for rec in json.load(open(os.path.join(HERE, f"episodes.{ARM}.json")))
           if rec["suite"] == "6p" for s in spells(rec)]
-    assert len(sp) == 276, len(sp)
+    got["spells"] = len(sp)
     op = [s for s in sp if s["opening"]]
+    got["opening"] = len(op)
     # every S4 6p board ships with player B already immobile, and nothing else does
-    assert len(op) == 180 and {s["meta"]["level"] for s in op} == {"S4"}
+    assert {s["meta"]["level"] for s in op} == {"S4"}
     assert {s["player"] for s in op} == {"B"}
     assert len({(s["meta"]["model"], s["meta"]["proto"], s["meta"]["inst"])
-                for s in op}) == 180
-    # and it is relieved by whatever the first player plays: the 31 that are not
-    # are the episodes in which no move was ever accepted
-    assert sum(s["end"] == "freed" for s in op) == 149
+                for s in op}) == len(op)
+    # and it is relieved by whatever the first player plays: the ones that are
+    # not are the episodes in which no move was ever accepted
+    got["opening_freed"] = sum(s["end"] == "freed" for s in op)
     assert all(s["freer"] == "A" and s["end_ply"] == 1
                for s in op if s["end"] == "freed")
     assert all(s["meta"]["moves"] == 0 for s in op if s["end"] != "freed")
     mid = [s for s in sp if not s["opening"]]
-    assert len(mid) == 96
-    assert sum(s["end"] == "freed" for s in mid) == 51
+    got["mid"] = len(mid)
+    got["mid_freed"] = sum(s["end"] == "freed" for s in mid)
+    # nobody ever backs out of an enclosure it made
     assert all(s["freer"] != s["cause"] for s in mid if s["end"] == "freed")
-    # the hazard is fatal exactly when the victim's own turn arrives first
     # the opening hazard is relieved 120 of 120 in the strong tier, in both
     # arms; every failure to relieve it is a Nemotron episode with no moves
     st = [s for s in sp if s["meta"]["model"] in TIERS["strong"]]
     wk = [s for s in sp if s["meta"]["model"] in TIERS["weak"]]
-    assert (len(st), len(wk)) == (198, 78)
-    assert [(sum(x["opening"] for x in t),
-             sum(x["opening"] and x["end"] == "freed" for x in t))
-            for t in (st, wk)] == [(120, 120), (60, 29)]
-    assert [(sum(x["end"] == "freed" for x in t if not x["opening"] and group(x) == g),
-             sum(1 for x in t if not x["opening"] and group(x) == g))
-            for t in (st, wk) for g in ("prose", "rigid")] \
-        == [(19, 30), (25, 48), (7, 18), (0, 0)]
+    got["spells_by_tier"] = (len(st), len(wk))
+    got["opening_relief"] = [(sum(x["opening"] for x in t),
+                              sum(x["opening"] and x["end"] == "freed" for x in t))
+                             for t in (st, wk)]
+    got["mid_relief"] = [(sum(x["end"] == "freed" for x in t if not x["opening"] and group(x) == g),
+                          sum(1 for x in t if not x["opening"] and group(x) == g))
+                         for t in (st, wk) for g in ("prose", "rigid")]
+    # the hazard is fatal exactly when the victim's own turn arrives first
     assert not any(s["own_turn"] for s in sp if s["end"] == "freed")
     assert all(s["meta"]["outcome"] in ("abort", "lose")
                for s in sp if s["own_turn"])
 
-    # the language: of the 45 declines, nearly all name the teammate, but the
+    # the language: of the declines, nearly all name the teammate, but the
     # naming is route courtesy -- only the cell-specific immobility warning is
-    # evidence that anybody computed the hazard, and there are four of those
+    # evidence that anybody computed the hazard
     named = lambda rs: [r for r in rs if r["safe"]
                         and any("names victim" in t for _, t, _ in reason(r))]
-    assert (len(named([r for r in ff if not r["taken"]])),
-            len(named([r for r in ns if not r["taken"]]))) == (42, 2)
+    got["named_declines"] = (len(named([r for r in ff if not r["taken"]])),
+                             len(named([r for r in ns if not r["taken"]])))
     warn = lambda rs: [r for r in rs if r["safe"]
                        and any("immobility" in t for _, _, t, _ in warning(r))]
     assert not warn(ns)
-    got = sorted((r["meta"]["model"], r["meta"]["level"], r["meta"]["proto"],
-                  r["meta"]["inst"], r["ply"], r["taken"], r["meta"]["outcome"])
-                 for r in warn(ff))
-    assert got == [
-        ("dsv41", "S4", "freeform", "instance_00010", 8, False, "success"),
-        ("nemotron", "S3", "freeform", "instance_00013", 4, True, "lose"),
-        ("nemotron", "S3", "freeform", "instance_00015", 20, True, "abort"),
-        ("nemotron", "S4", "freeform", "instance_00012", 31, True, "abort"),
-    ], got
+    got["warnings"] = sorted((r["meta"]["model"], r["meta"]["level"], r["meta"]["proto"],
+                              r["meta"]["inst"], r["ply"], r["taken"], r["meta"]["outcome"])
+                             for r in warn(ff))
 
-    # and the 32 enclosure aborts S9.3.1 already reports are all in here, as
+    # and the enclosure aborts seal_alt.py reports are all in here, as
     # pinches that were taken: same event, counted from the other side
     import seal_alt
     taken = {(r["meta"]["path"], r["ply"]) for r in ff + ns if r["taken"]}
     assert all((c["meta"]["path"], c["ply"] - 1) in taken for c in seal_alt.cases())
-    print("selftest ok")
+    bad = {k: (want[k], got[k]) for k in want if got[k] != want[k]}
+    assert not bad, bad
+    print("selftest ok (%s arm)" % ARM)
 
 
 def group(r):

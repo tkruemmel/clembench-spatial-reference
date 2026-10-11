@@ -143,8 +143,11 @@ if __name__ == "__main__":
     pr = [r for r in strong if r["proto"] in ("freeform", "hybrid")]
     rg = [r for r in strong if r["proto"] in ("none", "structured")]
     f = lambda rs: [derive(r) for r in rs if derive(r)["free"]]
-    # seal_averted.md strong-tier headline: 73 / 106 free, 43 / 62 declined, costly 46 / 72, 20 / 32 declined
+    # strong tier, prose then none+structured: free pinches, declined, costly, costly declined
+    # (= seal_averted.py --tier strong [--proto none structured]; original arm is seal_averted.md's headline)
     got = [(len(f(x)), sum(not d["taken"] for d in f(x)), sum(d["costly"] for d in f(x)),
             sum(d["costly"] and not d["taken"] for d in f(x))) for x in (pr, rg)]
-    assert got == [(73, 43, 46, 20), (106, 62, 72, 32)], got
+    EXPECT = {"original": [(73, 43, 46, 20), (106, 62, 72, 32)],
+              "updated": [(88, 58, 41, 16), (133, 77, 87, 39)]}
+    assert got == EXPECT[ARM], got
     print("plies", len(ps), "pinches", len(pin), "strong check ok", got)

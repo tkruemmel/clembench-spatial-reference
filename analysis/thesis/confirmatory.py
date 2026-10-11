@@ -20,11 +20,7 @@ Three emissions, from the one run:
   2. tab:holm -- the nineteen sorted, with the Holm threshold on each row and
      the stop point marked;
   3. tab:contrasts -- Appendix A, the same nineteen rows with effect size, n,
-     raw p and Holm-adjusted p, computed twice: on the 840-episode set as
-     released, and on the 826 that exclude the replaced S2 #10.  The second
-     column is the sensitivity analysis S6.3 promises; no conclusion in this
-     thesis rests on the replacement, and these columns are how that is shown
-     rather than asserted.
+     raw p and Holm-adjusted p on the 840-episode analysis set.
 
 Three decisions the table's own family headers force, stated here because they
 are what makes m equal nineteen rather than twenty-six:
@@ -67,7 +63,6 @@ STRONG = T.STRONG                       # ("Qwen3.8", "DeepSeek-V4.1-Flash")
 WEAK = "Nemotron"
 PROSE = ("freeform", "hybrid")
 ALPHA = 0.05
-BOARD = ("S2", 10)                      # the replaced board, for the sensitivity column
 
 
 # --------------------------------------------------------------------------
@@ -446,22 +441,18 @@ def est(r, outcome):
     return T.signed(r["est"], 3)
 
 
-def emit(res, res_x, sets, check):
-    (eps, idx), (eps_x, idx_x) = sets
+def emit(res, eps, idx, check):
     ps = [res[rid]["p"] for rid, *_ in ROWS]
     h, order, stop = holm(ps)
-    hx, _, _ = holm([res_x[rid]["p"] for rid, *_ in ROWS])
     d, lo, hi, n01, n10, n = p1(eps, idx)
-    dx, lox, hix, _, _, _ = p1(eps_x, idx_x)
     last = order[stop - 1] if stop else None
 
     if check:
-        print(f"{'id':<4}{'effect':>14}{'n':>10}{'p':>12}{'p Holm':>12}"
-              f"{'p (826)':>12}  note")
+        print(f"{'id':<4}{'effect':>14}{'n':>10}{'p':>12}{'p Holm':>12}  note")
         for i, (rid, _c, _o, _f) in enumerate(ROWS):
             r = res[rid]
             print(f"{rid:<4}{r['est']:>14.4f}{str(r['n']):>10}{r['p']:>12.3g}"
-                  f"{h[i]['adj']:>12.3g}{res_x[rid]['p']:>12.3g}  {r['note']}")
+                  f"{h[i]['adj']:>12.3g}  {r['note']}")
         print()
         for rank, i in enumerate(order):
             rid = ROWS[i][0]
@@ -471,8 +462,7 @@ def emit(res, res_x, sets, check):
         print(f"\nHolm stops after rank {stop} of {M}"
               if stop else f"\nHolm rejects all {M}")
         print(f"P1: {d:+.2f} pp [{lo:+.2f}, {hi:+.2f}] "
-              f"({n01}:{n10} discordant of {n});  "
-              f"826: {dx:+.2f} [{lox:+.2f}, {hix:+.2f}]")
+              f"({n01}:{n10} discordant of {n})")
         return
 
     # 1 -- the p column of tab:confirmatory, to paste
@@ -516,16 +506,15 @@ def emit(res, res_x, sets, check):
         r"$i$ & \# & Contrast & $p$ & $\alpha/(m-i+1)$ & $p_\mathrm{Holm}$",
         body, note=note, tight=True))
 
-    # 3 -- Appendix A, with and without the replaced board
+    # 3 -- Appendix A
     body = []
     for i, (rid, contrast, outcome, _f) in enumerate(ROWS):
-        r, rx = res[rid], res_x[rid]
+        r = res[rid]
         if body and rid[0] != ROWS[i - 1][0][0]:
             body.append(r"\midrule")
         f = fl(r)
         body.append(f"{rid} & {contrast}, {outcome} & {est(r, outcome)} & "
-                    f"{nfmt(r)} & {ptex(r['p'], f)} & {ptex(h[i]['adj'], f)} & "
-                    f"{ptex(rx['p'], f)} & {ptex(hx[i]['adj'], f)}")
+                    f"{nfmt(r)} & {ptex(r['p'], f)} & {ptex(h[i]['adj'], f)}")
     note = (
         "\\emph{Effect} is the difference in success rate in percentage "
         "points, the mean per-board efficiency difference, or Woolf's "
@@ -534,31 +523,19 @@ def emit(res, res_x, sets, check):
         "and D are per model and never pooled: the $p$ shown is the larger of "
         "the two strong models', which is the valid test of the conjunction "
         "the prose claims; both values are in the per-model notes below. "
-        "\\emph{840} is the analysis set as released; \\emph{826} excludes "
-        "the replaced S2 \\#10 from every cell. No contrast changes its "
-        "verdict between the two columns"
-        + (". " if all(
-            (res[rid]["p"] <= ALPHA) == (res_x[rid]["p"] <= ALPHA)
-            for rid, *_ in ROWS) else ", except where noted. ")
         + f"\\textsc{{p1}}: Qwen3.8 minus DeepSeek-V4.1-Flash on success over "
           f"all {n} paired cells is {d:+.2f} points, exact 95\\,\\% interval "
           f"$[{lo:+.2f}, {hi:+.2f}]$ ({n01}:{n10} discordant). It is reported "
           "as a bound and not as a $p$-value: failing to reject is not "
           "evidence of equivalence, and the interval is what licenses "
-          f"family~A's pooling. On the 826 set it is {dx:+.2f} points, "
-          f"$[{lox:+.2f}, {hix:+.2f}]$.")
+          "family~A's pooling.")
     out.append(T.table(
         "The confirmatory set: effect size, test and Holm-adjusted $p$ for "
         "each of the nineteen contrasts of Table~\\ref{tab:confirmatory}, on "
-        "the 840-episode analysis set and on the 826 that exclude the "
-        "replaced board of \\S6.3.",
+        "the 840-episode analysis set.",
         "tab:contrasts",
-        "l>{\\raggedright\\arraybackslash}p{0.225\\textwidth}rlrrrr",
-        r" & & & & \multicolumn{2}{c}{840 episodes} & "
-        r"\multicolumn{2}{c}{826 (board excluded)} \\"
-        "\n    \\cmidrule(lr){5-6}\\cmidrule(lr){7-8}\n"
-        r"    \# & Contrast & Effect & $n$ & $p$ & $p_\mathrm{Holm}$ & "
-        r"$p$ & $p_\mathrm{Holm}$",
+        "l>{\\raggedright\\arraybackslash}p{0.3\\textwidth}rlrr",
+        r"\# & Contrast & Effect & $n$ & $p$ & $p_\mathrm{Holm}$",
         body, note=note, tight=True))
 
     # the per-model detail the prose cites
@@ -601,9 +578,8 @@ def main():
     ap.add_argument("--check", action="store_true",
                     help="plain text instead of LaTeX")
     args = ap.parse_args()
-    res_x, eps_x, idx_x = run(BOARD)    # 826: the board excluded
-    res, eps, idx = run(None)           # 840: as released
-    emit(res, res_x, ((eps, idx), (eps_x, idx_x)), args.check)
+    res, eps, idx = run(None)
+    emit(res, eps, idx, args.check)
 
 
 if __name__ == "__main__":

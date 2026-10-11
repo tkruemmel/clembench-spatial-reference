@@ -4,7 +4,7 @@ import sys
 sys.dont_write_bytecode = True
 import collections, json, os, re
 from scipy.stats import binomtest, fisher_exact
-from verbal import load, QA, spells, cell_rx
+from verbal import load, QA, REPO, spells, cell_rx, legal
 from t3 import EP, last_msg, tags
 ARM = os.environ.get("ARM", "updated")  # arm of the team suites; solo is always original
 
@@ -12,14 +12,23 @@ RETURN = re.compile(r"\b(?:return|re-?enter|rejoin|come back|go back|retake|step
                     r"|\b(?:after|once|when|until)\s+(?:you|(?-i:[A-F]))\s+(?:pass|passes|clear|clears|has passed|have passed|go by|is through|are through)\b", re.I)
 eps = json.load(open(os.path.join(QA, f"episodes.{ARM}.json")))
 for tier, models in (("strong", ("qwen38", "dsv41")), ("weak", ("nemotron",))):
-    v = collections.Counter(); b = collections.Counter(); inv = collections.Counter()
+    v = collections.Counter(); b = collections.Counter(); inv = collections.Counter(); sq = collections.Counter()
     for rec in eps:
         if rec["suite"] != "6p" or rec["proto"] not in ("freeform", "hybrid") or rec["model"] not in models:
             continue
         ep = EP[rec["path"]]
+        ins = json.load(open(os.path.join(REPO, rec["path"], "instance.json")))
+        walls, n = frozenset(tuple(w) for w in ins["walls"]), ins["grid_size"]
         for sp in spells(rec):
             if sp["opening"]:
                 continue
+            # own squeeze: the victim's last own move before the sealing move (ply start-1) took it from >=2 legal
+            # moves to exactly 1 ("own"); the looser count ("one") only asks for exactly 1 after that move
+            own = [k for k in range(sp["start"] - 1) if ep["movers"][k] == sp["player"]]
+            nl = lambda k: len(legal(ep["pos"][k], ep["mine"][sp["player"]], walls, n))
+            sq["n"] += 1
+            sq["one"] += bool(own) and nl(own[-1] + 1) == 1
+            sq["own"] += bool(own) and nl(own[-1]) >= 2 and nl(own[-1] + 1) == 1
             lm = last_msg(ep, sp["player"], sp["start"])
             if not lm:
                 continue
@@ -27,6 +36,7 @@ for tier, models in (("strong", ("qwen38", "dsv41")), ("weak", ("nemotron",))):
             v["ret"] += bool(RETURN.search(lm[1]))
             t = tags(ep, sp["player"], lm[1])
             v["either"] += bool(RETURN.search(lm[1])) or t["hold_self"]
+            v["mob"] += t["mob_self"]  # the victim's last message mentions its own restricted mobility
             # invitation: victim's last message names the cell the sealer then took, with the sealer's letter
             a, d = sp["cause_by"]
             pos = ep["pos"][sp["start"] - 1][a]
@@ -52,4 +62,6 @@ for tier, models in (("strong", ("qwen38", "dsv41")), ("weak", ("nemotron",))):
           f" vs baseline {b['ret']}/{b['n']} ({100*b['ret']/b['n']:.1f}%), binom p={p:.2g};"
           f" return-or-hold {v['either']}/{v['n']}")
     print(f"   victim last msg names the cell the sealer then entered: {inv['cell']}/{inv['n']},"
-          f" same sentence names the sealer: {inv['cell+sealer']}/{inv['n']}")
+          f" same sentence names the sealer: {inv['cell+sealer']}/{inv['n']}; mentions its own restricted mobility: {v['mob']}/{v['n']}")
+    print(f"   victim's own last move before the seal took it from >=2 legal moves to one: {sq['own']}/{sq['n']}"
+          f" (left it with one, whatever before: {sq['one']}/{sq['n']})")

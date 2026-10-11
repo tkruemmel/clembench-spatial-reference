@@ -15,6 +15,8 @@ ILL = {"wall", "off_grid", "not_owner", "unknown_object"}
 REJ = ILL | {"occupied"}
 MOVE_V = REJ | {"legal"}
 ATT = [r for r in R if r["verdict"] in MOVE_V]          # move attempts (game counts these)
+# The compact campaigns exist only on the original arm (extract.ROOTS).
+RENDS = tuple(x for x in ("compact", "grid") if any(r["rend"] == x for r in R))
 ill = lambda r: r["verdict"] in ILL
 rej = lambda r: r["verdict"] in REJ
 
@@ -71,7 +73,7 @@ cell = lambda r: (r["rend"], r["suite"], r["level"], r["proto"], min(r["retry"],
 
 def s1():
     print("## 1. Data: raw logs, trace flag, prompt line")
-    for rend in ("compact", "grid"):
+    for rend in RENDS:
         rs = [r for r in R if r["rend"] == rend]
         print(f"{rend}: {len(rs)} calls; closed trace (</think>) {rate(rs, lambda r: r['traced'])}; "
               f"'<think>' opener {sum(r['open_tag'] for r in rs)}; reasoningContent blocks {sum(r['reasoning_block'] for r in rs)}; "
@@ -80,7 +82,7 @@ def s1():
         print("  prompt line by protocol:", dict(C.Counter((r["proto"], r["prompt_line"]) for r in rs)))
         print("  trace rate by suite:", {s: rate([r for r in rs if r["suite"] == s], lambda r: r["traced"]) for s in ("solo", "dyad", "3p", "6p")})
     print("verdicts (all calls):", dict(C.Counter(r["verdict"] for r in R)))
-    for rend in ("compact", "grid"):
+    for rend in RENDS:
         a = [r for r in ATT if r["rend"] == rend]
         print(f"{rend} per-attempt: illegal {rate(a)}, rejected incl. occupied {rate(a, rej)}; "
               f"episode-mean illegal {st.mean(ep_rates(a)):.3f}")
@@ -95,7 +97,7 @@ def ep_rates(a):
 
 def s2():
     print("\n## 2. Traced vs untraced calls (Nemotron, both renderings)")
-    for rend in ("compact", "grid", None):
+    for rend in RENDS + (None,):
         a = [r for r in ATT if rend in (None, r["rend"])]
         for lab, sub in (("first attempt", [r for r in a if not r["retry"]]), ("retry", [r for r in a if r["retry"]])):
             t = [r for r in sub if r["traced"]]; u = [r for r in sub if not r["traced"]]
@@ -125,7 +127,7 @@ def s2():
     P = retry_pairs(R)
     t = [r for r in P if r["traced"]]; u = [r for r in P if not r["traced"]]
     print(f"Repeat of the just-rejected move: traced {rate(t, rep)} | untraced {rate(u, rep)}")
-    for rend in ("compact", "grid"):
+    for rend in RENDS:
         print(f"  {rend}: traced {rate([r for r in t if r['rend']==rend], rep)} | untraced {rate([r for r in u if r['rend']==rend], rep)}")
     print("  stratified by cell x retry index:", mh(P, lambda r: cell(r) + (r["retry"],), lambda r: r["traced"], rep))
     TD = [r for r in t if r["draft"]]
@@ -168,7 +170,7 @@ def s3():
 
 def s4():
     print("\n## 4. Solo Silent vs Thinking")
-    for rend in ("compact", "grid"):
+    for rend in RENDS:
         print(f"[{rend}]")
         rs = [r for r in R if r["rend"] == rend and r["suite"] == "solo"]
         for cond in ("silent", "thinking"):
@@ -202,9 +204,12 @@ def s4():
 
 def s5():
     print("\n## 5. Compact vs grid")
+    if len(RENDS) < 2:
+        print("  skipped: only", RENDS, "on this arm")
+        return
     for s in ("solo", "dyad", "3p", "6p", None):
         row = []
-        for rend in ("compact", "grid"):
+        for rend in RENDS:
             a = [r for r in ATT if r["rend"] == rend and s in (None, r["suite"])]
             c = [r for r in R if r["rend"] == rend and s in (None, r["suite"])]
             row.append(f"{rend}: illegal {rate(a)} rej {rate(a, rej)} repeat {rate(retry_pairs(c), rep)} traced {rate(c, lambda r: r['traced'])}")

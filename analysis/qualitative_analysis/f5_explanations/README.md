@@ -6,7 +6,12 @@ the scripts rebuild them on first run. All three folders build on
 `../seal_averted.py` and `../averted.py` and read `../episodes.json`.
 
 Run each script from inside its own folder: the cut scripts read and write
-their caches relative to the working directory.
+their caches relative to the working directory. Caches carry the arm
+(`s3rows.{ARM}.pkl`); set `ARM=original|updated` (default `updated`).
+
+`check.py` reruns the chain for one arm and asserts every number of
+`thesis/ch9_f5_additions.tex` and discussion l.69-81 that has a producer, per
+arm (ids = rows of `thesis/numbers/C_order.md`): `ARM=updated python3 check.py`.
 
 ## cut/ — how prose teams avoid the cut fork (§2.1 of the notes, C1/C3)
 

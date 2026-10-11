@@ -55,3 +55,16 @@ def genuine(ins):
                 nb=[q for q in nb if q in lab]
                 if any(lab[q]!=lab.get(t[v]) for q in nb): out.append((h,v,'occ-door'))
     return out
+
+if __name__=="__main__":
+    # Block A summary, 6p boards: corridor with a target inside / target on the entrance / door pair whose holder sits on the entrance
+    c=collections.defaultdict(lambda:[0,0,0,0])
+    for e in eps:
+        if e['suite']!='6p' or e['model']!='qwen38' or e['proto']!='none': continue
+        ins=json.load(open(os.path.join(REPO,e['path'],'instance.json')))
+        dev=ins.get('device') or {}; corr={tuple(x) for x in dev.get('corridor',[])}; ent=tuple(dev['entrance']) if dev.get('entrance') else None
+        t={o:tuple(p) for o,p in ins['target_positions'].items()}
+        k=c[e['level']]; k[0]+=1
+        k[1]+=any(p in corr for p in t.values()); k[2]+=ent in t.values()
+        k[3]+=any(kind=='door' and t[h]==ent for h,v,kind in genuine(ins))
+    for lev in sorted(c): print("boards %s: %d, corridor with a target inside %d, target on the entrance %d, door pair holder on the entrance %d"%(lev,*c[lev]))

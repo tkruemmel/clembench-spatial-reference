@@ -26,6 +26,8 @@ import sys
 import statistics as st
 from collections import defaultdict
 
+import numpy as np
+
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, os.path.join(ROOT, "analysis/qualitative_analysis"))
 from qual_corpus import tree                                     # noqa: E402
@@ -34,6 +36,7 @@ ARMS = {"Qwen3.8": "results_qwen38_grid_n15",
         "DeepSeek-V4.1-Flash": "results_dsv41_grid_n15"}
 SUITES = ("solo", "dyad", "3p", "6p")
 LEVELS = ("S1", "S2", "S3", "S4")
+BOOT_B = 10_000
 
 
 def optima():
@@ -172,6 +175,68 @@ def main():
             rul = st.mean(math.log(y["J"] / y["A"]) - math.log(x["J"] / x["A"]) for x, y in pr)
             share = f"{100 * rul / tot:>7.0f}%" if abs(tot) > 1e-3 else f"{'--':>8}"
             print(f"{a_ + '->' + b_:<12}{l:<6}{len(pr):>6}{tot:>8.3f}{rul:>8.3f}{tot - rul:>8.3f}{share}")
+
+    per_model(rows)
+
+
+def boot(per_board, stat, b=BOOT_B, seed=0):
+    """Percentile 95% CI of stat(summed columns) over boards resampled with
+    replacement.  per_board: array (boards x columns) of per-board sums."""
+    x = np.asarray(per_board, float)
+    idx = np.random.default_rng(seed).integers(0, len(x), size=(b, len(x)))
+    v = stat(x[idx].sum(axis=1).T)
+    return np.nanpercentile(v, [2.5, 97.5])
+
+
+def per_model(rows):
+    """Who pays, per model, on matched boards, with a board bootstrap.
+
+    Pairs are (level, board, protocol) solved in both suites; per pair, the log
+    efficiency step on J splits into rules (log A_a/A_b, a board property) and
+    agents (log eff_A_b - log eff_A_a).  The bootstrap resamples the 60 boards,
+    each carrying all its pairs, BOOT_B times at seed 0; shares are the
+    component's mean over the total's mean, so a share's CI is wide wherever
+    the total is near zero.  Exploratory."""
+    print(f"\nPer model, matched boards, log efficiency; 95% board-bootstrap CI"
+          f" (B = {BOOT_B}, seed 0)")
+    idx = {(r["suite"], r["model"], r["level"], r["gid"], r["proto"]): r for r in rows if r["success"]}
+    boards = sorted({(r["level"], r["gid"]) for r in rows})
+    for m in ARMS:
+        for a_, b_ in (("dyad", "3p"), ("3p", "6p"), ("dyad", "6p")):
+            sums = {bd: [0.0, 0.0, 0] for bd in boards}       # total, rules, pairs
+            for k, x in idx.items():
+                if k[0] != a_ or k[1] != m or (b_,) + k[1:] not in idx:
+                    continue
+                y = idx[(b_,) + k[1:]]
+                s = sums[(k[2], k[3])]
+                s[0] += math.log(x["moves"] / y["moves"])  # = log eff_J,b - log eff_J,a
+                s[1] += math.log(x["A"] / y["A"])
+                s[2] += 1
+            M = np.array(list(sums.values()))
+            n = int(M[:, 2].sum())
+            tot, rul = M[:, 0].sum() / n, M[:, 1].sum() / n
+            ci = lambda f: "[{:+.3f}, {:+.3f}]".format(*boot(M, f))
+            sh = lambda f: "[{:.0f}, {:.0f}]%".format(*(100 * boot(M, f)))
+            print(f"  {m:<20}{a_ + '->' + b_:<9} pairs {n:>3}  total {tot:+.3f} {ci(lambda c: c[0] / c[2])}"
+                  f"  rules {rul:+.3f} {ci(lambda c: c[1] / c[2])}"
+                  f"  agents {tot - rul:+.3f} {ci(lambda c: (c[0] - c[1]) / c[2])}"
+                  f"  rules share {100 * rul / tot:.0f}% {sh(lambda c: c[1] / c[0])}"
+                  f"  agents share {100 * (tot - rul) / tot:.0f}% {sh(lambda c: (c[0] - c[1]) / c[0])}")
+    print("\nPer model, 6p successes: efficiency on J and on A_6p; rules share of the"
+          " log inefficiency on J, with the same bootstrap")
+    for m in ARMS:
+        sums = {bd: [0.0, 0.0, 0] for bd in boards}           # log J/moves, log J/A, n
+        ok = [r for r in rows if r["model"] == m and r["suite"] == "6p" and r["success"]]
+        for r in ok:
+            s = sums[(r["level"], r["gid"])]
+            s[0] += math.log(r["J"] / r["moves"])
+            s[1] += math.log(r["J"] / r["A"])
+            s[2] += 1
+        M = np.array(list(sums.values()))
+        sh = boot(M, lambda c: c[1] / c[0])
+        print(f"  {m:<20} n {len(ok)}  eff_J {st.mean(r['J'] / r['moves'] for r in ok):.3f}"
+              f"  eff_A {st.mean(r['A'] / r['moves'] for r in ok):.3f}"
+              f"  rules share {100 * M[:, 1].sum() / M[:, 0].sum():.0f}% [{100 * sh[0]:.0f}, {100 * sh[1]:.0f}]%")
 
 
 if __name__ == "__main__":

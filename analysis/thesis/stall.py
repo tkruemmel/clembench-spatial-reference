@@ -10,14 +10,17 @@ for every team size.  Episodes shorter than k have no window and are dropped.
 Exploratory and descriptive: not one of tab:15's nineteen confirmatory
 contrasts.  Two strong models only.
 
-    python analysis/thesis/stall.py
+    ARM=updated python3 analysis/thesis/stall.py          # report
+    ARM=updated python3 analysis/thesis/stall.py --tex    # also thesis/numbers/E_tab_stall_level.tex
 """
 import json
 import os
 import re
 import statistics as st
+import sys
 
 from scipy.stats import kruskal, spearmanr
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 ARM = os.environ.get("ARM", "updated")  # arm of the team suites; solo is always original
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -83,16 +86,19 @@ AK = {(s, d["level"], d["game_id"]): d["stuckfree"]
       for s in ("dyad", "3p", "6p")
       for d in map(json.loads, open(os.path.join(REPO, f"analysis/efficiency_baseline/attainable_{s}.jsonl")))
       if d.get("status") == "exact"}
+AK.update({("solo", d["level"], d["game_id"]): d["opt"]       # solo's A is J
+           for d in map(json.loads, open(os.path.join(REPO, "analysis/efficiency_baseline/joint_optimum.jsonl")))
+           if d.get("status") == "exact"})
 
 
-def rows():
+def rows(models=STRONG):
     out = []
     for e in json.load(open(EPISODES)):
-        if e["model"] not in STRONG:
+        if e["model"] not in models:
             continue
         D, msgs, chars = replay(e)
         out.append(dict(
-            suite=e["suite"], level=e["level"], proto=e["proto"],
+            model=e["model"], suite=e["suite"], level=e["level"], proto=e["proto"],
             outcome=e["outcome"], gid=int(e["inst"].split("_")[-1]), T=len(D) - 1,
             msgs=msgs, chars=chars,
             native=stall_rate(D, max(2 * e["nplayers"], 6)),
@@ -112,8 +118,36 @@ def grid(R, key, outcome=None):
         print(f"{lv}  " + "  ".join(cells))
 
 
+def tex(R):
+    """tab:stall-level, generated: mean native stall rate on successes, strong models pooled."""
+    from tables_comm import table
+    body = []
+    for lv in LEVELS:
+        cells = []
+        for s in SUITES:
+            x = [r["native"] for r in R if r["level"] == lv and r["suite"] == s
+                 and r["outcome"] == "success" and r["native"] is not None]
+            cells.append(f"{st.mean(x):.3f}")
+        body.append(f"{lv} & " + " & ".join(cells))
+    n = {s: sum(1 for r in R if r["suite"] == s and r["outcome"] == "success" and r["native"] is not None)
+         for s in SUITES}
+    return table(
+        "Mean stall rate on successful episodes by level and suite, Qwen3.8 and "
+        "DeepSeek-V4.1-Flash pooled, native window $k = \\max(2n, 6)$. Exploratory.",
+        "tab:stall-level", "lcccc", " & solo & dyad & 3p & 6p", body,
+        note="Successful episodes with at least one window: "
+             + ", ".join(f"{s} {n[s]}" for s in SUITES) + ".")
+
+
 def main():
     R = rows()
+    if "--tex" in sys.argv:
+        out = os.path.join(REPO, "thesis/numbers/E_tab_stall_level.tex")
+        open(out, "w").write(tex(R))
+        print("wrote", out)
+    E = json.load(open(EPISODES))
+    w = [e["moves"] >= max(2 * e["nplayers"], 6) for e in E if e["model"] == "nemotron"]
+    print(f"Nemotron episodes with a native window: {sum(w)} / {len(w)}")
     print("-- medians, native k: success vs loss (n)")
     for s in SUITES:
         w = [r["native"] for r in R if r["suite"] == s and r["outcome"] == "success" and r["native"] is not None]
@@ -121,6 +155,16 @@ def main():
         print(f"{s:5s} {st.median(w):.3f} vs {st.median(lo):.3f}  ({len(w)} / {len(lo)})")
     ab = [r["native"] for r in R if r["suite"] == "6p" and r["outcome"] == "abort" and r["native"] is not None]
     print(f"6p aborts median {st.median(ab):.3f} (n = {len(ab)})")
+    print("-- means, native k: success vs loss (ratio)")
+    for s in SUITES:
+        w = st.mean(r["native"] for r in R if r["suite"] == s and r["outcome"] == "success" and r["native"] is not None)
+        lo = st.mean(r["native"] for r in R if r["suite"] == s and r["outcome"] == "lose" and r["native"] is not None)
+        print(f"{s:5s} {w:.3f} vs {lo:.3f}  ({lo / w:.1f}x)")
+    print("-- Spearman stall vs efficiency A_k / moves, successes, native k")
+    for s in SUITES:
+        g = [r for r in R if r["suite"] == s and r["outcome"] == "success" and r["native"] is not None]
+        a = spearmanr([r["native"] for r in g], [AK[(s, r["level"], r["gid"])] / r["T"] for r in g])
+        print(f"{s:5s} rho {a.statistic:+.2f} (n = {len(g)})")
 
     grid(R, "native", "success")
     print("-- Kruskal-Wallis across levels, successes, native k")

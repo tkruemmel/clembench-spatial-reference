@@ -11,7 +11,7 @@ def pm(r):
     if r is None: return None
     m = MOVE.findall(r)
     return (m[-1][0].upper(), m[-1][1].lower()) if m else None
-C = collections.Counter(); eps = collections.Counter(); nleg_rep = collections.defaultdict(list)
+A = collections.Counter(); C = collections.Counter(); eps = collections.Counter(); nleg_rep = collections.defaultdict(list)
 for r in R:
     d = os.path.join(REPO, r["path"])
     ins = json.load(open(os.path.join(d, "instance.json"))); it = json.load(open(os.path.join(d, "interactions.json")))
@@ -38,7 +38,7 @@ for r in R:
                 who = c.split(":")[0].replace("Player", "").strip() or "A"
                 objs = mine.get(who, sum(groups, [])) if len(groups) > 1 else sum(groups, [])
                 nl = legal(objs) if ty == "invalid_move" else None
-                pairs.append((ty, c, resp, nl)); resp = None
+                pairs.append((ty, c, resp, nl, who)); resp = None
                 if ty == "move":
                     m = MOVEOK.match(c)
                     if m:
@@ -55,9 +55,26 @@ for r in R:
         else: k = "format_fail"
         has_alt = pairs[i][3] > 0
         C[(tier, has_alt, k)] += 1
+        # attempt index within the player's current run of failed responses:
+        # 1 = the first rejection since its last accepted move or done
+        j = i; att = 1
+        while j > 0 and pairs[j - 1][4] == pairs[i][4] and pairs[j - 1][0] not in ("move", "player_done"):
+            att += 1; j -= 1
+        if has_alt: A[(tier, r["suite"], min(att, 3), k)] += 1
 for t in ("qwen38", "dsv41", "nemotron"):
     print(t, "episodes with >=1 rejected move:", eps[(t, True)], "/", eps[(t, True)] + eps[(t, False)])
     for alt in (True, False):
         tot = sum(v for (tt, a, k), v in C.items() if tt == t and a == alt)
         print("   legal alt available" if alt else "   NO legal move", "rejections followed by a retry:", tot,
               {k: v for (tt, a, k), v in C.items() if tt == t and a == alt})
+
+print("first retry: the response right after a player's first rejection (legal alternative open)")
+for t in ("qwen38", "dsv41", "nemotron"):
+    for att in (1, 2, 3):
+        tot = sum(v for (tt, s, a, k), v in A.items() if tt == t and a == att)
+        rep = sum(v for (tt, s, a, k), v in A.items() if tt == t and a == att and k == "repeat")
+        if tot: print(f"  {t} attempt {att}{'+' if att == 3 else ''}->next: {rep}/{tot} repeats = {100*rep/tot:.1f}%")
+    for s in ("solo", "dyad", "3p", "6p"):
+        tot = sum(v for (tt, ss, a, k), v in A.items() if tt == t and ss == s and a == 1)
+        rep = sum(v for (tt, ss, a, k), v in A.items() if tt == t and ss == s and a == 1 and k == "repeat")
+        if tot: print(f"     {t} {s} first retry: {rep}/{tot} = {100*rep/tot:.1f}%")

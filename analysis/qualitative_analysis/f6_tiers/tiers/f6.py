@@ -61,7 +61,14 @@ for c, v in cat.items():
 print("\n-- efficiency-only (both succeed) D-Q quality diff:")
 d_both = [b["q"] - a["q"] for a, b in pp if a["success"] and b["success"]]
 print("  mean", st.mean(d_both), "p", tc.perm_p(d_both))
-print("  full 814 p", tc.perm_p(dq))
+print(f"  all {len(dq)} pairs p", tc.perm_p(dq))
+# per suite: the Quality lead with its paired sign-flip p (tables_comm.perm_p,
+# 100,000 resamples, seed 0), on A_k (q) and on the free-order optimum J (q_j)
+for fld in ("q", "q_j"):
+    for s in ("solo", "dyad", "3p", "6p", None):
+        d = [idd[k][fld] - iq[k][fld] for k in ks if s in (None, k[0])
+             and iq[k][fld] is not None and idd[k][fld] is not None]
+        print(f"  {fld} lead D-Q {s or 'all'}: pairs {len(d)} mean {st.mean(d):+.2f} p={tc.perm_p(d):.3g}", flush=True)
 # per suite decomposition
 for s in ("solo", "dyad", "3p", "6p"):
     sp = [(a, b) for a, b in pp if a["suite"] == s]

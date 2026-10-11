@@ -8,6 +8,7 @@ declares `done` and the cell stops being something that can step aside.
 
     python3 analysis/qualitative_analysis/cut.py            # the counts S9.3.2 quotes
     python3 analysis/qualitative_analysis/cut.py --list     # candidate episodes per kind
+    python3 analysis/qualitative_analysis/cut.py --check    # assert the pinned counts
 
 Also the data source for figures/cuts.py.
 """
@@ -238,8 +239,16 @@ def summary(rows):
     print("by level: %s" % dict(collections.Counter(r["meta"]["level"] for r in rows)))
     print("by suite: %s" % dict(collections.Counter(r["meta"]["suite"] for r in rows)))
     tails = sorted(r["tail"] for r in rows)
-    print("moves played after the cut formed: median %d, max %d"
+    print("moves played after the cut formed: median %d, max %d (per cut object)"
           % (tails[len(tails) // 2], tails[-1]))
+    first = collections.defaultdict(int)
+    for r in rows:
+        first[r["meta"]["path"]] = max(first[r["meta"]["path"]], r["tail"])
+    ep = sorted(first.values())
+    print("   per episode, from its first cut: median %g, mean %.1f, max %d; "
+          "more than 10 moves: %d of %d"
+          % ((ep[(len(ep) - 1) // 2] + ep[len(ep) // 2]) / 2, sum(ep) / len(ep), ep[-1],
+             sum(t > 10 for t in ep), len(ep)))
 
 
 def listing(rows, kind=None):
@@ -256,12 +265,46 @@ def listing(rows, kind=None):
                  r["kind"]))
 
 
+# Pinned per arm: episodes, cut objects, cut objects per shape, the minimum
+# vertex cut each shape takes, and moves played after the first cut of each
+# episode (median, max). tables_comm.py's tab:cut-shape asserts its own subset.
+WANT = {
+    "original": (78, 101, {ENTRANCE: 45, OPEN: 31, ENTRANCE_OTHER: 9, INSIDE: 7,
+                           APPROACH: 5, POCKET: 4},
+                 {ENTRANCE: [1], ENTRANCE_OTHER: [2], INSIDE: [1], APPROACH: [1],
+                  OPEN: [2], POCKET: [2, 3]}, (17.0, 96)),
+    "updated": (88, 120, {ENTRANCE: 50, OPEN: 34, ENTRANCE_OTHER: 12, INSIDE: 13,
+                          APPROACH: 6, POCKET: 5},
+                {ENTRANCE: [1], ENTRANCE_OTHER: [2], INSIDE: [1], APPROACH: [1],
+                 OPEN: [2], POCKET: [2, 3]}, (19.0, 87)),
+}
+
+
+def check(rows):
+    first = collections.defaultdict(int)
+    for r in rows:
+        first[r["meta"]["path"]] = max(first[r["meta"]["path"]], r["tail"])
+    tails = sorted(first.values())
+    mid = (tails[(len(tails) - 1) // 2] + tails[len(tails) // 2]) / 2
+    got = (len(first), len(rows), dict(collections.Counter(r["kind"] for r in rows)),
+           {k: sorted({r["mincut"] for r in rows if r["kind"] == k})
+            for k in {r["kind"] for r in rows}}, (mid, tails[-1]))
+    assert got == WANT[ARM], (got, WANT[ARM])
+    # every cut forms on a `done` (asserted in cases()) by a player standing on
+    # its own target
+    assert all(r["pre"][r["sealer"]] == r["targets"][r["sealer"]] for r in rows)
+    print("cut check ok (%s arm)" % ARM)
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--list", metavar="KIND", nargs="?", const="",
                     help="per-episode candidates, optionally filtered by kind prefix")
+    ap.add_argument("--check", action="store_true", help="assert the pinned counts")
     args = ap.parse_args()
     rows = cases()
+    if args.check:
+        return check(rows)
     if args.list is None:
         summary(rows)
     else:

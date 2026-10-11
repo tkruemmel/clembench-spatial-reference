@@ -21,6 +21,7 @@ for r in [x for x in R if x['suite']=='6p']:
                 out.append(o)
         return out
     ever=set(stuck()); jam_moves=0; total=0
+    off_now={o for o in ever if pos[o]!=tgt[o]}   # enclosed while off its target, at that moment
     for t in it['turns']:
         for e in t:
             a=e.get('action',{})
@@ -30,9 +31,10 @@ for r in [x for x in R if x['suite']=='6p']:
                     o,dr=m.group(2),m.group(3)
                     pos[o]=(pos[o][0]+DIRS[dr][0],pos[o][1]+DIRS[dr][1])
                     s=stuck(); ever|=set(s); total+=1
+                    off_now|={x for x in s if pos[x]!=tgt[x]}
                     if s: jam_moves+=1
     res.append((r['outcome'], r['model'], r['level'], r['proto'], r['inst'],
-                sorted(ever), sorted(o for o in ever if pos[o]!=tgt[o]), jam_moves, total))
+                sorted(ever), sorted(off_now), jam_moves, total))
 json.dump(res,open(f'jam.{ARM}.json','w'))
 c=collections.Counter()
 for o,m,l,p,i,ever,unsolved,jm,tot in res:
@@ -44,4 +46,7 @@ print()
 print("successful 6p episodes with at least one fully hemmed-in moment: %d/%d" % (sum(1 for x in S if x[5]), len(S)))
 print("  median share of the episode spent with someone hemmed in: %.2f" %
       sorted(x[7]/max(x[8],1) for x in S)[len(S)//2])
+# x[6] is measured at the moment of enclosure; testing final positions instead made this 0 by construction
 print("  successes where a hemmed-in object was NOT yet on its target: %d" % sum(1 for x in S if x[6]))
+print("episodes with an off-target object enclosed at some moment, by outcome:",
+      dict(collections.Counter(x[0] for x in res if x[6])))

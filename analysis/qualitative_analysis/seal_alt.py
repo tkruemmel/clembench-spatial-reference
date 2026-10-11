@@ -1,8 +1,10 @@
 """The sealing move of every enclosure abort: did the sealer have a harmless
-alternative? Answers the claim in S9.3 that it had one in 30 of 32 cases, and
-prints the two exceptions. Also the data source for figures/aborts.py.
+alternative? Answers the claim in S9.3 (updated arm: 30 of 30; original arm:
+30 of 32) and prints the exceptions, if any. Also the data source for
+figures/aborts.py and tables_comm.py's tab:seal-greedy.
 
     python3 analysis/qualitative_analysis/seal_alt.py
+    python3 analysis/qualitative_analysis/seal_alt.py --check   # assert the pinned counts
 """
 import collections
 import json
@@ -151,13 +153,17 @@ def greedy_rows(cases):
         made = [(o, dd) for o, dd in case["alts"]
                 if progress(case, case["pre"], o, dd)]
         safe = [m for m in made if m in set(case["harmless"])]
-        # the two ways of asking it coincide on all 30, which the caption says
-        assert (made == [case["played"]]) == (not safe), case["meta"]
+        # without a harmless progress move, the sealing move was the sealer's
+        # only progress move -- or no move made progress at all (`noprog`: 0 on
+        # the original arm, 1 of 25 on the updated arm, Qwen 6p S3 structured
+        # #13, whose sealing move also lost ground)
+        assert safe or made in ([case["played"]], []), case["meta"]
         for key in (MODELS[case["meta"]["model"]], "all"):
             row = out.setdefault(key, collections.Counter())
             row["n"] += 1
             row["nearer" if delta < 0 else "level" if delta == 0 else "further"] += 1
             row["free" if safe else "costly"] += 1
+            row["noprog"] += not made
     return keys, out
 
 
@@ -179,7 +185,31 @@ def replay(case, upto):
     return pos
 
 
+# Pinned per arm: (aborts, sealer had a harmless alternative, victim down to
+# one legal move, sealer took that last cell) and tab:seal-greedy's "all" column.
+WANT = {
+    "original": ((32, 30, 32, 32),
+                 dict(n=30, nearer=30, level=0, further=0, free=5, costly=25, noprog=0)),
+    "updated": ((30, 30, 30, 30),
+                dict(n=30, nearer=28, level=0, further=2, free=5, costly=25, noprog=1)),
+}
+
+
+def check():
+    rows = cases()
+    got = (len(rows), sum(1 for r in rows if r["harmless"]),
+           sum(1 for r in rows if len(legal_moves(r["pre"], [r["victim"]],
+                                                  r["walls"], r["grid"])) == 1),
+           sum(1 for r in rows if last_free_cell(r) == step(r["pre"], *r["played"])[r["played"][0]]))
+    _, counts = greedy_rows(rows)
+    allrow = {k: counts["all"][k] for k in WANT[ARM][1]}
+    assert (got, allrow) == WANT[ARM], ((got, allrow), WANT[ARM])
+    print("seal_alt check ok (%s arm)" % ARM)
+
+
 def main():
+    if "--check" in sys.argv:
+        return check()
     rows = cases()
     print("enclosure aborts (%s): %d" % ("+".join(STRONG), len(rows)))
     print("sealing player had a harmless legal alternative: %d of %d"
@@ -197,6 +227,10 @@ def main():
     print("   the sealer nearer its own target:      %d" % counts["all"]["nearer"])
     print("   nowhere (distance unchanged):          %d" % counts["all"]["level"])
     print("   further from its own target:           %d" % counts["all"]["further"])
+    print("of those, a harmless progress move existed: %d; none, and the sealing"
+          " move was the only progress move: %d; no move made progress: %d"
+          % (counts["all"]["free"], counts["all"]["costly"] - counts["all"]["noprog"],
+             counts["all"]["noprog"]))
     print()
     for r in (x for x in rows if not x["harmless"]):
         m, (o, d) = r["meta"], r["played"]

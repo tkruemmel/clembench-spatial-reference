@@ -47,6 +47,10 @@ if __name__ == "__main__":
             first_roles=collections.Counter(min((x for x in r["ord"] if x[0]<=r["win_end"]))[2] for r in w)
             rt=[r for r in rs if any(p<=r["win_end"] for p,*_ in r["route"])]
             print("  %-10s %-8s n=%2d  door-order %2d  first said by %s | route-only (no order word) %2d"%(pr,o,len(rs),len(w),dict(first_roles),len(rt)))
+    for lab, prs in (("prose", ("freeform", "hybrid")), ("structured", ("structured",))):
+        w = [r for r in rows if r["rec"]["proto"] in prs and r["order"] != "h never arrived" and any(p <= r["win_end"] for p, *_ in r["ord"])]
+        v = sum(min(x for x in r["ord"] if x[0] <= r["win_end"])[2] == "victim" for r in w)
+        print("first door-order statement by the corridor object's player (%s): %d/%d" % (lab, v, len(w)))
     random.seed(5)
     allh=[(r["rec"]["proto"],r["rec"]["model"],r["rec"]["suite"],r["rec"]["inst"],x) for r in rows for x in r["ord"] if x[0]<=r["win_end"]]
     print(len(allh))

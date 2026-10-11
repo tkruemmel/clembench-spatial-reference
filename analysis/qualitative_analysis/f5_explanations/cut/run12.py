@@ -35,3 +35,6 @@ for k in sorted(res): print("  ",k,dict(res[k]),"wait share %.2f"%(res[k]["wait"
 print("At B's first arrival on the door (3p+6p): door-order statement status in context")
 for g in arr:
     for k in sorted(arr[g]): print("  ",g,k,arr[g][k])
+for g in ("prose", "structured"):
+    t, f = sum(res[(g, True)].values()), sum(res[(g, False)].values())
+    print("6p statement in view (%s): %d/%d decisions; waited with %d/%d, without %d/%d" % (g, t, t + f, res[(g, True)]["wait"], t, res[(g, False)]["wait"], f))

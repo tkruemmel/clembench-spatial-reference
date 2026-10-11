@@ -28,11 +28,9 @@ Emits ten tables and Appendix B.
                     baseline.  The only table here that includes S1, because its
                     point is that S1 is flat on both sides: there is no gap for
                     a channel to close until the board hides something.
-  tab:dialogue      S8.5's null: message features in successful against failed
-                    episodes, protocol held constant.  The only table here
-                    computed from messages rather than from scores.json, and
-                    the only one whose scope is all three multiplayer suites
-                    rather than the dyad.
+  (tab:dialogue is emitted by dialogue.py, per episode within strata; the
+                    message helpers it uses, DIALOGUE, MEANS and messages(),
+                    stay here.)
   tab:carries       the \tab{10}: what a dyad message carries, by model and
                     protocol.  Read from qual_corpus.py's cache, so its cells
                     are the ones R5 verified as Part II Table 12.
@@ -631,8 +629,8 @@ def objects_home(path):
     every legal move is in the interaction log, and applying them to the
     instance's start positions reproduces the final board.  Blocked and
     illegal attempts never reach the log, so the replay is exact -- verified
-    on all 1,552 successful episodes of the three arms, every one of which
-    replays to 6/6.  This is the Goal rate row of tab:clembench, the analogue
+    on every successful episode of the three arms (_selfcheck_replay), each of
+    which replays to 6/6.  This is the Goal rate row of tab:clembench, the analogue
     of Plant-in-Cupboard's Goal Success Rate (Jordan et al., 2025).
     """
     inst = json.load(open(os.path.join(path, "instance.json")))
@@ -749,6 +747,10 @@ def clembench_table(opt, check):
             " & Success (all episodes) & " + " & ".join(f"{c['succ']:.2f}" for c in cs),
             " & Goal rate & " + " & ".join(f2(c["gsr"]) for c in cs),
             f" & \\textbf{{clemscore}} & & & & & \\textbf{{{a['clem']:.2f}}}"]
+    # the weak model's best team-suite Quality Score, and how few episodes it rests on
+    wg = max(SUITES, key=lambda g: cells[("Nemotron", g)]["q"])
+    wk = cells[("Nemotron", wg)]
+    assert wk["played"] < 20, wk
     caption = (
         "The clembench scores, per model and game, aggregated as the "
         "framework aggregates them \\citep{chalamalasetti-etal-2023-clembench}. "
@@ -761,8 +763,8 @@ def clembench_table(opt, check):
         "Score. \\texttt{BENCH\\_SCORE} is taken on each game's attainable "
         "optimum (\\S5.4, \\S6.4), the fewest moves a flawless team of that "
         "size needs under that game's rules, so a perfect play-through scores "
-        "100 in every game; not on the per-object bound the games store, which "
-        "understates S2--S4. \\emph{Success} is successes over "
+        "100 in every game. The solo game stores the per-object bound instead, "
+        "which understates S2--S4. \\emph{Success} is successes over "
         "all episodes, the denominator used everywhere else in this thesis, where "
         "an abort counts as a failure. \\emph{Goal rate} is objects on target "
         "when the episode ended, over all objects in all episodes: the "
@@ -775,9 +777,9 @@ def clembench_table(opt, check):
         "not folded into the Quality Score: five of six objects home is not "
         "five-sixths of a solved board, because the object left behind is "
         "usually the one the level was built around. The weak tier shows why "
-        "the scores cannot be read apart: a Quality Score of 41 at 3p rests on "
-        "the 5\\% of episodes that were played at all, and its goal rate over "
-        "all episodes is a small fraction of that.")
+        f"the scores cannot be read apart: a Quality Score of {wk['q']:.0f} at "
+        f"{'the dyad' if wg == 'dyad' else wg} rests on the {wk['played']:.1f}\\% of episodes that were played "
+        "at all, and its goal rate over all episodes is a small fraction of that.")
     return table(caption, "tab:clembench", "llrrrrr",
                  r"Model & & Solo & Dyad & 3p & 6p & All", body)
 
@@ -791,7 +793,7 @@ def goals_table(check):
 
     The distribution behind the Goal rate row of tab:clembench.  Successes are
     6/6 by definition, so that row is the replay's self-check rather than a
-    finding: all 1,552 of them come back 6/6.
+    finding: every one of them comes back 6/6.
     """
     dist, per_level = {}, {}
     for model, prefix in ARMS.items():
@@ -844,27 +846,39 @@ def goals_table(check):
     lost = [x for m in STRONG for x in dist.get((m, "lost"), [])]
     near5 = 100.0 * sum(1 for x in lost if x >= 5) / len(lost)
     near4 = 100.0 * sum(1 for x in lost if x >= 4) / len(lost)
+    n_succ = sum(len(v) for (m, o), v in dist.items() if o == "success")
+    n_succ_tex = f"{n_succ:,}".replace(",", "\\,")
+    mean = {(m, o): st.mean(dist[(m, o)]) for m in ARMS for o in ("lost", "aborted")}
+    weak_ab = dist[("Nemotron", "aborted")]
+    # the caption's contrast: in each strong model a loss ends far closer to
+    # solved than an abort does
+    assert all(mean[(m, "lost")] > mean[(m, "aborted")] + 2 for m in STRONG), mean
+    lv = {k: (len(v), sum(1 for x in v if x == 5), st.mean(v)) for k, v in per_level.items()}
+    top = max(lv, key=lambda k: lv[k][0])
     caption = (
         "Objects on target when the episode ended, for the episodes that did not "
         "succeed: the distribution behind the Goal rate row of "
         "Table~\\ref{tab:clembench}, reconstructed by replaying every logged move "
         "against the instance's start positions (\\S5.4.1). Successes are omitted "
         "because they carry no distribution --- an episode counts as a success "
-        "only when all six objects are home, so all 1\\,552 of them replay to 6/6, "
+        f"only when all six objects are home, so all {n_succ_tex} of them replay to 6/6, "
         "which is how the reconstruction is verified rather than something the "
         "table reports. What is left is exactly what \\texttt{BENCH\\_SCORE} "
         "cannot distinguish, since it is 0 for all of it alike. \\emph{In the "
-        f"strong tier a loss is a near miss}}: {near5:.0f}\\% of the 123 lost "
+        f"strong tier a loss is a near miss}}: {near5:.0f}\\% of the {len(lost)} lost "
         f"episodes end one object short and {near4:.0f}\\% end at four of six or "
-        "better, the means being 4.03 and 4.14. \\emph{An abort is not}: the same models average "
-        "1.57 and 1.39, and the weak tier's 749 aborts average 0.31, with 619 of "
+        f"better, the means being {mean[(STRONG[0], 'lost')]:.2f} and "
+        f"{mean[(STRONG[1], 'lost')]:.2f}. \\emph{{An abort is not}}: the same models average "
+        f"{mean[(STRONG[0], 'aborted')]:.2f} and {mean[(STRONG[1], 'aborted')]:.2f}, and the "
+        f"weak tier's {len(weak_ab)} aborts average {st.mean(weak_ab):.2f}, with "
+        f"{sum(1 for x in weak_ab if x == 0)} of "
         "them at 0/6. The two non-success outcomes are different failures, and "
         "the binary score charges them the same.")
     note = (r"\emph{Strong-tier losses by level} (Qwen3.8 and DeepSeek pooled, "
-            r"objects home): S1 $n=4$, mean 4.50; S2 $n=13$, 3.92; S3 $n=73$, "
-            r"4.07; S4 $n=33$, 4.12. At S3, 34 of the 73 losses end one object "
-            r"short --- the level where \S7.1 puts the efficiency floor is also "
-            r"where the failures come closest to solving the board.")
+            r"objects home): "
+            + "; ".join(f"{k} $n={lv[k][0]}$, {lv[k][1]} one object short, mean {lv[k][2]:.2f}"
+                        for k in sorted(lv))
+            + f". {top} holds {lv[top][0]} of the {len(lost)} losses.")
     return table(caption, "tab:goals", "llrrrrrrrr",
                  r"Model & Outcome & $n$ & 5 & 4 & 3 & 2 & 1 & 0 & Mean",
                  body, note=note)
@@ -918,13 +932,16 @@ def teamsize_table(opt, check):
         return None
 
     # The prose of S9.1, asserted so that a rerun which breaks it breaks the
-    # build: the third agent is a significant cost in both models, the 3->6
-    # step is not, and on the joint optimum every step still is (the rules).
+    # build: the third agent is a significant cost in both models; the 3->6
+    # step is a further cost in Qwen3.8 and none in DeepSeek; on the joint
+    # optimum every step is a cost in both (the rules).
+    qwen, ds = STRONG
     for m in STRONG:
         assert paired[(m, "dyad", "3p")][0] > 0 and paired[(m, "dyad", "3p")][2] < 0.001
-        assert paired[(m, "3p", "6p")][2] > 0.05, f"{m} 3p->6p now significant"
-        assert all(paired_j[(m, a, b)][0] > 0 and paired_j[(m, a, b)][2] < 0.001
+        assert all(paired_j[(m, a, b)][0] > 0 and paired_j[(m, a, b)][2] < 0.01
                    for a, b in steps)
+    assert paired[(qwen, "3p", "6p")][0] > 0 and paired[(qwen, "3p", "6p")][2] < 0.05
+    assert paired[(ds, "3p", "6p")][2] > 0.5
 
     name = {"solo": "Solo (ref.)", "dyad": "Dyad", "3p": "3p", "6p": "6p"}
     body = []
@@ -953,9 +970,10 @@ def teamsize_table(opt, check):
         "flawless team of any size scores 100; \\emph{Quality on $J$} divides "
         "by the free-order joint optimum instead and so also charges the moves "
         "the suite's rules force. Solo is the reference row, not a step of the "
-        "ladder. The third agent costs Quality at every level, most at S3; the "
-        "remaining three cost none beyond what the rules force, and below 6p "
-        "every episode is played.")
+        "ladder. The third agent costs Quality at every level, most at S3. The "
+        "remaining three cost the agents Quality only at S3; at the other levels "
+        "their cost is what the rules force, and the aborted episodes that "
+        "appear at 6p from S2 up. Below 6p every episode is played.")
     note = ("\\emph{Paired Quality drops}, per model (Qwen3.8, then DeepSeek), "
             "over (level, protocol, board) played in both suites, two-sided "
             "paired permutation test. On the attainable optimum: "
@@ -980,11 +998,11 @@ def teamsize_steps_table(opt):
         d[("played", a, b)] = [cells[(b, l)]["played"] - cells[(a, l)]["played"]
                                for l in ALL_LEVELS]
     # The prose's shape: the third agent's cost to the agents peaks at S3; the
-    # 3->6 step costs the agents nothing at any level beyond S1's rounding and
-    # is carried by the rules; only the 3->6 step costs played episodes.
+    # 3->6 step costs the agents Quality only at S3 and is otherwise carried
+    # by the rules; only the 3->6 step costs played episodes.
     s3 = ALL_LEVELS.index("S3")
     assert min(d[("q", "dyad", "3p")]) == d[("q", "dyad", "3p")][s3]
-    assert all(x > -1.0 for x in d[("q", "3p", "6p")])
+    assert [lv for lv, x in zip(ALL_LEVELS, d[("q", "3p", "6p")]) if x <= -1.0] == ["S3"]
     assert all(x < 0 for x in d[("rules", "3p", "6p")])
     assert all(x == 0 for x in d[("played", "dyad", "3p")])
     body = []
@@ -1007,47 +1025,43 @@ def teamsize_steps_table(opt):
         "in Quality on each suite's attainable optimum), with the change in "
         "\\% Played beneath. Qwen3.8 and DeepSeek-V4.1-Flash pooled ($n = 120$ "
         "per cell). The third agent's cost is mostly the agents' and "
-        "concentrated at S3; the remaining three cost the agents nothing, and "
-        "their whole Quality cost is the rules, while from S2 up they also cost "
-        "aborted episodes, which the Quality Score does not count. Largest cost "
-        "per row in bold.")
+        "concentrated at S3. The remaining three cost the agents Quality only at "
+        "S3; at the other levels their whole Quality cost is the rules, and from "
+        "S2 up they also cost aborted episodes, which the Quality Score does not "
+        "count. Largest cost per row in bold.")
     return table(caption, "tab:teamsize-steps", "llrrrr",
                  r"Measure & Step & S1 & S2 & S3 & S4", body)
 
 
 def teamsize_tests_table(opt):
     """tab:teamsize-tests: the six paired Quality contrasts behind S9.1, one
-    row each, on the attainable optimum, with Holm over the six."""
+    row each, on the attainable optimum.  Exploratory and uncorrected: Holm
+    applies only within the nineteen confirmatory contrasts."""
     _, paired, _ = teamsize_cells(opt)
-    keys = sorted(paired, key=lambda k: paired[k][2])
-    holm, run = {}, 0.0
-    for i, k in enumerate(keys):
-        run = max(run, min(1.0, paired[k][2] * (len(keys) - i)))
-        holm[k] = run
-    assert all(holm[(m, "dyad", "3p")] < 0.01 for m in STRONG)
-    assert all(holm[(m, "3p", "6p")] > 0.05 for m in STRONG)
+    assert all(paired[(m, "dyad", "3p")][2] < 0.001 for m in STRONG)
+    assert paired[(STRONG[0], "3p", "6p")][2] < 0.05 < 0.5 < paired[(STRONG[1], "3p", "6p")][2]
     fp = lambda p: "<10^{-4}" if p < 1e-4 else sci(p)
     body = []
     for a, b in TEAMSIZE_STEPS:
         body.append(f"{a}$\\to${b} & " + " & ".join(
             f"{signed(paired[(m, a, b)][0], 2)} & {paired[(m, a, b)][1]} & "
-            f"${fp(paired[(m, a, b)][2])}$ & ${fp(holm[(m, a, b)])}$"
+            f"${fp(paired[(m, a, b)][2])}$"
             for m in STRONG))
     caption = (
         "Paired Quality Score drops with team size, per model, on each suite's "
         "attainable optimum. Each pair is one (level, protocol, board) played in "
         "both suites; $\\Delta Q$ is the mean of smaller-team minus larger-team "
-        "Quality. The third agent is a significant drop in both models after "
-        "Holm correction; the step from three to six is not a drop in either.")
+        "Quality. Exploratory and uncorrected. The third agent is a drop in "
+        "both models; the step from three to six is a further drop in Qwen3.8 "
+        "and none in DeepSeek.")
     note = ("Two-sided paired permutation (sign-flip) test on the mean "
             "difference, $10^5$ resamples at a fixed seed, and $p < 10^{-4}$ marks the resampling "
             "floor. $n$ falls below 240 where a 6p "
-            "episode aborted and has no Quality Score. $p_\\mathrm{Holm}$ adjusts "
-            "over the six tests.")
-    head = " & ".join(f"\\multicolumn{{4}}{{c}}{{{MODEL_NAMES[m]}}}" for m in STRONG)
-    sub = " & ".join(r"$\Delta Q$ & $n$ & $p$ & $p_\mathrm{Holm}$" for _ in STRONG)
-    return table(caption, "tab:teamsize-tests", "lrrrrrrrr",
-                 f" & {head} \\\\\n    \\cmidrule(lr){{2-5}}\\cmidrule(lr){{6-9}}\n"
+            "episode aborted and has no Quality Score.")
+    head = " & ".join(f"\\multicolumn{{3}}{{c}}{{{MODEL_NAMES[m]}}}" for m in STRONG)
+    sub = " & ".join(r"$\Delta Q$ & $n$ & $p$" for _ in STRONG)
+    return table(caption, "tab:teamsize-tests", "lrrrrrr",
+                 f" & {head} \\\\\n    \\cmidrule(lr){{2-4}}\\cmidrule(lr){{5-7}}\n"
                  f"    Step & {sub}", body, note=note, tight=True)
 
 
@@ -1062,22 +1076,29 @@ def seal_greedy_table():
     sys.path.insert(0, os.path.join(ROOT, "analysis/qualitative_analysis"))
     import seal_alt as sa
 
-    keys, counts = sa.greedy_rows(sa.cases())
+    cases = sa.cases()
+    keys, counts = sa.greedy_rows(cases)
     cells = lambda f: " & ".join(str(counts[k][f]) for k in keys)
-    total, costly = counts["all"]["n"], counts["all"]["costly"]
+    a = counts["all"]
+    total, costly, noprog = a["n"], a["costly"], a["noprog"]
+    # every strong-tier enclosure abort had a harmless alternative (no forced
+    # seal), and the levels the caption names partition the set
+    assert total == len(cases) and a["nearer"] + a["level"] + a["further"] == total, a
     caption = (
-        "The sealing move was the locally optimal move in every one of the "
-        f"{total} enclosure aborts whose sealer had a choice; the two whose "
-        "sealing move was its only legal move are excluded, having no choice "
-        "to characterise. Distance is the shortest path to the mover's own "
-        "target over walls, with the other objects ignored because they move; "
-        "the three moves a Manhattan metric would score as retreats are all "
-        "detours around a wall column. A move is \\emph{harmless} if it would "
-        f"have left every player a legal move. Each block partitions the {total}. "
-        f"In every one of the {costly} cases of the last row the sealing move "
-        "was also the sealer's only progress-making move of any kind, so "
-        "avoiding the enclosure there meant giving up ground on its own object "
-        "for a teammate it cannot see.")
+        f"What the sealing move was worth to the player that made it, over all "
+        f"{total} strong-tier enclosure aborts; every sealer had a harmless "
+        f"alternative, so none is excluded. The sealing move took the sealer's "
+        f"own object nearer its target in {a['nearer']} of the {total} and further "
+        f"from it in {a['further']}. Distance is the shortest path to the mover's "
+        "own target over walls, with the other objects ignored because they move. "
+        "A move is \\emph{harmless} if it would have left every player a legal "
+        f"move. Each block partitions the {total}. In {costly - noprog} of the "
+        f"{costly} cases of the last row the sealing move was also the sealer's "
+        "only progress-making move of any kind"
+        + ((", and in the remaining case no move made progress" if noprog == 1 else
+            f", and in the remaining {noprog} no move made progress") if noprog else "")
+        + ", so avoiding the enclosure there meant giving up ground on its own "
+        "object for a teammate it cannot see.")
     body = [
         f"Aborts whose sealer had a harmless alternative & {cells('n')}",
         r"\midrule",
@@ -1131,7 +1152,13 @@ def cut_shape_table():
               for k in labels}
     total, episodes = len(rows), len({r["meta"]["path"] for r in rows})
     pockets = len(everything) - total
-    assert (total, pockets, episodes) == (97, 4, 74), (total, pockets, episodes)
+    assert (total, pockets, episodes) == (115, 5, 83), (total, pockets, episodes)
+    # the caption's two universal claims: every chokepoint is closed by a
+    # sealing object standing on its own target, and the pockets come from
+    # S1 and S2 alone (cut.py itself asserts that every seal is a `done`)
+    assert all(r["frozen_post"].get(o) == r["targets"][o] for r in rows for o in r["seals"])
+    pocket_lv = sorted({r["meta"]["level"] for r in everything if r["kind"] not in cut.CHOKEPOINTS})
+    assert pocket_lv == ["S1", "S2"], pocket_lv
     assert all(r["mincut"] == 1 for r in rows if r["kind"] in
                (cut.ENTRANCE, cut.INSIDE, cut.APPROACH)), "a corridor cut is not 1"
     assert all(r["mincut"] >= 2 for r in rows if r["kind"] == cut.OPEN), \
@@ -1170,10 +1197,9 @@ def cut_shape_table():
         f"{sum(per[(k, lv)] for k in (cut.ENTRANCE, cut.ENTRANCE_OTHER) for lv in levels)}: "
         "the S3 generator places a target on the corridor's only door "
         "(\\S6.2), so the player that finishes there correctly is the one "
-        f"that kills the board. The remaining {pockets} cuts seal the target "
-        "cell's own neighbourhood instead and are the only ones S1 and S2 "
-        "produce; they are described in the text rather than placed here, "
-        "having no chokepoint to locate.")
+        f"that kills the board. The remaining {pockets} cuts, all at S1 and S2, "
+        "seal the target cell's own neighbourhood instead; they are described "
+        "in the text rather than placed here, having no chokepoint to locate.")
     note = (
         "$n$ counts cut objects. \\emph{Cut} is the smallest number of free cells whose removal would "
         "separate that object from its target, searched exhaustively over the "
@@ -1215,6 +1241,7 @@ def main():
     idx = {(e["model"], e["level"], e["game_id"], e["cond"]): e for e in eps}
     keys = sorted({(m, l, g) for (m, l, g, c) in idx})
     res = {cc: contrast(idx, keys, *cc) for _, cc in CONTRASTS}
+    a4 = contrast(idx, keys, "structured", "none")   # confirmatory A4's pairs
 
     # The decomposition, on cell means so that it adds up against the pooled gap
     # tab:recovery reports.  Coordination is SILENT -> NONE; the residual is the
@@ -1287,20 +1314,17 @@ def main():
         r"measured against. "
         r"\emph{Efficiency} is the attainable optimum of the episode's game over "
         r"its move count (the exact joint optimum for solo, where the two "
-        r"coincide), the scoring denominator of \S5.4 --- not the stored per-object "
-        r"BFS bound, which is for budgeting and understates efficiency here by "
-        r"0.07--0.08. It is conditioned on success, so the cells rest on "
-        r"different board sets; the one contrast whose direction turns on this is "
-        r"\textsc{structured} against \textsc{none}, which on the 75 boards solved "
-        r"under both is $-0.027$ at a paired permutation $p = 0.063$. That is "
-        r"contrast A4 of the confirmatory set, which Holm retains as a null "
-        r"($p_\mathrm{Holm} = 0.56$): the direction is reported throughout and "
-        r"the cost is not established.")
+        r"coincide), the scoring denominator of \S5.4. It is conditioned on "
+        r"success, so the cells rest on different board sets. On the "
+        f"{a4['n_eff']} boards both solve, \\textsc{{structured}} against "
+        f"\\textsc{{none}} is {signed(a4['d_eff'], 3)} (paired permutation "
+        f"$p {psci(a4['pw'])}$), contrast A4 of the confirmatory set, which Holm "
+        r"retains as a null: the schema is not established to cost or save moves.")
 
     print("% Generated by analysis/thesis/tables_comm.py -- do not hand-edit.")
     print("% Floats: tab:clembench, tab:goals, tab:solo (the inventory's tab 6), tab:scratchpad (tab 7),")
     print("% tab:recovery (tab 8),")
-    print("% tab:decomposition, tab:interaction (tab 9), tab:dialogue,")
+    print("% tab:decomposition, tab:interaction (tab 9),")
     print("% tab:carries (tab 10), tab:ladder (tab 11),")
     print("% tab:teamsize (tab 12), tab:teamsize-steps, tab:teamsize-tests,")
     print("% tab:seal-greedy, tab:cut-shape; then Appendix B,")
@@ -1332,6 +1356,7 @@ def main():
     assert ch["freeform"]["pq"] > 0.05 and ch["hybrid"]["pq"] > 0.05, ch
     assert ch["structured"]["pq"] < 0.05 and ch["structured"]["d_succ"] <= 0, ch
     assert ch["freeform"]["d_succ"] >= 0 and ch["hybrid"]["d_succ"] >= 0, ch
+    ff_bc = ch["freeform"]["n01"] + ch["freeform"]["n10"]
     cap2 = (
         "The deliberation-matched contrasts, on the Quality Score first and its "
         "two game-specific factors after. Each row holds the writing surface "
@@ -1369,17 +1394,19 @@ def main():
         r"Success: exact conditional McNemar on the discordant pairs "
         r"(the $b\,/\,c$ column). Efficiency: two-sided paired permutation test "
         r"on the mean difference over the boards solved under \emph{both} "
-        r"conditions, 73--87 per contrast. It is the test \S5.5 declares, and "
+        f"conditions, {min(r['n_eff'] for r in res.values())}--"
+        f"{max(r['n_eff'] for r in res.values())} per contrast. It is the test \\S5.5 declares, and "
         r"it counts a tied board rather than dropping it. "
         r"\emph{The success column is underpowered by construction.} With $b+c$ "
         r"discordant pairs the smallest attainable two-sided exact $p$ is "
-        r"$2^{1-(b+c)}$, so the freeform row could not have fallen below $0.25$ "
+        r"$2^{1-(b+c)}$, so the freeform row could not have fallen below "
+        f"${2 ** (1 - ff_bc):.2f}$ "
         r"however the pairs had gone; read those rows as absence of evidence, not "
         r"evidence of absence. "
         r"\emph{Exploratory, with one exception.} The first row is contrasts "
         r"A1 and A2 of Table~\ref{tab:confirmatory} --- the same pairs, the "
-        r"same tests --- and carries the Holm correction there ($p_\mathrm{Holm} "
-        r"= 0.56$ on success, $0.0056$ on efficiency). The other four are "
+        r"same tests --- and carries the Holm correction there "
+        r"(Table~\ref{tab:contrasts}). The other four are "
         r"outside the confirmatory set, carry no correction and support no "
         r"confirmatory claim.")
     print(table(cap2, "tab:decomposition", "lrrrrrrr",
@@ -1419,7 +1446,9 @@ def main():
     spread = {lv: max(Q[(p, lv)] for p in PROTOCOLS) - min(Q[(p, lv)] for p in PROTOCOLS)
               for lv in ALL_LEVELS}
     prose = {lv: (Q[("freeform", lv)] + Q[("hybrid", lv)]) / 2 for lv in ALL_LEVELS}
-    assert max(spread, key=spread.get) == "S3" and spread["S1"] < 3, spread
+    # "exists only where spatial complexity does": the S1 spread is a few
+    # points, every level above it several times that
+    assert spread["S1"] < 5 and all(spread[lv] > 3 * spread["S1"] for lv in LEVELS), spread
 
     cap3 = (
         "The protocol ladder by spatial level in the dyad, pooled over the two "
@@ -1447,11 +1476,12 @@ def main():
         r"Every episode in scope is played (\% Played is 100 in every cell), so "
         r"the Quality Score is over all 30 episodes. "
         r"\emph{Prose} is \textsc{freeform} and \textsc{hybrid} pooled; they are the "
-        r"two conditions that carry unconstrained natural language. At the dyad the "
-        r"interaction is real but small, because three objects per agent leaves each "
-        r"player enough of the board to absorb most of what a channel would supply; "
-        r"it grows as ownership gets finer, which is where this manipulation meets "
-        r"the team-size one. "
+        r"two conditions that carry unconstrained natural language. The pattern "
+        r"across levels is descriptive: contrast A9 does not reject a common "
+        r"protocol effect at every level on the odds scale. The gap between prose "
+        r"and silence is larger at 3p and 6p than in the dyad "
+        r"(Table~\ref{tab:ladder}), which is where this manipulation meets the "
+        r"team-size one. "
         r"\emph{The two S1 non-successes} are solo-\textsc{silent} episodes that "
         r"the cycle detector ended after 30 and 32 moves of a 144- and 164-move "
         r"budget, with four of six objects already home and no illegal or blocked "
@@ -1460,79 +1490,7 @@ def main():
     print(table(cap3, "tab:interaction", "lrrrr",
                 r"Condition & S1 & S2 & S3 & S4", body3, note3))
 
-    # ---- tab:dialogue ------------------------------------------------------
-    # The only table here whose unit is the message.  Protocol is held constant
-    # by restricting to the two prose protocols: pooled over protocols the same
-    # comparison is dominated by the fact that STRUCTURED both lacks most of
-    # these features and succeeds less often, which is a protocol effect
-    # wearing a dialogue-quality costume.
-    msg = messages()
-    su = [r for r in msg if r["su"]]
-    fa = [r for r in msg if not r["su"]]
-
-    def keyset(sel):
-        return {(r["model"], r["suite"], r["lvl"], r["proto"], r["gid"]) for r in sel}
-
-    ep_su, ep_fa = len(keyset(su)), len(keyset(fa))
-    boards = len({(r["lvl"], r["gid"]) for r in msg})
-
-    feats, delta = [], {}
-    for label, k in DIALOGUE:
-        a, b = sum(r[k] for r in su), sum(r[k] for r in fa)
-        ra, rb = 100.0 * a / len(su), 100.0 * b / len(fa)
-        pv = fisher_exact([[a, len(su) - a], [b, len(fa) - b]])[1]
-        delta[k] = ra - rb
-        feats.append((ra - rb, f"{label} & {pct(ra)} & {pct(rb)} & "
-                               f"{signed(ra - rb, 1)} & {fp(pv)}"))
-    body5 = [r for _, r in sorted(feats, key=lambda t: -t[0])] + [r"\midrule"]
-    for label, k, dp in MEANS:
-        a, b = [r[k] for r in su], [r[k] for r in fa]
-        body5.append(f"{label} & {st.mean(a):.{dp}f} & {st.mean(b):.{dp}f} & "
-                     f"{signed(st.mean(a) - st.mean(b), dp)} & "
-                     f"{fp(mannwhitneyu(a, b).pvalue)}")
-
-    cap5 = (
-        "What separates successful from failed dialogue, once protocol is held "
-        r"constant: almost nothing, and that is the finding. \emph{Two features "
-        r"are higher in successes} --- disclosing one's own target and "
-        r"acknowledging a teammate --- and \emph{three are higher in failures}: "
-        "asking a teammate to move, naming a teammate's object, and reporting "
-        "oneself blocked. Sequencing and corridor talk, the two features that "
-        "carry the whole between-protocol contrast of "
-        r"Table~\ref{tab:interaction}, do not separate outcomes at all "
-        f"({signed(delta['seq'], 1)} and {signed(delta['corr'], 1)} points). "
-        "Extra talk under pressure is a distress signal, not a repair. Rows are "
-        r"ordered by $\Delta$, which is percentage points of messages in the "
-        "upper block and words or coordinates in the lower two.")
-    note5 = (
-        r"\emph{Scope.} The two strong models (Qwen3.8-27B-FP8 and "
-        r"DeepSeek-V4.1-Flash), grid rendering, S2--S4, the \textsc{freeform} and "
-        r"\textsc{hybrid} protocols, and all three multiplayer suites --- the "
-        r"corpus of \S8.4, not the dyad-only scope of the tables above. "
-        r"\emph{Unit.} The row is the message: "
-        f"{thousands(len(su))} from successes and {thousands(len(fa))} from failures, nested in "
-        f"{ep_su} and {ep_fa} episodes on {boards} boards. Fisher exact on the "
-        r"upper block, Mann--Whitney on the lower; neither accounts for the "
-        r"nesting, so the exponents are an artefact of the message count and "
-        r"nothing below $p = 0.0001$ should be read as episode-level evidence. "
-        r"Read the ordering and the sizes of the differences, not the $p$ column. "
-        r"\emph{The range restriction is the real limit on this table:} "
-        f"the failure class is {ep_fa} episodes. "
-        r"\emph{Length and coordinate density resolve as significant and are "
-        r"negligible}, "
-        f"{abs(st.mean([r['words'] for r in su]) - st.mean([r['words'] for r in fa])):.1f} "
-        "words and "
-        f"{abs(st.mean([r['ncoord'] for r in su]) - st.mean([r['ncoord'] for r in fa])):.1f} "
-        "coordinates apart, in the same direction as the three distress "
-        r"features. \emph{Correlational, and conditioned on a collider:} "
-        r"failures concentrate on harder boards, so the three features higher in "
-        r"failures are what a blocked board state elicits regardless of how well "
-        r"the dialogue is going. The between-protocol contrast makes the same "
-        r"point without conditioning on outcome, and it is the one the argument "
-        r"rests on.")
-    print(table(cap5, "tab:dialogue", "lrrrr",
-                r"Message feature & Success & Failure & $\Delta$ & $p$",
-                body5, note5))
+    # tab:dialogue is analysis/thesis/dialogue.py's: per episode, within strata.
 
     # ---- tab:carries -------------------------------------------------------
     # The inventory's tab 10.  Dyad, S1-S4, all three models: exactly the cells
@@ -1627,7 +1585,13 @@ def main():
     inversions = [(m, s, lv) for m in STRONG for s in SUITES for lv in ALL_LEVELS
                   if lc(m, (s,), ("structured",), (lv,))["q"]
                   > min(lc(m, (s,), (q,), (lv,))["q"] for q in ("freeform", "hybrid"))]
-    assert {lv for _, _, lv in inversions} <= {"S1"}, inversions
+    off_s1 = [(m, s, lv) for m, s, lv in inversions if lv != "S1"]
+    assert off_s1 == [("Qwen3.8", "3p", "S4")], inversions
+    # the prose-over-silence gap is larger at 3p and 6p than in the dyad, in
+    # both strong models (tab:interaction's note says so)
+    gap = {(m, s): (lc(m, (s,), ("freeform",))["q"] + lc(m, (s,), ("hybrid",))["q"]) / 2
+           - lc(m, (s,), ("none",))["q"] for m in STRONG for s in SUITES}
+    assert all(gap[(m, s)] > gap[(m, "dyad")] for m in STRONG for s in ("3p", "6p")), gap
     assert all((lc(m, (s,), (p,))["played"] < 100) == (s == "6p")
                and lc(m, ("6p",), ("none",))["played"] <= lc(m, ("6p",), (p,))["played"]
                for m in STRONG for s in SUITES for p in PROTOCOLS)
@@ -1661,8 +1625,10 @@ def main():
         "\\textsc{none} in both strong models and every suite, and "
         f"\\textsc{{structured}} scores above \\textsc{{none}} {below_txt}. "
         f"Per level, \\textsc{{structured}} tops a prose protocol in {len(inversions)} "
-        "strong-model cells, all at S1, where every protocol is within a few "
-        "points of the ceiling. \\% Played falls below 100 only at 6p, and "
+        f"strong-model cells: {len(inversions) - len(off_s1)} at S1, where every "
+        "protocol is within a few points of the ceiling, and "
+        + " and ".join(f"{MODEL_NAMES[m]} at {s} {lv}" for m, s, lv in off_s1)
+        + ". \\% Played falls below 100 only at 6p, and "
         "furthest under \\textsc{none}. The weak tier plays too few episodes for "
         "its Quality Score to carry the order: a cell's score is an average over "
         "the handful of episodes it played.")

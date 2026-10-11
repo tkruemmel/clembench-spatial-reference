@@ -1,8 +1,9 @@
 """The counterfactual of S9.3.2: cut hazards that were *not* taken.
 
-S9.3.2 shows 101 permanent cuts, every one formed by a `done` declared by a
-player standing on its own target. This asks the opposite question of the same
-corpus: how often did a player reach that exact position -- every object home,
+S9.3.2 shows the permanent cuts (120 on the updated arm, 101 on the original),
+every one formed by a `done` declared by a player standing on its own target.
+This asks the opposite question of the same corpus: how often did a player
+reach that exact position -- every object home,
 `done` still in hand, and declaring it would sever a teammate's last route --
 and *not* declare? And where it held off, do its own messages say why?
 
@@ -16,9 +17,11 @@ teammate whose route exists now and would not exist if this player froze.
     python3 analysis/qualitative_analysis/averted.py --proto none structured
     python3 analysis/qualitative_analysis/averted.py --check    # re-derive the counts
 
-The answer, in one line: the prose protocols reach the fork seven times less
-often (12 of 2705 done-eligible players against 89 of 2446), and they are the
-only ones that ever step off it -- 4 give-ways against 0.
+The answer, in one line (updated arm, strong tier): the prose protocols reach
+the fork 22 times in 2558 done-eligible players against 97 in 2381, declare
+into it 13 times against 91, and give way 8 times in 22 against 3 in 97. On the
+original arm it was 9 in 2592 against 89 in 2365, and 3 give-ways against 0.
+`--check` pins both arms.
 """
 import argparse
 import collections
@@ -245,43 +248,73 @@ def classify(r):
     return "held, never declared"
 
 
+# The pinned counts, per arm: (prose, rigid) over all three models, then by
+# tier (eligible players, forks, cuts, give-ways).
+WANT = {
+    "original": dict(
+        scanned=(1080, 1080), eligible=(2705, 2446), forks=(12, 89), cuts=(8, 87),
+        gave=(4, 0),
+        tiers={"strong": ((2705 - 113, 9, 6, 3), (2446 - 81, 89, 87, 0)),
+               "weak": ((113, 3, 2, 1), (81, 0, 0, 0))},
+        # the two non-cuts outside the prose protocols are aborts, not aversions
+        rigid_noncuts={("held to the end, hazard still live", "abort"): 2},
+        # the give-ways that mirror the cut figures sit on the same boards
+        pairs=((("dsv41", "S3_freeform_6p_grid/instance_00014"),
+                ("qwen38", "S3_hybrid_6p_grid/instance_00014")),
+               (("qwen38", "S4_none_6p_grid/instance_00003"),
+                ("qwen38", "S4_hybrid_6p_grid/instance_00003")))),
+    "updated": dict(
+        scanned=(1080, 1080), eligible=(2704, 2451), forks=(24, 97), cuts=(14, 91),
+        gave=(8, 3),
+        tiers={"strong": ((2558, 22, 13, 8), (2381, 97, 91, 3)),
+               "weak": ((146, 2, 1, 0), (70, 0, 0, 0))},
+        # outside prose the non-cuts are three give-ways (all Qwen3.8
+        # structured; one of the three episodes still aborts) and three
+        # aborts that ended before the player could declare
+        rigid_noncuts={("gave way", "success"): 2, ("gave way", "abort"): 1,
+                       ("held to the end, hazard still live", "abort"): 3},
+        # D10's matched pair: DeepSeek, 6p S3 #14, freeform cuts, hybrid gives way
+        pairs=((("dsv41", "S3_freeform_6p_grid/instance_00014"),
+                ("dsv41", "S3_hybrid_6p_grid/instance_00014")),)),
+}
+
+
 def selftest():
-    """The counts S9.3 quotes, re-derived. Fails loudly if the corpus moves."""
+    """The counts S9.3 quotes, re-derived against WANT[ARM]."""
+    want, got = WANT[ARM], {}
     ff, n_ff = rows(protos=("freeform", "hybrid"), all_eligible=True)
     ns, n_ns = rows(protos=("none", "structured"), all_eligible=True)
-    assert (n_ff, n_ns) == (1080, 1080), (n_ff, n_ns)
-    assert (len(ff), len(ns)) == (2705, 2446), (len(ff), len(ns))
+    got["scanned"] = (n_ff, n_ns)
+    got["eligible"] = (len(ff), len(ns))
     hz = lambda rs: [r for r in rs if r["haz_plies"]]
-    assert (len(hz(ff)), len(hz(ns))) == (12, 89), (len(hz(ff)), len(hz(ns)))
-    assert (sum(r["cut"] for r in hz(ff)),
-            sum(r["cut"] for r in hz(ns))) == (8, 87)
+    got["forks"] = (len(hz(ff)), len(hz(ns)))
+    got["cuts"] = (sum(r["cut"] for r in hz(ff)), sum(r["cut"] for r in hz(ns)))
     gave = lambda rs: sum(classify(r) == "gave way" for r in hz(rs))
-    assert (gave(ff), gave(ns)) == (4, 0), (gave(ff), gave(ns))
-    # by tier: the strong tier carries the whole effect, and the weak tier
-    # barely reaches the fork in either arm (113 and 81 eligible players)
-    for tier, want in (("strong", ((2705 - 113, 9, 6, 3), (2446 - 81, 89, 87, 0))),
-                       ("weak", ((113, 3, 2, 1), (81, 0, 0, 0)))):
-        for rs, w in zip((ff, ns), want):
-            d = [r for r in rs if r["meta"]["model"] in TIERS[tier]]
-            got = (len(d), len(hz(d)), sum(r["cut"] for r in hz(d)), gave(d))
-            assert got == w, (tier, got, w)
-    # the two non-cuts outside the prose protocols are aborts, not aversions
-    assert all(r["meta"]["outcome"] == "abort"
-               for r in hz(ns) if not r["cut"])
-    # the two give-ways that mirror the figures of S9.3.2 sit on the same
-    # boards as the cuts they mirror
-    import itertools
-    for a, b in (("S3_freeform_6p_grid/instance_00014",
-                  "S3_hybrid_6p_grid/instance_00014"),
-                 ("S4_none_6p_grid/instance_00003",
-                  "S4_hybrid_6p_grid/instance_00003")):
-        got = [json.load(open(os.path.join(REPO, r["meta"]["path"], "instance.json")))
-               for r in itertools.chain(ff, ns)
-               for tail in (a, b) if r["meta"]["path"].endswith(tail)]
-        keys = ("grid_size", "walls", "start_positions", "target_positions",
-                "player_objects", "device")
-        assert all(g[k] == got[0][k] for g in got for k in keys), (a, b)
-    print("selftest ok")
+    got["gave"] = (gave(ff), gave(ns))
+    # by tier: the strong tier carries the whole effect; the weak tier barely
+    # reaches the fork in either arm
+    got["tiers"] = {}
+    for tier in ("strong", "weak"):
+        got["tiers"][tier] = tuple(
+            (len(d), len(hz(d)), sum(r["cut"] for r in hz(d)), gave(d))
+            for d in ([r for r in rs if r["meta"]["model"] in TIERS[tier]] for rs in (ff, ns)))
+    got["rigid_noncuts"] = dict(collections.Counter(
+        (classify(r), r["meta"]["outcome"]) for r in hz(ns) if not r["cut"]))
+    # matched pairs: same board, one cut and one give-way
+    keys = ("grid_size", "walls", "start_positions", "target_positions",
+            "player_objects", "device")
+    by = {(r["meta"]["model"], r["meta"]["path"].split("/", 3)[-1]): r
+          for r in hz(ff) + hz(ns)}
+    for (cm, ce), (gm, ge) in want["pairs"]:
+        c, g = by[(cm, ce)], by[(gm, ge)]
+        assert classify(c) == "cut" and classify(g) == "gave way", (ce, ge)
+        b = [json.load(open(os.path.join(REPO, r["meta"]["path"], "instance.json")))
+             for r in (c, g)]
+        assert all(b[0][k] == b[1][k] for k in keys), (ce, ge)
+    got["pairs"] = want["pairs"]
+    bad = {k: (want[k], got[k]) for k in want if got[k] != want[k]}
+    assert not bad, bad
+    print("selftest ok (%s arm)" % ARM)
 
 
 def main():
@@ -317,9 +350,10 @@ def main():
     print("    hazard cell was the corridor entrance : %d" % sum(r["on_entrance"] for r in av))
     print("    every threatened teammate got home    : %d"
           % sum(len(r["victims_home"]) == len(r["victims"]) for r in av))
-    print("    plies the player sat on it: median %d, max %d"
-          % (sorted(r["waited"] for r in av)[len(av) // 2],
-             max(r["waited"] for r in av)))
+    if av:
+        print("    plies the player sat on it: median %d, max %d"
+              % (sorted(r["waited"] for r in av)[len(av) // 2],
+                 max(r["waited"] for r in av)))
     print()
     print("  by model : %s" % dict(collections.Counter(r["meta"]["model"] for r in av)))
     print("  by proto : %s" % dict(collections.Counter(r["meta"]["proto"] for r in av)))

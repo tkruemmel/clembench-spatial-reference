@@ -202,17 +202,20 @@ def report(rows):
     return res
 
 
-# Headline values per arm, from the 2026-10-11 run (the updated arm's are
-# preliminary).  Checked to 0.05 in the value's unit.
+# Headline values per arm, from the 2026-10-11 runs; the updated arm's are the
+# final data's (re-run and confirmed in Phase 2, plus the hybrid MH odds ratio
+# behind the surviving association claim).  Checked to 0.05 in the value's unit.
 CHECK = {
     "original": {"qwen38/structured/empty": 56.65, "qwen38/structured/timed": 3.59, "qwen38/structured/timed_of_filled": 8.58, "qwen38/structured/timed_unblocked": 2.88, "qwen38/structured/filled_blocked": 71.15, "qwen38/structured/mate_announces": 1.36, "qwen38/structured/pre_seq": 54.55, "qwen38/structured/pre_none": 2.82, "qwen38/structured/pre_ratio": 19.38, "qwen38/structured/rev_none": 2.31, "qwen38/structured/rev_ratio": 23.62,
                  "qwen38/hybrid/empty": 24.36, "qwen38/hybrid/timed": 12.88, "qwen38/hybrid/timed_of_filled": 17.44, "qwen38/hybrid/timed_unblocked": 9.9, "qwen38/hybrid/filled_blocked": 47.8, "qwen38/hybrid/mate_announces": 78.38, "qwen38/hybrid/pre_seq": 14.67, "qwen38/hybrid/pre_none": 4.9, "qwen38/hybrid/pre_ratio": 2.99, "qwen38/hybrid/rev_none": 2.42, "qwen38/hybrid/rev_ratio": 6.06,
                  "dsv41/structured/empty": 66.06, "dsv41/structured/timed": 2.98, "dsv41/structured/timed_of_filled": 9.23, "dsv41/structured/timed_unblocked": 1.52, "dsv41/structured/filled_blocked": 78.82, "dsv41/structured/mate_announces": 0.94, "dsv41/structured/pre_seq": 0.0, "dsv41/structured/pre_none": 1.96, "dsv41/structured/pre_ratio": 0.0, "dsv41/structured/rev_none": 1.52, "dsv41/structured/rev_ratio": 0.0,
-                 "dsv41/hybrid/empty": 23.07, "dsv41/hybrid/timed": 24.92, "dsv41/hybrid/timed_of_filled": 33.17, "dsv41/hybrid/timed_unblocked": 16.02, "dsv41/hybrid/filled_blocked": 44.15, "dsv41/hybrid/mate_announces": 74.92, "dsv41/hybrid/pre_seq": 23.05, "dsv41/hybrid/pre_none": 13.23, "dsv41/hybrid/pre_ratio": 1.74, "dsv41/hybrid/rev_none": 6.9, "dsv41/hybrid/rev_ratio": 3.34},
+                 "dsv41/hybrid/empty": 23.07, "dsv41/hybrid/timed": 24.92, "dsv41/hybrid/timed_of_filled": 33.17, "dsv41/hybrid/timed_unblocked": 16.02, "dsv41/hybrid/filled_blocked": 44.15, "dsv41/hybrid/mate_announces": 74.92, "dsv41/hybrid/pre_seq": 23.05, "dsv41/hybrid/pre_none": 13.23, "dsv41/hybrid/pre_ratio": 1.74, "dsv41/hybrid/rev_none": 6.9, "dsv41/hybrid/rev_ratio": 3.34,
+                 "qwen38/hybrid/pre_or": 2.99, "dsv41/hybrid/pre_or": 1.90},
     "updated": {"qwen38/structured/empty": 60.53, "qwen38/structured/timed": 3.63, "qwen38/structured/timed_of_filled": 9.61, "qwen38/structured/timed_unblocked": 3.04, "qwen38/structured/filled_blocked": 69.92, "qwen38/structured/mate_announces": 1.58, "qwen38/structured/pre_seq": 23.81, "qwen38/structured/pre_none": 3.55, "qwen38/structured/pre_ratio": 6.71, "qwen38/structured/rev_none": 2.82, "qwen38/structured/rev_ratio": 8.44,
                 "qwen38/hybrid/empty": 24.61, "qwen38/hybrid/timed": 14.4, "qwen38/hybrid/timed_of_filled": 19.55, "qwen38/hybrid/timed_unblocked": 10.68, "qwen38/hybrid/filled_blocked": 48.78, "qwen38/hybrid/mate_announces": 79.27, "qwen38/hybrid/pre_seq": 15.8, "qwen38/hybrid/pre_none": 6.76, "qwen38/hybrid/pre_ratio": 2.34, "qwen38/hybrid/rev_none": 3.03, "qwen38/hybrid/rev_ratio": 5.21,
                 "dsv41/structured/empty": 64.48, "dsv41/structured/timed": 3.08, "dsv41/structured/timed_of_filled": 9.12, "dsv41/structured/timed_unblocked": 2.02, "dsv41/structured/filled_blocked": 76.62, "dsv41/structured/mate_announces": 1.26, "dsv41/structured/pre_seq": 28.57, "dsv41/structured/pre_none": 2.18, "dsv41/structured/pre_ratio": 13.13, "dsv41/structured/rev_none": 1.73, "dsv41/structured/rev_ratio": 16.54,
-                "dsv41/hybrid/empty": 22.55, "dsv41/hybrid/timed": 22.94, "dsv41/hybrid/timed_of_filled": 30.32, "dsv41/hybrid/timed_unblocked": 15.05, "dsv41/hybrid/filled_blocked": 48.71, "dsv41/hybrid/mate_announces": 70.35, "dsv41/hybrid/pre_seq": 22.49, "dsv41/hybrid/pre_none": 11.69, "dsv41/hybrid/pre_ratio": 1.92, "dsv41/hybrid/rev_none": 6.54, "dsv41/hybrid/rev_ratio": 3.44},
+                "dsv41/hybrid/empty": 22.55, "dsv41/hybrid/timed": 22.94, "dsv41/hybrid/timed_of_filled": 30.32, "dsv41/hybrid/timed_unblocked": 15.05, "dsv41/hybrid/filled_blocked": 48.71, "dsv41/hybrid/mate_announces": 70.35, "dsv41/hybrid/pre_seq": 22.49, "dsv41/hybrid/pre_none": 11.69, "dsv41/hybrid/pre_ratio": 1.92, "dsv41/hybrid/rev_none": 6.54, "dsv41/hybrid/rev_ratio": 3.44,
+                "qwen38/hybrid/pre_or": 2.21, "dsv41/hybrid/pre_or": 2.01},
 }
 
 
