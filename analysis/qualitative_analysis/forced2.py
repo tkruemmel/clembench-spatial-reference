@@ -1,9 +1,10 @@
 """The 39 forced 6p aborts: what was the hemming-in made of, and were the neighbours 'done'?"""
 import json, os, re, collections, string
+ARM = os.environ.get("ARM", "updated")  # arm of the team suites; solo is always original
 REPO="/Users/tom/uni/clembench-spatial-reference"
 MOVE=re.compile(r"^Player(?: (\w+))? moved ([A-F]) (up|down|left|right)$")
 DIRS={"up":(-1,0),"down":(1,0),"left":(0,-1),"right":(0,1)}
-A=[a for a in json.load(open('aborts.json')) if a['n_legal_own']==0]
+A=[a for a in json.load(open(f'aborts.{ARM}.json')) if a['n_legal_own']==0]
 comp=collections.Counter(); donewall=0; rows=[]
 for a in A:
     d=os.path.join(REPO,a['path'])

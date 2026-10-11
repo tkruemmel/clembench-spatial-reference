@@ -3,11 +3,12 @@ For every move by a player owning >1 object, classify it as a reversal or not, a
 whether that player still had unfinished work on another object at that moment."""
 import json, os, re, collections, string
 from scipy.stats import fisher_exact
+ARM = os.environ.get("ARM", "updated")  # arm of the team suites; solo is always original
 REPO="/Users/tom/uni/clembench-spatial-reference"
 MOVE=re.compile(r"^Player (\w+) moved ([A-F]) (up|down|left|right)$")
 DIRS={"up":(-1,0),"down":(1,0),"left":(0,-1),"right":(0,1)}
 OPP={"up":"down","down":"up","left":"right","right":"left"}
-R=json.load(open('episodes.json'))
+R=json.load(open(f'episodes.{ARM}.json'))
 cnt=collections.Counter()
 for r in R:
     if r['suite'] in ('solo','6p') or r['model']=='nemotron': continue

@@ -5,7 +5,8 @@
  (d) content claims about the attempted destination cell ("(R4,C2) is ." / "is a wall" / "wall at ...")
 Usage: python3 claims.py [--examples CATEGORY]"""
 import json, re, collections, os, sys
-J = json.load(open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "attempts.json")))
+ARM = os.environ.get("ARM", "updated")  # arm of the team suites; solo is always original
+J = json.load(open(os.path.join(os.path.dirname(os.path.abspath(__file__)), f"attempts.{ARM}.json")))
 A, META = J["attempts"], J["meta"]
 D = {"up": (-1, 0), "down": (1, 0), "left": (0, -1), "right": (0, 1)}
 CELL = r"\(?\s*R(\d+)\s*,?\s*C(\d+)\s*\)?"

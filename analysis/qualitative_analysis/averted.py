@@ -26,6 +26,7 @@ import json
 import os
 import re
 import string
+ARM = os.environ.get("ARM", "updated")  # arm of the team suites; solo is always original
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.dirname(os.path.dirname(HERE))
@@ -207,7 +208,7 @@ def rows(models=None, protos=PROTOS, suites=("dyad", "3p", "6p"), all_eligible=F
     question at all once every one of its objects is home and the game is
     inviting it to declare.
     """
-    eps = json.load(open(os.path.join(HERE, "episodes.json")))
+    eps = json.load(open(os.path.join(HERE, f"episodes.{ARM}.json")))
     out, seen = [], 0
     for rec in eps:
         if rec["suite"] not in suites or rec["proto"] not in protos:

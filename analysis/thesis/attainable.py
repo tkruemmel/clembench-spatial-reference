@@ -22,10 +22,13 @@ import json
 import math
 import os
 import re
+import sys
 import statistics as st
 from collections import defaultdict
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, os.path.join(ROOT, "analysis/qualitative_analysis"))
+from qual_corpus import tree                                     # noqa: E402
 EB = os.path.join(ROOT, "analysis/efficiency_baseline")
 ARMS = {"Qwen3.8": "results_qwen38_grid_n15",
         "DeepSeek-V4.1-Flash": "results_dsv41_grid_n15"}
@@ -58,8 +61,8 @@ def episodes(A, J):
     rows = []
     for model, prefix in ARMS.items():
         for suite in SUITES:
-            for f in glob.glob(os.path.join(ROOT, f"{prefix}_{suite}", "**", "scores.json"),
-                               recursive=True):
+            for f in sorted(glob.glob(os.path.join(ROOT, tree(prefix, suite), "**", "scores.json"),
+                               recursive=True)):
                 exp = f.split(os.sep)[-3]
                 m = re.search(r"(S\d)", exp)
                 if not m:

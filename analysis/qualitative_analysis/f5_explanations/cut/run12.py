@@ -2,9 +2,11 @@ import collections, pickle, re
 from order import *
 from msgs import SENT, ref
 from run8 import ORD2
-W=pickle.load(open("waitS3.pkl","rb"))
+import os
+ARM = os.environ.get("ARM", "updated")  # arm of the team suites; solo is always original
+W=pickle.load(open(f"waitS3.{ARM}.pkl","rb"))
 key={(w["rec"]["path"],w["ply"]):w for w in W if w["h"]=="B" and w["pend"] is True}
-rows=[r for r in pickle.load(open("s3rows.pkl","rb")) if r["kind"]=="door"]
+rows=[r for r in pickle.load(open(f"s3rows.{ARM}.pkl","rb")) if r["kind"]=="door"]
 def is_order(text, spk, B, rxE):
     rv=ref("D"); vo=B.owner["D"]
     for s in SENT.findall(text):

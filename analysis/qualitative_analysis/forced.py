@@ -1,9 +1,10 @@
 """For every abort: did the aborting player actually have a legal move available?"""
 import json, os, re, collections, string
+ARM = os.environ.get("ARM", "updated")  # arm of the team suites; solo is always original
 REPO="/Users/tom/uni/clembench-spatial-reference"
 MOVE=re.compile(r"^Player(?: (\w+))? moved ([A-F]) (up|down|left|right)$")
 DIRS={"up":(-1,0),"down":(1,0),"left":(0,-1),"right":(0,1)}
-R=json.load(open('episodes.json'))
+R=json.load(open(f'episodes.{ARM}.json'))
 out=[]
 for r in [x for x in R if x['outcome']=='abort']:
     d=os.path.join(REPO,r['path'])
@@ -43,7 +44,7 @@ for r in [x for x in R if x['outcome']=='abort']:
                                 inst=r['inst'],path=r['path'],moves=r['moves'],reason=c,who=who,
                                 n_legal_own=legal(objs), n_legal_unsolved=legal(unsolved) if unsolved else 0,
                                 nobj_own=len(objs), n_unsolved_own=len(unsolved)))
-json.dump(out,open('aborts.json','w'))
+json.dump(out,open(f'aborts.{ARM}.json','w'))
 print(len(out),"aborts analysed")
 c=collections.Counter()
 for a in out:

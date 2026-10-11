@@ -1,7 +1,8 @@
 """Item 5: Nemotron solo S1 (no walls), silent vs thinking: how episodes end, what the illegal moves are,
 and the full rejection chains (response -> GM verdict -> next response)."""
 import json, collections, os
-J = json.load(open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "attempts.json")))
+ARM = os.environ.get("ARM", "updated")  # arm of the team suites; solo is always original
+J = json.load(open(os.path.join(os.path.dirname(os.path.abspath(__file__)), f"attempts.{ARM}.json")))
 A, META = J["attempts"], J["meta"]
 for cond in ("silent", "thinking"):
     X = [a for a in A if a["model"] == "nemotron" and a["suite"] == "solo" and a["level"] == "S1" and a["proto"] == cond]

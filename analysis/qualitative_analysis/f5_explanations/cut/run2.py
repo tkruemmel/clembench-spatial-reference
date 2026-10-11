@@ -1,6 +1,8 @@
 import collections, json, pickle, statistics as st
 from order import *
-rows=pickle.load(open("s3rows.pkl","rb"))
+import os
+ARM = os.environ.get("ARM", "updated")  # arm of the team suites; solo is always original
+rows=pickle.load(open(f"s3rows.{ARM}.pkl","rb"))
 rows=[r for r in rows if r["kind"]=="door"]
 # per board greedy order
 seen={}

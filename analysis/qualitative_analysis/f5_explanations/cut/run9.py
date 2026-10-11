@@ -1,11 +1,13 @@
 import collections, pickle, statistics as st
 from order import *
-rows=pickle.load(open("s3ord.pkl","rb"))
+import os
+ARM = os.environ.get("ARM", "updated")  # arm of the team suites; solo is always original
+rows=pickle.load(open(f"s3ord.{ARM}.pkl","rb"))
 def has(r,key): return any(x[0]<=r["win_end"] for x in r[key])
 def target_rev(r):
     pass
 import msgs
-tg=pickle.load(open("s3tagged.pkl","rb"))
+tg=pickle.load(open(f"s3tagged.{ARM}.pkl","rb"))
 tmap={(t["rec"]["path"]):t["hits"] for t in tg}
 print("structured / prose: v-first rate by presence of a door-order statement in the window (episodes where B arrived)")
 for prs in (("structured",),("freeform","hybrid")):

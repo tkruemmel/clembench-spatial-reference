@@ -2,10 +2,11 @@
 import json, os, re, sys, time
 sys.path.insert(0,"/Users/tom/uni/clembench-spatial-reference/analysis/efficiency_baseline")
 import csolver
+ARM = os.environ.get("ARM", "updated")  # arm of the team suites; solo is always original
 REPO="/Users/tom/uni/clembench-spatial-reference"
 MOVE=re.compile(r"^Player(?: (\w+))? moved ([A-F]) (up|down|left|right)$")
 DIRS={"up":(-1,0),"down":(1,0),"left":(0,-1),"right":(0,1)}
-R=json.load(open('episodes.json'))
+R=json.load(open(f'episodes.{ARM}.json'))
 sel=[r for r in R if r['outcome']=='lose'] + [r for r in R if r['outcome']=='abort' and r['suite']=='6p']
 out=[]
 t0=time.time()
@@ -31,5 +32,5 @@ for k,r in enumerate(sel):
                     remaining=res['opt'],lb=res['lb'],status=res['status'],
                     home=r['n_home_end'],nobj=r['n_obj']))
     if k%40==0: print(f"  {k}/{len(sel)} {time.time()-t0:.0f}s", flush=True)
-json.dump(out,open('remaining.json','w'))
+json.dump(out,open(f'remaining.{ARM}.json','w'))
 print("done", len(out), f"{time.time()-t0:.0f}s")

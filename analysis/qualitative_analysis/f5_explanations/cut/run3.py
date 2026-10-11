@@ -1,6 +1,8 @@
 import collections, json, pickle, statistics as st
 from order import *
-rows=[r for r in pickle.load(open("s3rows.pkl","rb")) if r["kind"]=="door"]
+import os
+ARM = os.environ.get("ARM", "updated")  # arm of the team suites; solo is always original
+rows=[r for r in pickle.load(open(f"s3rows.{ARM}.pkl","rb")) if r["kind"]=="door"]
 G={}
 for r in rows:
     k=r["rec"]["inst"]

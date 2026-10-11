@@ -1,6 +1,8 @@
 import collections, pickle
 from order import *
-W,A=pickle.load(open("dyn.pkl","rb"))
+import os
+ARM = os.environ.get("ARM", "updated")  # arm of the team suites; solo is always original
+W,A=pickle.load(open(f"dyn.{ARM}.pkl","rb"))
 print("Dynamic holder waiting (h 1-2 from target, free progress step), by level; per-decision; 6p h-nonprog only meaningful; 3p shows h-nonprog+other")
 for lev in ("S1","S2","S3","S4"):
   for suite in ("3p","6p"):

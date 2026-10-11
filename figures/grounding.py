@@ -24,10 +24,11 @@ import os
 from matplotlib.lines import Line2D
 
 from style import FAINT, GRID, INK, MUTED, OWNER, OBJECT, save
+ARM = os.environ.get("ARM", "updated")  # arm of the team suites; solo is always original
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OUT_DIR = os.path.join(REPO_ROOT, "figures", "out")
-CACHE = os.path.join(REPO_ROOT, "analysis/qualitative_analysis", "corpus.json")
+CACHE = os.path.join(REPO_ROOT, "analysis/qualitative_analysis", f"corpus.{ARM}.json")
 
 OWN, OTHER = OBJECT, OWNER["B"]
 MODELS = (("qwen38", "Qwen3.8"), ("dsv41", "DeepSeek-V4.1"), ("nemotron", "Nemotron"))

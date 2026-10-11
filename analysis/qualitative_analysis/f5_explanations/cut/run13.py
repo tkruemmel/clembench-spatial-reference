@@ -1,7 +1,9 @@
 import collections, pickle, re
 from order import *
 from msgs import SENT, ref
-rows=pickle.load(open("s3ord.pkl","rb"))
+import os
+ARM = os.environ.get("ARM", "updated")  # arm of the team suites; solo is always original
+rows=pickle.load(open(f"s3ord.{ARM}.pkl","rb"))
 has=lambda r: any(x[0]<=r["win_end"] for x in r["ord"])
 out=collections.defaultdict(collections.Counter)
 ex=[]

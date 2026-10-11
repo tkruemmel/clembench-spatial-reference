@@ -1,6 +1,7 @@
 import json, re, collections, os, statistics as st
+ARM = os.environ.get("ARM", "updated")  # arm of the team suites; solo is always original
 REPO = "/Users/tom/uni/clembench-spatial-reference"
-R = json.load(open(f"{REPO}/analysis/qualitative_analysis/episodes.json"))
+R = json.load(open(f"{REPO}/analysis/qualitative_analysis/episodes.{ARM}.json"))
 V = collections.Counter(); W = collections.defaultdict(list); RW = collections.defaultdict(list)
 ep_mal = collections.Counter(); mal_reason = collections.Counter()
 for r in R:

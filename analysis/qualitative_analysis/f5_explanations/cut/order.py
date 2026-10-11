@@ -6,6 +6,7 @@ Read-only on the repo. Strong tier (qwen38 + dsv41), 3p + 6p.
 import collections, json, os, re, string, sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from doors import comp, genuine, REPO, DIRS
+ARM = os.environ.get("ARM", "updated")  # arm of the team suites; solo is always original
 
 MOVE = re.compile(r"^Player(?: (\w+))? moved ([A-F]) (up|down|left|right)$")
 STEP = {"up": (-1, 0), "down": (1, 0), "left": (0, -1), "right": (0, 1)}
@@ -208,7 +209,7 @@ def arrivals(rec, ins, ev):
 
 
 def episodes(levels=None, suites=("3p", "6p")):
-    eps = json.load(open(os.path.join(REPO, "analysis/qualitative_analysis/episodes.json")))
+    eps = json.load(open(os.path.join(REPO, f"analysis/qualitative_analysis/episodes.{ARM}.json")))
     return [e for e in eps if e["model"] in STRONG and e["suite"] in suites
             and e["proto"] in PROTOS and (levels is None or e["level"] in levels)]
 

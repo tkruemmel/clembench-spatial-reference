@@ -3,6 +3,7 @@ Better = a legal move of one of the player's OTHER unplaced objects that reduces
 object's BFS distance to its target (walls + all other objects as blockers)."""
 import json, os, re, collections, string
 from collections import deque
+ARM = os.environ.get("ARM", "updated")  # arm of the team suites; solo is always original
 REPO="/Users/tom/uni/clembench-spatial-reference"
 MOVE=re.compile(r"^Player(?: (\w+))? moved ([A-F]) (up|down|left|right)$")
 DIRS={"up":(-1,0),"down":(1,0),"left":(0,-1),"right":(0,1)}
@@ -18,7 +19,7 @@ def bfs(src,goal,n,blocked):
                 if t==goal: return dd+1
                 seen.add(t); q.append((t,dd+1))
     return None
-R=json.load(open('episodes.json'))
+R=json.load(open(f'episodes.{ARM}.json'))
 cnt=collections.Counter(); spec=[]
 for r in R:
     if r['model']=='nemotron': continue
@@ -57,7 +58,7 @@ for r in R:
                 spec.append((r['model'],r['suite'],r['level'],r['proto'],r['inst'],r['outcome'],k+1,who,o,dr,better[:3],r['path']))
         lastdir[o]=dr
         pos[o]=(pos[o][0]+DIRS[dr][0],pos[o][1]+DIRS[dr][1])
-json.dump(spec,open('dominated_spec.json','w'))
+json.dump(spec,open(f'dominated_spec.{ARM}.json','w'))
 print("reversal moves, strong tier: was a distance-reducing move available for one of the same player's other objects?")
 for s in ('solo','dyad','3p','6p'):
     y,nn=cnt[(s,True)],cnt[(s,False)]

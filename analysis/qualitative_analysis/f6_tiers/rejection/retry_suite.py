@@ -1,7 +1,8 @@
 """Every rejected move in all 2520 episodes: what does the next attempt do?"""
 import json, re, collections, string, os, statistics
+ARM = os.environ.get("ARM", "updated")  # arm of the team suites; solo is always original
 REPO = "/Users/tom/uni/clembench-spatial-reference"
-R = json.load(open(f"{REPO}/analysis/qualitative_analysis/episodes.json"))
+R = json.load(open(f"{REPO}/analysis/qualitative_analysis/episodes.{ARM}.json"))
 MOVEOK = re.compile(r"^Player(?: (\w+))? moved ([A-F]) (up|down|left|right)$")
 MOVE = re.compile(r"move:\s*\**\s*([A-Za-z])(?:@\S+)?\s+(up|down|left|right)", re.I)
 DIRS = {"up": (-1, 0), "down": (1, 0), "left": (0, -1), "right": (0, 1)}

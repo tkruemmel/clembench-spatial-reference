@@ -1,5 +1,7 @@
 import collections, json, pickle
 from order import *
+import os
+ARM = os.environ.get("ARM", "updated")  # arm of the team suites; solo is always original
 W=[]
 for rec in episodes(levels=("S3",)):
     ins, ev = load(rec)
@@ -8,7 +10,7 @@ for rec in episodes(levels=("S3",)):
         if k=="door": sp[h].append(v)
     for w in waiting(rec, ins, ev, static_pairs=dict(sp)):
         w["rec"]=rec; W.append(w)
-pickle.dump(W,open("waitS3.pkl","wb"))
+pickle.dump(W,open(f"waitS3.{ARM}.pkl","wb"))
 def tab(sel, title):
     print(title)
     for suite in ("3p","6p"):

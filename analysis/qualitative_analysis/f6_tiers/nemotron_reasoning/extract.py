@@ -8,10 +8,13 @@ the game's verdict on the resulting move, and a replayed board so that the
 pre-</think> draft move can be judged on the same state.
 """
 import glob, json, os, re, sys
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".."))
+from qual_corpus import ARM, tree                                # noqa: E402
 
-OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "calls.jsonl")
-ROOTS = [f"results_nemotron_fixthink{r}_n15_{s}" for r in ("_grid", "")
-         for s in ("solo", "dyad", "3p", "6p")]
+OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), f"calls.{ARM}.jsonl")
+ROOTS = [tree("results_nemotron_fixthink_grid_n15", s) for s in ("solo", "dyad", "3p", "6p")]
+if ARM == "original":  # the compact campaigns have no updated-prompt run
+    ROOTS += [f"results_nemotron_fixthink_n15_{s}" for s in ("solo", "dyad", "3p", "6p")]
 
 # Copied from matrixgame_covered_comm/master.py and matrixgame_covered_solo/master.py
 MOVE_ONLY = re.compile(r"\A\s*move:\s*(?P<object>[A-Z])\s+(?P<direction>up|down|left|right)\b", re.I)

@@ -1,7 +1,9 @@
 import collections, pickle, re, random
 from order import *
 from msgs import ref
-W=pickle.load(open("waitS3.pkl","rb"))
+import os
+ARM = os.environ.get("ARM", "updated")  # arm of the team suites; solo is always original
+W=pickle.load(open(f"waitS3.{ARM}.pkl","rb"))
 WAITRX=re.compile(r"\b(until|till|once|after|before|first|wait\w*|hold\w*|let\b|clear\w*|open|free|room|pass\w*|cross\w*|through)\b",re.I)
 # message accompanying each decision: the msg by the mover right after the move
 cache={}

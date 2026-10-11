@@ -61,6 +61,7 @@ from scipy.stats import binomtest, chi2 as chi2_dist, permutation_test
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import tables_comm as T                                      # noqa: E402
+ARM = os.environ.get("ARM", "updated")  # arm of the team suites; solo is always original
 
 STRONG = T.STRONG                       # ("Qwen3.8", "DeepSeek-V4.1-Flash")
 WEAK = "Nemotron"
@@ -237,7 +238,7 @@ def claims():
     claims, from qual_corpus's cache -- the annotation R5 verified."""
     global _CLAIMS
     if _CLAIMS is None:
-        cache = os.path.join(T.ROOT, "analysis/qualitative_analysis/corpus.json")
+        cache = os.path.join(T.ROOT, f"analysis/qualitative_analysis/corpus.{ARM}.json")
         rows = json.load(open(cache))["rows"]
         _CLAIMS = {}
         for r in rows:

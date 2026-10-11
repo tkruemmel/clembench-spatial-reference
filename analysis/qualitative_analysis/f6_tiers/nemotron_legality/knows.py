@@ -3,7 +3,8 @@ occupied: the occupant's letter (solo) or X / the letter (comm) is placed at the
 wall:     the destination cell is called a wall / ## / blocked, or "wall at <cell>"
 off_grid: no cell to name; skipped."""
 import json, re, collections, os
-J = json.load(open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "attempts.json")))
+ARM = os.environ.get("ARM", "updated")  # arm of the team suites; solo is always original
+J = json.load(open(os.path.join(os.path.dirname(os.path.abspath(__file__)), f"attempts.{ARM}.json")))
 A = J["attempts"]
 D = {"up": (-1, 0), "down": (1, 0), "left": (0, -1), "right": (0, 1)}
 pct = lambda a, b: f"{100*a/b:5.1f}% ({a}/{b})" if b else "-"

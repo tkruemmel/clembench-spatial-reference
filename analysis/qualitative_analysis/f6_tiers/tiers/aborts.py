@@ -2,7 +2,8 @@ import sys, os, json, collections, statistics as st
 ROOT = "/Users/tom/uni/clembench-spatial-reference"
 sys.path.insert(0, os.path.join(ROOT, "analysis/thesis"))
 import tables_comm as tc
-A = json.load(open(os.path.join(ROOT, "analysis/qualitative_analysis/aborts.json")))
+ARM = os.environ.get("ARM", "updated")  # arm of the team suites; solo is always original
+A = json.load(open(os.path.join(ROOT, f"analysis/qualitative_analysis/aborts.{ARM}.json")))
 def nmoves(p):
     n = 0
     for t in json.load(open(os.path.join(ROOT, p, "interactions.json")))["turns"]:

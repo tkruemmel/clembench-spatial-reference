@@ -1,10 +1,11 @@
 """Immediate reversals: X dir then X opposite-dir as that object's next own move = a no-op pair.
 Tests whether oscillation is a substitute for the pass action the rules do not offer."""
 import json, os, re, collections, statistics as st
+ARM = os.environ.get("ARM", "updated")  # arm of the team suites; solo is always original
 REPO="/Users/tom/uni/clembench-spatial-reference"
 MOVE=re.compile(r"^Player(?: (\w+))? moved ([A-F]) (up|down|left|right)$")
 OPP={"up":"down","down":"up","left":"right","right":"left"}
-R=json.load(open('episodes.json'))
+R=json.load(open(f'episodes.{ARM}.json'))
 for r in R:
     it=json.load(open(os.path.join(REPO,r['path'],'interactions.json')))
     seq=[]
@@ -23,7 +24,7 @@ for r in R:
             if OPP[ds[j]]==ds[j+1]: pairs+=1; j+=2
             else: j+=1
     r['revpairs']=pairs
-json.dump(R,open('episodes.json','w'))
+json.dump(R,open(f'episodes.{ARM}.json','w'))
 def show(sel,label):
     sub=[r for r in R if sel(r) and r['moves']>=10]
     if not sub: return

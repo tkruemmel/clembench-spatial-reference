@@ -1,9 +1,10 @@
 """Decompose 'left its own target' moves into immediately-undone (idling) vs sustained (re-planning)."""
 import json, os, re, collections
+ARM = os.environ.get("ARM", "updated")  # arm of the team suites; solo is always original
 REPO="/Users/tom/uni/clembench-spatial-reference"
 MOVE=re.compile(r"^Player(?: (\w+))? moved ([A-F]) (up|down|left|right)$")
 DIRS={"up":(-1,0),"down":(1,0),"left":(0,-1),"right":(0,1)}
-R=json.load(open('episodes.json'))
+R=json.load(open(f'episodes.{ARM}.json'))
 agg=collections.Counter()
 specimens=[]
 for r in R:

@@ -1,4 +1,5 @@
 import json, os, collections, string
+ARM = os.environ.get("ARM", "updated")  # arm of the team suites; solo is always original
 REPO="/Users/tom/uni/clembench-spatial-reference"
 DIRS=((-1,0),(1,0),(0,-1),(0,1))
 def comp(n, walls, blocked):
@@ -29,7 +30,7 @@ def doors(ins):
                 out.append((h,v,owner[h]!=owner[v]))
     return out
 if __name__=="__main__":
-    eps=json.load(open(REPO+'/analysis/qualitative_analysis/episodes.json'))
+    eps=json.load(open(REPO+f'/analysis/qualitative_analysis/episodes.{ARM}.json'))
     seen={}
     for e in eps:
         if e['suite'] not in ('3p','6p') or e['model']!='qwen38' or e['proto']!='none': continue

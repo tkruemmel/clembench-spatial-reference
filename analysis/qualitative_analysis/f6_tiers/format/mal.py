@@ -2,7 +2,8 @@ import json, re, collections, os, sys, statistics as st
 REPO = "/Users/tom/uni/clembench-spatial-reference"
 sys.path.insert(0, REPO + "/matrixgame_covered_comm")
 from master import _schema_violation, _parse_response
-R = json.load(open(f"{REPO}/analysis/qualitative_analysis/episodes.json"))
+ARM = os.environ.get("ARM", "updated")  # arm of the team suites; solo is always original
+R = json.load(open(f"{REPO}/analysis/qualitative_analysis/episodes.{ARM}.json"))
 why = collections.Counter(); mlen = []
 runs = collections.Counter()
 VERD = {"move", "invalid_move", "invalid_format", "malformed_message", "player_done", "invalid_done"}

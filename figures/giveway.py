@@ -30,6 +30,7 @@ from cuts import (ACTOR, COLS, OPEN_DASH, SIDE, VICTIM, WIDTH, at, cell_name,
 from style import INK, MOVE, MUTED, draw_arrow, save
 from warning import bubble, height_of
 import cut
+ARM = os.environ.get("ARM", "updated")  # arm of the team suites; solo is always original
 
 HYBRID = ("qwen38", "6p", "S4", "hybrid", "instance_00003")
 HOLDER, VICTIM_OBJ = "B", "D"
@@ -49,7 +50,7 @@ BOARD_KEYS = ("grid_size", "walls", "start_positions", "target_positions",
 
 
 def run_dir(model, suite, level, proto, inst):
-    for rec in json.load(open(os.path.join(cut.HERE, "episodes.json"))):
+    for rec in json.load(open(os.path.join(cut.HERE, f"episodes.{ARM}.json"))):
         p = rec["path"]
         if (rec["model"], rec["suite"]) == (model, suite) and \
                 f"/{level}_{proto}_" in p and p.endswith(inst):

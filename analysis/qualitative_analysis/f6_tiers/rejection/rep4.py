@@ -1,6 +1,8 @@
 import json, re, collections
+import os
+ARM = os.environ.get("ARM", "updated")  # arm of the team suites; solo is always original
 REPO = "/Users/tom/uni/clembench-spatial-reference"
-A = json.load(open(f"{REPO}/analysis/qualitative_analysis/aborts.json"))
+A = json.load(open(f"{REPO}/analysis/qualitative_analysis/aborts.{ARM}.json"))
 MOVE = re.compile(r"move:\s*\**\s*([A-Za-z])(?:@\S+)?\s+(up|down|left|right)", re.I)
 CANT = re.compile(r"Cannot move ([A-FX]) (up|down|left|right)")
 VERD = {"move", "invalid_move", "invalid_format", "malformed_message", "player_done", "invalid_done"}

@@ -1,5 +1,7 @@
 import collections, json, pickle
 from order import *
+import os
+ARM = os.environ.get("ARM", "updated")  # arm of the team suites; solo is always original
 rows=[]
 for rec in episodes(levels=("S3",)):
     ins, ev = load(rec)
@@ -7,7 +9,7 @@ for rec in episodes(levels=("S3",)):
         r = door_order(rec, ins, ev, h, v)
         r.update(rec=rec, h=h, v=v, kind=kind)
         rows.append(r)
-pickle.dump(rows, open("s3rows.pkl","wb"))
+pickle.dump(rows, open(f"s3rows.{ARM}.pkl","wb"))
 for kind in ("door","occ-door"):
     print("=== kind", kind)
     for suite in ("3p","6p","both"):

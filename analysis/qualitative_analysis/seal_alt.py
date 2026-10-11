@@ -11,6 +11,7 @@ import re
 import string
 import subprocess
 import sys
+ARM = os.environ.get("ARM", "updated")  # arm of the team suites; solo is always original
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.dirname(os.path.dirname(HERE))
@@ -40,7 +41,7 @@ def step(pos, obj, direction):
 
 
 def _aborts():
-    path = os.path.join(HERE, "aborts.json")
+    path = os.path.join(HERE, f"aborts.{ARM}.json")
     if not os.path.exists(path):  # forced.py writes it from episodes.json
         subprocess.run([sys.executable, "forced.py"], cwd=HERE, check=True,
                        capture_output=True)

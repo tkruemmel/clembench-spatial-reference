@@ -10,8 +10,9 @@ QA = "/Users/tom/uni/clembench-spatial-reference/analysis/qualitative_analysis"
 sys.path.insert(0, QA)
 import json, os, pickle, string, collections
 import seal_averted as sa
+ARM = os.environ.get("ARM", "updated")  # arm of the team suites; solo is always original
 
-OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "plies.pkl")
+OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), f"plies.{ARM}.pkl")
 
 
 def obj_dist(walls, n, target, others):
@@ -117,7 +118,7 @@ def derive(r):
 
 
 def build():
-    eps = [e for e in json.load(open(os.path.join(QA, "episodes.json"))) if e["suite"] == "6p"]
+    eps = [e for e in json.load(open(os.path.join(QA, f"episodes.{ARM}.json"))) if e["suite"] == "6p"]
     allp = []
     for rec in eps:
         ps = plies(rec)

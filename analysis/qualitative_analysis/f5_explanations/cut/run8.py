@@ -1,6 +1,8 @@
 import collections, pickle, re, random
 from order import *
 from msgs import SENT, ref, PASS
+import os
+ARM = os.environ.get("ARM", "updated")  # arm of the team suites; solo is always original
 ORD2 = re.compile(r"\b(until|till|once|after|before)\b[^.;!?]{0,60}\b(pass\w*|clear\w*|cross\w*|through|enter\w*|reach\w*|descend\w*|climb\w*|vacate\w*|in|inside|done|placed|home)\b"
                   r"|\bfirst\b|\blet\b[^.;!?]{0,25}\bpass|\b(wait|hold)\w*\b", re.I)
 def door_order_sents(rec, ins, ev, h, v, upto=None):
@@ -31,12 +33,12 @@ def route_sents(rec, ins, ev, h, v, upto=None):
                 out.append((ply, spk, s.strip()))
     return out
 if __name__ == "__main__":
-    rows=[r for r in pickle.load(open("s3rows.pkl","rb")) if r["kind"]=="door"]
+    rows=[r for r in pickle.load(open(f"s3rows.{ARM}.pkl","rb")) if r["kind"]=="door"]
     for r in rows:
         ins, ev = load(r["rec"])
         r["ord"] = door_order_sents(r["rec"], ins, ev, r["h"], r["v"])
         r["route"] = route_sents(r["rec"], ins, ev, r["h"], r["v"])
-    pickle.dump(rows, open("s3ord.pkl","wb"))
+    pickle.dump(rows, open(f"s3ord.{ARM}.pkl","wb"))
     print("Door-order statement (D-ref + door cell + order/wait word, same sentence) in the window before min(D pass, B arrival)")
     for pr in PROTOS[1:]:
         for o in ("v first","h first"):

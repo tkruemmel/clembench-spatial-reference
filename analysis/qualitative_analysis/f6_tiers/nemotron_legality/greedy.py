@@ -1,7 +1,8 @@
 """Items 1-3, 6: rejection causes, greedy-toward-target, repeats + lexical acknowledgement.
 Needs attempts.json (run attempts.py first)."""
 import json, collections, re, os
-A = json.load(open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "attempts.json")))["attempts"]
+ARM = os.environ.get("ARM", "updated")  # arm of the team suites; solo is always original
+A = json.load(open(os.path.join(os.path.dirname(os.path.abspath(__file__)), f"attempts.{ARM}.json")))["attempts"]
 MODELS = ("nemotron", "qwen38", "dsv41"); SUITES = ("solo", "dyad", "3p", "6p")
 pct = lambda a, b: f"{100*a/b:5.1f}% ({a}/{b})" if b else "   -   (0/0)"
 CAUSE = {"wall": "wall", "off_grid": "off_grid", "occ_own": "occ_own", "occ_other": "occ_other"}

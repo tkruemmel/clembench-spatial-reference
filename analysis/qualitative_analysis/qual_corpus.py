@@ -11,6 +11,7 @@ of the results document assert.
 Usage:  python3 qual_corpus.py [--repo PATH] [--cache FILE] [--refresh]
 """
 import argparse, collections, glob, json, os, re, statistics as st, string, sys
+ARM = os.environ.get("ARM", "updated")  # arm of the team suites; solo is always original
 
 DIRS = {"up": (-1, 0), "down": (1, 0), "left": (0, -1), "right": (0, 1)}
 MOVE = re.compile(r"^Player (\w+) moved (\w+) (up|down|left|right)$")
@@ -18,7 +19,9 @@ SPK  = re.compile(r"^Player (\w+):\s*(.*)$", re.S)
 
 # --- feature lexicon (identical to the annotation used for the document) ------
 COORD = re.compile(r"\(?R\s*(\d+)\s*,?\s*C\s*(\d+)\)?", re.I)
-CLAIM = re.compile(r"\b([A-F])\b[^.;,\n]{0,24}?\bat\s*\(?R\s*(\d+)\s*,?\s*C\s*(\d+)\)?", re.I)
+# The object letter is case-sensitive: under re.I the article "a" in "a cell at
+# (R3,C4)" read as object A and inflated the weak tier's false claims.
+CLAIM = re.compile(r"\b(?-i:([A-F]))\b[^.;,\n]{0,24}?\bat\s*\(?R\s*(\d+)\s*,?\s*C\s*(\d+)\)?", re.I)
 REQ   = re.compile(r"(please|could you|can you|kindly|需要)", re.I)
 MOVEREQ = re.compile(r"(?:move|shift|push|vacate|step)\s+(?:the\s+)?"
                      r"(?:X\s+at\s+\(?R\s*(\d+)\s*,?\s*C\s*(\d+)\)?|([A-F])\b)"
@@ -47,6 +50,19 @@ QUESTION = re.compile(r"\?")
 ARMS = {"nemotron": "results_nemotron_fixthink_grid_n15",
         "qwen38":   "results_qwen38_grid_n15",
         "dsv41":    "results_dsv41_grid_n15"}
+# The reported team episodes are the updated-prompt campaign; ARM=original
+# replays the earlier one for regression checks.
+UPDATED = {"results_qwen38_grid_n15": "results_qwen38_grid_updated_prompt_n15",
+           "results_dsv41_grid_n15": "results_dsv41_grid_updated_prompt_n15",
+           "results_nemotron_fixthink_grid_n15": "results_nemotron_grid_updated_prompt_n15"}
+assert ARM in ("original", "updated"), ARM
+
+
+def tree(pref, suite):
+    """Result tree of one model's suite: solo is always the original campaign."""
+    return f"{pref}_{suite}" if suite == "solo" or ARM == "original" else f"{UPDATED[pref]}_{suite}"
+
+
 SUITES = ("dyad", "3p", "6p")
 STRONG = ("qwen38", "dsv41")
 PROSE  = ("freeform", "hybrid")
@@ -58,7 +74,7 @@ def extract(repo):
     rows, epi = [], []
     for model, pref in ARMS.items():
         for suite in SUITES:
-            pat = os.path.join(repo, f"{pref}_{suite}", "*", "*", "*", "instance_*", "interactions.json")
+            pat = os.path.join(repo, tree(pref, suite), "*", "*", "*", "instance_*", "interactions.json")
             for f in sorted(glob.glob(pat)):
                 d = os.path.dirname(f)
                 ins = json.load(open(os.path.join(d, "instance.json")))
@@ -607,10 +623,12 @@ def verify(rows, epi):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--repo", default="/Users/tom/uni/clembench-spatial-reference")
-    ap.add_argument("--cache", default=os.path.join(os.path.dirname(os.path.abspath(__file__)), "corpus.json"))
+    ap.add_argument("--cache", default=os.path.join(os.path.dirname(os.path.abspath(__file__)), f"corpus.{ARM}.json"))
     ap.add_argument("--refresh", action="store_true")
     ap.add_argument("--verify", action="store_true", help="check every value the document asserts")
     a = ap.parse_args()
+    if a.verify and ARM != "original":
+        sys.exit("--verify checks results_three_models_grid.md, which reports the original arm: rerun with ARM=original")
     if a.refresh or not os.path.exists(a.cache):
         print("extracting corpus ...", file=sys.stderr)
         rows, epi = extract(a.repo)

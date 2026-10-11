@@ -112,10 +112,12 @@ from scipy.stats import (binomtest, fisher_exact, kruskal, mannwhitneyu,
                          permutation_test)
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, os.path.join(ROOT, "analysis/qualitative_analysis"))
+from qual_corpus import ARM, tree                                # noqa: E402
 
 TREES = {
-    "Qwen3.8": ("results_qwen38_grid_n15_solo", "results_qwen38_grid_n15_dyad"),
-    "DeepSeek-V4.1-Flash": ("results_dsv41_grid_n15_solo", "results_dsv41_grid_n15_dyad"),
+    "Qwen3.8": ("results_qwen38_grid_n15_solo", tree("results_qwen38_grid_n15", "dyad")),
+    "DeepSeek-V4.1-Flash": ("results_dsv41_grid_n15_solo", tree("results_dsv41_grid_n15", "dyad")),
 }
 # tab:ladder and F3 need all three multiplayer suites and, for tab:ladder, the
 # weak tier too.  Same result trees qual_corpus.py's ARMS reads.
@@ -157,7 +159,7 @@ def corpus():
     """
     sys.path.insert(0, os.path.join(ROOT, "analysis/qualitative_analysis"))
     import qual_corpus as qc
-    cache = os.path.join(ROOT, "analysis/qualitative_analysis/corpus.json")
+    cache = os.path.join(ROOT, f"analysis/qualitative_analysis/corpus.{ARM}.json")
     if os.path.exists(cache):
         rows = json.load(open(cache))["rows"]
     else:
@@ -187,8 +189,8 @@ def ladder():
     out = {}
     for model, prefix in ARMS.items():
         for suite in SUITES:
-            pat = os.path.join(ROOT, f"{prefix}_{suite}", "**", "scores.json")
-            for f in glob.glob(pat, recursive=True):
+            pat = os.path.join(ROOT, tree(prefix, suite), "**", "scores.json")
+            for f in sorted(glob.glob(pat, recursive=True)):
                 exp = f.split(os.sep)[-3]          # S3_structured_3p_grid
                 if not re.match(r"S\d_", exp):
                     continue
@@ -232,7 +234,7 @@ def episodes(opt):
     for model, (solo_tree, dyad_tree) in TREES.items():
         for tree, is_solo in ((solo_tree, True), (dyad_tree, False)):
             pat = os.path.join(ROOT, tree, "**", "scores.json")
-            for f in glob.glob(pat, recursive=True):
+            for f in sorted(glob.glob(pat, recursive=True)):
                 exp = f.split(os.sep)[-3]
                 if is_solo:
                     if not exp.startswith("Solo_"):
@@ -405,8 +407,8 @@ def all_episodes(opt, games=("solo",) + SUITES):
     out = []
     for model, prefix in ARMS.items():
         for suite in games:
-            pat = os.path.join(ROOT, f"{prefix}_{suite}", "**", "scores.json")
-            for f in glob.glob(pat, recursive=True):
+            pat = os.path.join(ROOT, tree(prefix, suite), "**", "scores.json")
+            for f in sorted(glob.glob(pat, recursive=True)):
                 exp = f.split(os.sep)[-3]  # Solo_S2_Silent_Grid, S3_none_3p_grid
                 if suite == "solo":
                     if not exp.startswith("Solo_"):
@@ -656,8 +658,8 @@ def _selfcheck_replay():
     bad = []
     for model, prefix in ARMS.items():
         for game in GAMES:
-            for f in glob.glob(os.path.join(ROOT, f"{prefix}_{game}", "**",
-                                            "scores.json"), recursive=True):
+            for f in sorted(glob.glob(os.path.join(ROOT, tree(prefix, game), "**",
+                                            "scores.json"), recursive=True)):
                 if not json.load(open(f))["episode scores"]["Success"]:
                     continue
                 d = os.path.dirname(f)
@@ -691,8 +693,8 @@ def clembench_table(opt, check):
         for game in GAMES:
             n = aborted = succ = home = goals = 0
             q = []
-            for f in glob.glob(os.path.join(ROOT, f"{prefix}_{game}", "**",
-                                            "scores.json"), recursive=True):
+            for f in sorted(glob.glob(os.path.join(ROOT, tree(prefix, game), "**",
+                                            "scores.json"), recursive=True)):
                 level = re.search(r"S\d", f.split(os.sep)[-3]).group(0)
                 gid = int(re.search(r"instance_(\d+)", f).group(1))
                 s = json.load(open(f))["episode scores"]
@@ -794,8 +796,8 @@ def goals_table(check):
     dist, per_level = {}, {}
     for model, prefix in ARMS.items():
         for game in GAMES:
-            for f in glob.glob(os.path.join(ROOT, f"{prefix}_{game}", "**",
-                                            "scores.json"), recursive=True):
+            for f in sorted(glob.glob(os.path.join(ROOT, tree(prefix, game), "**",
+                                            "scores.json"), recursive=True)):
                 s = json.load(open(f))["episode scores"]
                 h, _ = objects_home(os.path.dirname(f))
                 out = ("aborted" if s["Aborted"] else

@@ -22,6 +22,7 @@ TIER = {"qwen38": "strong", "dsv41": "strong", "nemotron": "weak"}
 # ---------------------------------------------------------------- lexicon
 # W: a reference token; who it denotes is decided per sentence (teammate/self)
 import itertools
+ARM = os.environ.get("ARM", "updated")  # arm of the team suites; solo is always original
 _gid = itertools.count()
 W = (r"(?P<who>(?-i:\b[A-FX]\b)|\bI(?:'m|’m|'d|’d|'ll|’ll)?(?![\w'’])|\bme\b|\bmy\b|\bmyself\b|"
      r"\byou\b|\byour\b|\bthem\b|\bhim\b|\bher\b|\bthey\b)")
@@ -232,7 +233,7 @@ def runs(flags):
 
 
 def build():
-    eps = json.load(open(os.path.join(QA, "episodes.json")))
+    eps = json.load(open(os.path.join(QA, f"episodes.{ARM}.json")))
     sents, spl, epis = [], [], []
     for rec in eps:
         if rec["suite"] == "solo" or rec["proto"] not in ("freeform", "hybrid"):
@@ -299,7 +300,7 @@ def build():
 
 
 def load():
-    f = os.path.join(OUT, "cache.pkl")
+    f = os.path.join(OUT, f"cache.{ARM}.pkl")
     if not os.path.exists(f):
         pickle.dump(build(), open(f, "wb"))
     return pickle.load(open(f, "rb"))

@@ -2,6 +2,7 @@
 Violation = the speaker's own object occupies that cell later. Consequence = the cell is a
 teammate's target, or a teammate is later rejected for trying to move into it."""
 import json, os, re, collections, string
+ARM = os.environ.get("ARM", "updated")  # arm of the team suites; solo is always original
 REPO="/Users/tom/uni/clembench-spatial-reference"
 MOVE=re.compile(r"^Player (\w+) moved ([A-F]) (up|down|left|right)$")
 BAD=re.compile(r"^Player (\w+): \[occupied\] Cannot move ([A-FX]) (\w+): \(R(\d+),C(\d+)\) is occupied")
@@ -12,7 +13,7 @@ PROMISE=re.compile(r"\bI\s?(?:'|’)?(?:ll|will| am going to)?\s*"
                    r"won(?:'|’)?t touch|won(?:'|’)?t occupy|won(?:'|’)?t block|won(?:'|’)?t need|am not using)\b"
                    r"([^.;!?\n]{0,70})", re.I)
 FREE=re.compile(r"\b(clear|free|open|empty|available|unblocked|vacant)\b|\bavoid\b|won(?:'|’)?t (use|enter|touch|occupy|block|need)|stay (out|off|clear)", re.I)
-R=json.load(open('episodes.json'))
+R=json.load(open(f'episodes.{ARM}.json'))
 stats=collections.Counter(); broken=[]
 for r in R:
     if r['suite']=='solo': continue
@@ -55,7 +56,7 @@ for r in R:
                 stats[('consequential' if (cons or is_tgt) else 'harmless', r['outcome'])]+=1
                 broken.append((r['model'],r['suite'],r['level'],r['proto'],r['inst'],r['outcome'],who,o,
                                f"R{cell[0]+1}C{cell[1]+1}",seg.strip()[:140],j-i,bool(cons),is_tgt,r['path']))
-json.dump(broken,open('broken_promises.json','w'))
+json.dump(broken,open(f'broken_promises.{ARM}.json','w'))
 T=collections.Counter()
 for (st,oc),v in stats.items(): T[st]+=v
 n=T['kept']+T['broken']

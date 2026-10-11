@@ -38,6 +38,7 @@ import json
 import os
 import re
 import string
+ARM = os.environ.get("ARM", "updated")  # arm of the team suites; solo is always original
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.dirname(os.path.dirname(HERE))
@@ -279,7 +280,7 @@ def spells(rec):
 
 
 def rows(models=None, protos=PROTOS, suites=("dyad", "3p", "6p")):
-    eps = json.load(open(os.path.join(HERE, "episodes.json")))
+    eps = json.load(open(os.path.join(HERE, f"episodes.{ARM}.json")))
     out, seen = [], 0
     for rec in eps:
         if rec["suite"] not in suites or rec["proto"] not in protos:
@@ -373,7 +374,7 @@ def selftest():
                    sum(not r["taken"] for r in co))
             assert got == w, (tier, got, w)
 
-    sp = [s for rec in json.load(open(os.path.join(HERE, "episodes.json")))
+    sp = [s for rec in json.load(open(os.path.join(HERE, f"episodes.{ARM}.json")))
           if rec["suite"] == "6p" for s in spells(rec)]
     assert len(sp) == 276, len(sp)
     op = [s for s in sp if s["opening"]]
@@ -458,7 +459,7 @@ def main():
         (args.model,) if args.model else None)
 
     if args.spells:
-        sp = [s for rec in json.load(open(os.path.join(HERE, "episodes.json")))
+        sp = [s for rec in json.load(open(os.path.join(HERE, f"episodes.{ARM}.json")))
               if rec["suite"] == "6p" for s in spells(rec)
               if (not models or rec["model"] in models)]
         op = [s for s in sp if s["opening"]]

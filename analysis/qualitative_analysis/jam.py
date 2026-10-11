@@ -1,9 +1,10 @@
 """How often is some player's object completely hemmed in, and does the episode survive it?"""
 import json, os, re, collections, string
+ARM = os.environ.get("ARM", "updated")  # arm of the team suites; solo is always original
 REPO="/Users/tom/uni/clembench-spatial-reference"
 MOVE=re.compile(r"^Player(?: (\w+))? moved ([A-F]) (up|down|left|right)$")
 DIRS={"up":(-1,0),"down":(1,0),"left":(0,-1),"right":(0,1)}
-R=json.load(open('episodes.json'))
+R=json.load(open(f'episodes.{ARM}.json'))
 res=[]
 for r in [x for x in R if x['suite']=='6p']:
     d=os.path.join(REPO,r['path'])
@@ -32,7 +33,7 @@ for r in [x for x in R if x['suite']=='6p']:
                     if s: jam_moves+=1
     res.append((r['outcome'], r['model'], r['level'], r['proto'], r['inst'],
                 sorted(ever), sorted(o for o in ever if pos[o]!=tgt[o]), jam_moves, total))
-json.dump(res,open('jam.json','w'))
+json.dump(res,open(f'jam.{ARM}.json','w'))
 c=collections.Counter()
 for o,m,l,p,i,ever,unsolved,jm,tot in res:
     c[(o, bool(ever))]+=1

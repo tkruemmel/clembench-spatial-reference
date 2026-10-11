@@ -6,10 +6,11 @@ import collections, json, os, re
 from scipy.stats import binomtest, fisher_exact
 from verbal import load, QA, spells, cell_rx
 from t3 import EP, last_msg, tags
+ARM = os.environ.get("ARM", "updated")  # arm of the team suites; solo is always original
 
 RETURN = re.compile(r"\b(?:return|re-?enter|rejoin|come back|go back|retake|step back|back (?:to|into|down|up|left|right))\b"
                     r"|\b(?:after|once|when|until)\s+(?:you|(?-i:[A-F]))\s+(?:pass|passes|clear|clears|has passed|have passed|go by|is through|are through)\b", re.I)
-eps = json.load(open(os.path.join(QA, "episodes.json")))
+eps = json.load(open(os.path.join(QA, f"episodes.{ARM}.json")))
 for tier, models in (("strong", ("qwen38", "dsv41")), ("weak", ("nemotron",))):
     v = collections.Counter(); b = collections.Counter(); inv = collections.Counter()
     for rec in eps:

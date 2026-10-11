@@ -1,7 +1,9 @@
 import collections, pickle
 from order import *
+import os
+ARM = os.environ.get("ARM", "updated")  # arm of the team suites; solo is always original
 P=("freeform","hybrid"); R=("none","structured")
-rows=pickle.load(open("s3ord.pkl","rb"))
+rows=pickle.load(open(f"s3ord.{ARM}.pkl","rb"))
 arr=lambda rs:[r for r in rs if r["order"]!="h never arrived"]
 def cnt(prs, f, base=arr, extra=lambda r: True):
     rs=[r for r in base(rows) if r["rec"]["proto"] in prs and extra(r)]
@@ -26,7 +28,7 @@ show("  reach | B first",cnt(P,lambda r:r["reach"] is not None,base=hf),cnt(R,la
 for s in ("3p","6p"):
     show("  reach | B first, %s"%s,cnt(P,lambda r:r["reach"] is not None,base=hf,extra=lambda r:r["rec"]["suite"]==s),cnt(R,lambda r:r["reach"] is not None,base=hf,extra=lambda r:r["rec"]["suite"]==s))
 # per-episode waiting
-W=pickle.load(open("waitS3.pkl","rb"))
+W=pickle.load(open(f"waitS3.{ARM}.pkl","rb"))
 def epwait(prs, suite, pend, kinds=("h non-progress",)):
     eps=collections.defaultdict(list)
     for w in W:
@@ -37,7 +39,7 @@ for s,k in (("6p",("h non-progress",)),("3p",("h non-progress",)),("3p",("h non-
     show("S3 B waits near home (eps>=1 wait), D pending %s %s"%(s,"/".join(x[:5] for x in k)),epwait(P,s,True,k),epwait(R,s,True,k))
     show("    same, D already passed",epwait(P,s,False,k),epwait(R,s,False,k))
 # dynamic S2/S4 6p per-episode
-Wd,A=pickle.load(open("dyn.pkl","rb"))
+Wd,A=pickle.load(open(f"dyn.{ARM}.pkl","rb"))
 for lev in ("S2","S4"):
     for suite in ("6p",):
         def ep(prs,pend):

@@ -4,12 +4,13 @@ Read-only on the repo."""
 import sys, os, json, glob, string, collections, re
 sys.path.insert(0, "/Users/tom/uni/clembench-spatial-reference/analysis/qualitative_analysis")
 import qual_corpus as Q
+ARM = os.environ.get("ARM", "updated")  # arm of the team suites; solo is always original
 
 REPO = "/Users/tom/uni/clembench-spatial-reference"
 out = []
 for model, pref in Q.ARMS.items():
     for suite in Q.SUITES:
-        for f in sorted(glob.glob(os.path.join(REPO, f"{pref}_{suite}", "*", "*", "*", "instance_*", "interactions.json"))):
+        for f in sorted(glob.glob(os.path.join(REPO, Q.tree(pref, suite), "*", "*", "*", "instance_*", "interactions.json"))):
             d = os.path.dirname(f)
             ins = json.load(open(os.path.join(d, "instance.json")))
             es = json.load(open(os.path.join(d, "scores.json")))["episode scores"]
@@ -45,5 +46,5 @@ for model, pref in Q.ARMS.items():
                                             spk=spk, lt_raw=lt_raw, own=owner.get(lt) == spk, ok=snapshot[lt] == p,
                                             is_tgt=tgt[lt] == p, stale=(p in hist[lt] and snapshot[lt] != p), occ=next((o for o, q in snapshot.items() if q == p and o != lt), None), occ_own=(owner.get(next((o for o, q in snapshot.items() if q == p and o != lt), '?')) == spk), post=pos[lt] == p, start=tuple(ins['start_positions'][lt]) == p, nmoves=nmoves, nmsg=nmsg,
                                             span=mm.group(0), pre=pre))
-json.dump(out, open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "claims.json"), "w"))
+json.dump(out, open(os.path.join(os.path.dirname(os.path.abspath(__file__)), f"claims.{ARM}.json"), "w"))
 print(len(out))

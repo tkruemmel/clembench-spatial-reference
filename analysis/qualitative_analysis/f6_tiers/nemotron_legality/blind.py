@@ -3,7 +3,8 @@ Observed P(chosen move blocked | chosen move greedy) vs the blocked share among 
 (uniform over all own greedy options; uniform over the chosen object's greedy directions).
 Also: off-grid / non-greedy rejections -- is the OPPOSITE direction the greedy one (direction flip)?"""
 import json, collections, os
-A = json.load(open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "attempts.json")))["attempts"]
+ARM = os.environ.get("ARM", "updated")  # arm of the team suites; solo is always original
+A = json.load(open(os.path.join(os.path.dirname(os.path.abspath(__file__)), f"attempts.{ARM}.json")))["attempts"]
 OPP = {"up": "down", "down": "up", "left": "right", "right": "left"}
 pct = lambda a, b: f"{100*a/b:5.1f}% ({a}/{b})" if b else "-"
 for m in ("nemotron", "qwen38", "dsv41"):

@@ -11,6 +11,7 @@ of a quote and are stripped before matching; nothing inside a quote is elided.
 Usage:  python3 check_quotes.py  [--cache corpus.json] [--readme README.md]
 """
 import argparse, json, os, re, sys
+ARM = os.environ.get("ARM", "updated")  # arm of the team suites; solo is always original
 
 PROV = re.compile(r"^([\w.-]+) / (\w+) / (S\d) / (\w+) / instance_(\d+) / turn (\d+) / Player (\w+)")
 ANNOTATION = ("Claim:", "Board:")
@@ -45,14 +46,14 @@ def blocks(path, start=None):
 def main():
     ap = argparse.ArgumentParser()
     here = os.path.dirname(os.path.abspath(__file__))
-    ap.add_argument("--cache", default=os.path.join(here, "corpus.json"))
+    ap.add_argument("--cache", default=os.path.join(here, f"corpus.{ARM}.json"))
     ap.add_argument("--readme", default=os.path.join(here, "README.md"),
                     help="file to audit; pass the results document to audit Appendix C")
     ap.add_argument("--start", default=None,
                     help="only audit from the first line with this prefix onward")
     a = ap.parse_args()
     if not os.path.exists(a.cache):
-        sys.exit("corpus.json missing; run: python3 qual_corpus.py --refresh")
+        sys.exit(f"corpus.{ARM}.json missing; run: python3 qual_corpus.py --refresh")
     rows = json.load(open(a.cache))["rows"]
     idx = {}
     for r in rows:
@@ -82,7 +83,7 @@ def main():
                 print(f"  NOT VERBATIM         {prov}\n     {needle[:110]}")
                 bad += 1
     print(f"\n  {ok} quotations verified verbatim, {bad} failed.")
-    sys.exit(1 if bad else 0)
+    sys.exit(1 if bad or not ok else 0)  # zero quotes found is a failure, not a pass
 
 
 if __name__ == "__main__":

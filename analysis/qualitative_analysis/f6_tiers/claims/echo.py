@@ -7,7 +7,7 @@ REPO = "/Users/tom/uni/clembench-spatial-reference"
 res = collections.defaultdict(collections.Counter)
 for model, pref in Q.ARMS.items():
     for suite in Q.SUITES:
-        for f in sorted(glob.glob(os.path.join(REPO, f"{pref}_{suite}", "*", "*", "*", "instance_*", "interactions.json"))):
+        for f in sorted(glob.glob(os.path.join(REPO, Q.tree(pref, suite), "*", "*", "*", "instance_*", "interactions.json"))):
             d = os.path.dirname(f); ins = json.load(open(os.path.join(d, "instance.json")))
             if ins["comm_protocol"] not in ("freeform", "hybrid"): continue
             pos = {o: tuple(q) for o, q in ins["start_positions"].items()}

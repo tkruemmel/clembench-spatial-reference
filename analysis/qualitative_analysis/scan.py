@@ -1,5 +1,6 @@
 """Per-episode failure/success anatomy over the three grid campaigns (2520 episodes)."""
 import json, glob, os, re, sys, collections, string
+from qual_corpus import ARM, tree
 
 REPO = "/Users/tom/uni/clembench-spatial-reference"
 ARMS = {"nemotron": "results_nemotron_fixthink_grid_n15",
@@ -104,7 +105,7 @@ def episode(f, model, suite):
 rows = []
 for model, pref in ARMS.items():
     for suite in SUITES:
-        pat = os.path.join(REPO, f"{pref}_{suite}", "*", "*", "*", "instance_*", "interactions.json")
+        pat = os.path.join(REPO, tree(pref, suite), "*", "*", "*", "instance_*", "interactions.json")
         for f in sorted(glob.glob(pat)):
             try:
                 rows.append(episode(f, model, suite))
@@ -123,7 +124,7 @@ for r in rows:
     r["board"] = hashlib.md5(key.encode()).hexdigest()[:8]
     r["exact"] = JO[(r["level"], int(r["inst"].split("_")[1]))]
 
-out = os.path.join(os.path.dirname(os.path.abspath(__file__)), "episodes.json")
+out = os.path.join(os.path.dirname(os.path.abspath(__file__)), f"episodes.{ARM}.json")
 json.dump(rows, open(out, "w"))
 print(len(rows), "episodes ->", out)
 print(collections.Counter((r["suite"], r["outcome"]) for r in rows))

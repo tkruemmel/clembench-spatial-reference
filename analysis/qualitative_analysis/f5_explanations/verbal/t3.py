@@ -10,6 +10,7 @@ import sys
 sys.dont_write_bytecode = True
 import collections, json, os
 from verbal import load, tag_sentence, SENT, QA, spells
+ARM = os.environ.get("ARM", "updated")  # arm of the team suites; solo is always original
 
 S, P, E = load()
 EP = {e["path"]: e for e in E}
@@ -44,7 +45,7 @@ def last_msg(ep, q, k):
 
 
 def victims():
-    eps = json.load(open(os.path.join(QA, "episodes.json")))
+    eps = json.load(open(os.path.join(QA, f"episodes.{ARM}.json")))
     print("\nb) enclosure victims, 6p prose, spells formed in play")
     for tier, models in (("strong", ("qwen38", "dsv41")), ("weak", ("nemotron",))):
         vic = collections.Counter(); base = collections.Counter(); seal = collections.Counter()

@@ -18,10 +18,11 @@ import re
 import statistics as st
 
 from scipy.stats import kruskal, spearmanr
+ARM = os.environ.get("ARM", "updated")  # arm of the team suites; solo is always original
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.join(HERE, "..", "..")
-EPISODES = os.path.join(REPO, "analysis/qualitative_analysis", "episodes.json")
+EPISODES = os.path.join(REPO, "analysis/qualitative_analysis", f"episodes.{ARM}.json")
 STRONG = ("qwen38", "dsv41")
 SUITES = ("solo", "dyad", "3p", "6p")
 LEVELS = ("S1", "S2", "S3", "S4")
@@ -75,6 +76,15 @@ def replay(e):
     return D, msgs, chars
 
 
+# "Moves beyond the optimum" is beyond the suite's attainable optimum A_k, the
+# denominator every score uses.  `optimal` in an episode is the BFS bound in the
+# original arm and A_k in the updated one, so it is not read from there.
+AK = {(s, d["level"], d["game_id"]): d["stuckfree"]
+      for s in ("dyad", "3p", "6p")
+      for d in map(json.loads, open(os.path.join(REPO, f"analysis/efficiency_baseline/attainable_{s}.jsonl")))
+      if d.get("status") == "exact"}
+
+
 def rows():
     out = []
     for e in json.load(open(EPISODES)):
@@ -83,7 +93,7 @@ def rows():
         D, msgs, chars = replay(e)
         out.append(dict(
             suite=e["suite"], level=e["level"], proto=e["proto"],
-            outcome=e["outcome"], optimal=e["optimal"], T=len(D) - 1,
+            outcome=e["outcome"], gid=int(e["inst"].split("_")[-1]), T=len(D) - 1,
             msgs=msgs, chars=chars,
             native=stall_rate(D, max(2 * e["nplayers"], 6)),
             k6=stall_rate(D, 6), k12=stall_rate(D, 12)))
@@ -134,7 +144,7 @@ def main():
     print("-- length confound: moves beyond optimum")
     for s in SUITES[1:]:
         g = [r for r in C if r["suite"] == s]
-        ex = [r["T"] - r["optimal"] for r in g]
+        ex = [r["T"] - AK[(s, r["level"], r["gid"])] for r in g]
         print(f"{s:4s} msgs/move {spearmanr([r['msgs'] / r['T'] for r in g], ex).statistic:+.2f}"
               f"  stall {spearmanr([r['native'] for r in g], ex).statistic:+.2f}")
 

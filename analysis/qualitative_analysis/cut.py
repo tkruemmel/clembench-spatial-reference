@@ -18,6 +18,7 @@ import json
 import os
 import re
 import string
+ARM = os.environ.get("ARM", "updated")  # arm of the team suites; solo is always original
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.dirname(os.path.dirname(HERE))
@@ -129,7 +130,7 @@ def cases(models=STRONG):
     through it.
     """
     out = []
-    episodes = json.load(open(os.path.join(HERE, "episodes.json")))
+    episodes = json.load(open(os.path.join(HERE, f"episodes.{ARM}.json")))
     for rec in episodes:
         if rec["outcome"] != "lose" or rec["suite"] not in ("3p", "6p"):
             continue

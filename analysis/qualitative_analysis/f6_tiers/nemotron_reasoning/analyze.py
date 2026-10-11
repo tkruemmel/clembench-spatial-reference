@@ -5,9 +5,12 @@ Sections: 1 data, 2 trace, 3 length, 4 solo, 5 render, 6 request.
 """
 import collections as C, glob, json, math, os, statistics as st, sys
 from scipy.stats import binomtest, chi2, wilcoxon
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".."))
+from qual_corpus import ARM, tree                                # noqa: E402
+from extract import ROOTS                                         # noqa: E402
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-R = [json.loads(l) for l in open(os.path.join(HERE, "calls.jsonl"))]
+R = [json.loads(l) for l in open(os.path.join(HERE, f"calls.{ARM}.jsonl"))]
 ILL = {"wall", "off_grid", "not_owner", "unknown_object"}
 REJ = ILL | {"occupied"}
 MOVE_V = REJ | {"legal"}
@@ -219,13 +222,13 @@ def s5():
 
 def s6():
     print("\n## 6. Request parameters")
-    for f in sorted(glob.glob("results_nemotron_fixthink*_n15_*/*/run.json")):
+    for f in sorted(f for root in ROOTS for f in glob.glob(f"{root}/*/run.json")):
         if "stale" in f:
             continue
         pm = json.load(open(f))["player_models"]["0"]
         print(f"  {f}: gen_args {pm['gen_args']}, model_config {pm['model_spec'].get('model_config')}")
     ga = C.Counter()
-    for f in glob.glob("results_nemotron_fixthink*_n15_*/*/*/*/instance_*/interactions.json"):
+    for f in (f for root in ROOTS for f in glob.glob(f"{root}/*/*/*/instance_*/interactions.json")):
         if "stale" not in f:
             ga[json.dumps(json.load(open(f))["player_models"]["0"]["gen_args"], sort_keys=True)] += 1
     print("  interactions.json gen_args:", dict(ga))
@@ -242,13 +245,13 @@ def s7():
               f"repeat {rate(retry_pairs([r for r in R if r['suite'] != 'solo' and r['proto'] == p]), rep)}")
     print("  within (rend x suite x level x first/retry), RD message-protocol - none, illegal:",
           mh(mp, lambda r: (r["rend"], r["suite"], r["level"], min(r["retry"], 1)), lambda r: r["proto"] != "none", ill))
-    for pat in ("results_qwen38_grid_n15_", "results_dsv41_grid_n15_", "results_nemotron_fixthink_grid_n15_"):
+    for pat in ("results_qwen38_grid_n15", "results_dsv41_grid_n15", "results_nemotron_fixthink_grid_n15"):
         att = il = 0
         for s in ("solo", "dyad", "3p", "6p"):
-            for f in glob.glob(f"{pat}{s}/*/*/*/instance_*/interactions.json"):
+            for f in glob.glob(f"{tree(pat, s)}/*/*/*/instance_*/interactions.json"):
                 x = json.load(open(f))
                 att += x.get("Move Attempts", 0); il += x.get("Illegal Attempts", 0)
-        print(f"  {pat}*: illegal {il}/{att} ({100*il/max(att,1):.1f}%) per move attempt")
+        print(f"  {pat}_*: illegal {il}/{att} ({100*il/max(att,1):.1f}%) per move attempt")
 
 
 if __name__ == "__main__":
