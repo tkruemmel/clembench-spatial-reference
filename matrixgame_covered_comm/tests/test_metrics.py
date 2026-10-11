@@ -6,7 +6,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from utils.metrics import (
-    oscillation_stats, deadlock_flag, path_ratios, message_lengths,
+    oscillation_stats, deadlock_flag, deadlock_window, path_ratios,
+    message_lengths,
 )
 
 
@@ -19,12 +20,34 @@ def test_oscillation_detects_return_within_k():
     assert count == 1 and flag == 1
 
 
-def test_oscillation_ignores_return_beyond_k():
-    log = [{"object": "A", "from": [0, 0], "to": [0, 1]}]
-    log += [{"object": "B", "from": [5, c], "to": [5, c + 1]} for c in range(5)]
-    log += [{"object": "A", "from": [0, 1], "to": [0, 0]}]
+def test_oscillation_ignores_return_beyond_k_of_the_objects_own_moves():
+    # A leaves (0, 0), makes five further moves of its own, then comes back:
+    # six of A's own moves apart, outside k = 4.
+    log = [{"object": "A", "from": [0, c], "to": [0, c + 1]} for c in range(6)]
+    log += [{"object": "A", "from": [0, 6], "to": [0, 0]}]
     count, flag = oscillation_stats(log, k=4)
     assert count == 0 and flag == 0
+
+
+def test_oscillation_window_is_independent_of_team_size():
+    # The same A -> B -> A reversal, with zero, two and five other players'
+    # moves interleaved. The window counts A's own moves, so all three fire.
+    for n_between in (0, 2, 5):
+        log = [{"object": "A", "from": [0, 0], "to": [0, 1]}]
+        log += [
+            {"object": f"O{i}", "from": [5, i], "to": [6, i]}
+            for i in range(n_between)
+        ]
+        log += [{"object": "A", "from": [0, 1], "to": [0, 0]}]
+        count, flag = oscillation_stats(log, k=4)
+        assert (count, flag) == (1, 1), n_between
+
+
+def test_deadlock_window_is_two_rounds_with_a_floor_of_six():
+    assert deadlock_window(1) == 6   # solo
+    assert deadlock_window(2) == 6   # dyad
+    assert deadlock_window(3) == 6   # 3p
+    assert deadlock_window(6) == 12  # 6p
 
 
 def test_deadlock_flags_six_moves_without_net_progress():
@@ -34,14 +57,27 @@ def test_deadlock_flags_six_moves_without_net_progress():
     for _ in range(3):
         log.append({"object": "A", "from": [0, 0], "to": [0, 1]})
         log.append({"object": "A", "from": [0, 1], "to": [0, 0]})
-    assert deadlock_flag(log, starts, targets, k=6) == 1
+    assert deadlock_flag(log, starts, targets, num_players=2) == 1
 
 
 def test_deadlock_not_flagged_on_steady_progress():
     starts = {"A": [0, 0]}
     targets = {"A": [0, 7]}
     log = [{"object": "A", "from": [0, c], "to": [0, c + 1]} for c in range(7)]
-    assert deadlock_flag(log, starts, targets, k=6) == 0
+    assert deadlock_flag(log, starts, targets, num_players=2) == 0
+
+
+def test_deadlock_window_scales_with_team_size():
+    # Six moves of stalling: a deadlock at three players (window 6), not yet
+    # one at six players (window 12).
+    starts = {"A": [0, 0], "B": [7, 7]}
+    targets = {"A": [0, 5], "B": [7, 0]}
+    log = []
+    for _ in range(3):
+        log.append({"object": "A", "from": [0, 0], "to": [0, 1]})
+        log.append({"object": "A", "from": [0, 1], "to": [0, 0]})
+    assert deadlock_flag(log, starts, targets, num_players=3) == 1
+    assert deadlock_flag(log, starts, targets, num_players=6) == 0
 
 
 def test_path_ratios_detour_counts_double():

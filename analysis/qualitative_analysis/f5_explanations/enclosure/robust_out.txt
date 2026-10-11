@@ -1,0 +1,38 @@
+A. unique-progress plies, strong tier: P(play gaining move) split by whether it also gains with objects as obstacles
+   obj-aware gain   pinch 15/22 (68%)  baseline 12070/12661 (95%)  Fisher p=4.6e-05
+   blocked/not real pinch 51/96 (53%)  baseline 3950/5467 (72%)  Fisher p=8.1e-05
+
+B. costly pinches vs unique-progress baseline matched on model x protocol x level x K (indirect standardisation)
+   rigid  qwen38         taken 20/41 (49%)  expected 36.8 (90%)
+   rigid  dsv41          taken 20/31 (65%)  expected 28.1 (91%)
+   rigid  strong         taken 40/72 (56%)  expected 64.9 (90%)
+   prose  qwen38         taken 12/22 (55%)  expected 18.7 (85%)
+   prose  dsv41          taken 14/24 (58%)  expected 20.8 (87%)
+   prose  strong         taken 26/46 (57%)  expected 39.5 (86%)
+   all    qwen38         taken 32/63 (51%)  expected 55.5 (88%)
+   all    dsv41          taken 34/55 (62%)  expected 48.9 (89%)
+   all    strong         taken 66/118 (56%)  expected 104.4 (88%)
+
+C. board-clustered bootstrap (2000x) of costly pinch take-rate minus matched baseline (model x proto x K), strong tier
+   rigid  n=72 on 18 boards: diff -0.35  95% CI [-0.45, -0.24]
+   prose  n=46 on 12 boards: diff -0.31  95% CI [-0.48, -0.15]
+   all    n=118 on 20 boards: diff -0.33  95% CI [-0.44, -0.25]
+   prose - rigid take-rate difference at costly pinches: 0.01  95% CI [-0.19, 0.17]
+   costly pinches per board (strong): [34, 13, 10, 10, 8, 7, 7, 6, 5, 4]
+
+D. conditional logit, board-visible features (k = free neighbours of the adjacent X before the move; done X's included,
+   since the board does not mark them), controls: object-aware progress, #adjacent X, mover's own mobility after. SE clustered by board.
+  strong none       n= 5978  gain(walls) 10.33 [7.84,13.61] | gain(objects too) 37.48 [26.75,52.52] | adj X, its last cell (k=1) 0.17 [0.09,0.30] | adj X, k=2 0.52 [0.32,0.86] | adj X, k>=3 0.36 [0.25,0.53] | #X adjacent 0.79 [0.57,1.10] | own moves after 1.04 [0.90,1.22] || k=1 vs k=2: ratio 0.32 z=-4.42
+  weak   none       n=  442  gain(walls) 3.29 [1.76,6.15] | gain(objects too) 2.64 [1.24,5.60] | adj X, k=2 2.34 [0.33,16.32] | adj X, k>=3 1.92 [0.34,10.77] | #X adjacent 0.59 [0.15,2.32] | own moves after 1.26 [0.93,1.71]
+  strong structured n= 6474  gain(walls) 5.39 [4.41,6.58] | gain(objects too) 11.61 [8.84,15.25] | adj X, its last cell (k=1) 0.37 [0.15,0.92] | adj X, k=2 0.51 [0.34,0.75] | adj X, k>=3 0.55 [0.40,0.76] | #X adjacent 1.00 [0.72,1.40] | own moves after 0.99 [0.88,1.12] || k=1 vs k=2: ratio 0.72 z=-0.69
+  weak   structured n=  245  gain(walls) 19.33 [4.27,87.41] | gain(objects too) 12.46 [1.70,91.45] | adj X, k=2 2.76 [0.13,56.79] | adj X, k>=3 0.07 [0.03,0.20] | #X adjacent 8.46 [3.15,22.70] | own moves after 0.52 [0.27,1.00]
+  strong freeform   n= 6317  gain(walls) 4.32 [3.36,5.55] | gain(objects too) 7.37 [5.89,9.23] | adj X, its last cell (k=1) 0.62 [0.26,1.48] | adj X, k=2 0.50 [0.29,0.84] | adj X, k>=3 0.62 [0.37,1.04] | #X adjacent 0.77 [0.47,1.26] | own moves after 0.70 [0.62,0.78] || k=1 vs k=2: ratio 1.25 z=0.54
+  weak   freeform   n=  802  gain(walls) 4.45 [3.06,6.48] | gain(objects too) 2.08 [1.39,3.11] | adj X, its last cell (k=1) 12.58 [1.31,120.66] | adj X, k=2 0.87 [0.36,2.08] | adj X, k>=3 0.87 [0.43,1.75] | #X adjacent 1.47 [0.87,2.51] | own moves after 0.91 [0.75,1.10] || k=1 vs k=2: ratio 14.47 z=2.67
+  strong hybrid     n= 6551  gain(walls) 4.27 [3.41,5.36] | gain(objects too) 7.32 [5.86,9.14] | adj X, its last cell (k=1) 0.24 [0.08,0.72] | adj X, k=2 0.42 [0.28,0.62] | adj X, k>=3 0.50 [0.33,0.75] | #X adjacent 0.89 [0.66,1.21] | own moves after 0.75 [0.66,0.86] || k=1 vs k=2: ratio 0.57 z=-1.14
+  weak   hybrid     n=  314  gain(walls) 5.18 [3.37,7.97] | gain(objects too) 2.45 [1.41,4.27] | adj X, its last cell (k=1) 0.74 [0.00,420755.68] | adj X, k=2 1.38 [0.35,5.35] | adj X, k>=3 0.96 [0.37,2.45] | #X adjacent 1.07 [0.44,2.57] | own moves after 0.69 [0.47,1.01] || k=1 vs k=2: ratio 0.53 z=-0.09
+  strong rigid      n=12452  gain(walls) 6.79 [5.70,8.09] | gain(objects too) 16.27 [12.51,21.16] | adj X, its last cell (k=1) 0.27 [0.16,0.44] | adj X, k=2 0.53 [0.40,0.72] | adj X, k>=3 0.48 [0.37,0.61] | #X adjacent 0.92 [0.72,1.17] | own moves after 1.01 [0.92,1.12] || k=1 vs k=2: ratio 0.50 z=-2.53
+  weak   rigid      n=  687  gain(walls) 4.57 [2.40,8.71] | gain(objects too) 3.11 [1.33,7.28] | adj X, k=2 1.72 [0.29,10.14] | adj X, k>=3 0.83 [0.23,2.91] | #X adjacent 1.29 [0.44,3.77] | own moves after 1.08 [0.79,1.46]
+  strong prose      n=12868  gain(walls) 4.29 [3.53,5.23] | gain(objects too) 7.33 [6.07,8.85] | adj X, its last cell (k=1) 0.36 [0.16,0.82] | adj X, k=2 0.46 [0.32,0.65] | adj X, k>=3 0.56 [0.38,0.81] | #X adjacent 0.83 [0.60,1.15] | own moves after 0.72 [0.65,0.81] || k=1 vs k=2: ratio 0.80 z=-0.61
+  weak   prose      n= 1116  gain(walls) 4.63 [3.33,6.45] | gain(objects too) 2.15 [1.53,3.03] | adj X, its last cell (k=1) 7.27 [0.70,75.37] | adj X, k=2 0.95 [0.47,1.93] | adj X, k>=3 0.89 [0.51,1.54] | #X adjacent 1.38 [0.88,2.16] | own moves after 0.85 [0.72,1.01] || k=1 vs k=2: ratio 7.64 z=1.79
+  strong all        n=25320  gain(walls) 5.15 [4.44,5.98] | gain(objects too) 9.50 [7.87,11.46] | adj X, its last cell (k=1) 0.32 [0.20,0.51] | adj X, k=2 0.51 [0.41,0.63] | adj X, k>=3 0.52 [0.42,0.65] | #X adjacent 0.87 [0.71,1.07] | own moves after 0.84 [0.77,0.92] || k=1 vs k=2: ratio 0.63 z=-1.98
+  weak   all        n= 1803  gain(walls) 4.69 [3.39,6.50] | gain(objects too) 2.42 [1.72,3.41] | adj X, its last cell (k=1) 8.21 [0.78,86.61] | adj X, k=2 1.05 [0.51,2.18] | adj X, k>=3 0.80 [0.47,1.37] | #X adjacent 1.42 [0.92,2.17] | own moves after 0.92 [0.77,1.11] || k=1 vs k=2: ratio 7.81 z=1.76

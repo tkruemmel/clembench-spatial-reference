@@ -741,8 +741,10 @@ class MatrixGameScorer(GameScorer):
         osc_count, osc_flag = oscillation_stats(move_log, k=4)
         self.log_episode_score("Oscillation Count", osc_count)
         self.log_episode_score("Oscillation Flag", osc_flag)
+        # Two players by default; the key is absent from dyad instances.
+        num_players = self.game_instance.get("num_players", 2)
         self.log_episode_score(
-            "Deadlock Flag", deadlock_flag(move_log, starts, targets, k=6)
+            "Deadlock Flag", deadlock_flag(move_log, starts, targets, num_players)
         )
 
         # Communication family (message: is the solo scratchpad / team channel)

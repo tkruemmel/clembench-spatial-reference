@@ -74,7 +74,8 @@ Scope, and every part of it is a decision the caption has to state:
     baselines D-b decomposes against -- SILENT is deliberation-free, like
     dyad-NONE, and THINKING is the deliberation-matched ceiling the protocol
     conditions should be read against.
-  * Efficiency is the exact joint optimum over the episode's move count, NOT
+  * Efficiency is the suite's attainable optimum over the episode's move count
+    (the exact joint optimum for solo, where the two coincide), NOT
     scores.json's `Move Efficiency`.  That key divides by the stored per-object
     BFS sum, which S5.4 defines as the budgeting bound and not the scoring one;
     it understates efficiency by 0.07-0.08 here and by 20.4% at S4.  Verified
@@ -87,7 +88,7 @@ Scope, and every part of it is a decision the caption has to state:
 Format, as clembench papers report: the Quality Score and % Played lead every
 results table, and success and move efficiency -- the Quality Score's two
 factors -- follow as game-specific rows or columns.  The Quality Score is
-BENCH_SCORE on the exact joint optimum, averaged over played episodes; where
+BENCH_SCORE on the suite's attainable optimum, averaged over played episodes; where
 aborts occur (6p, the weak tier) cells are "Quality / % Played", the
 Plant-in-Cupboard layout.  Quality contrasts use the paired permutation test
 S5.5 declares (perm_p), not Wilcoxon: the score is a mean with a point mass at
@@ -199,7 +200,14 @@ def ladder():
 
 
 def load_optima():
-    """(level, game_id) -> exact joint optimum.  Refuses anything inexact."""
+    """Exact optima, refusing anything inexact.
+
+    (level, game_id) -> the free-order joint optimum J (S6.1).
+    (suite, level, game_id) -> the attainable optimum of that suite (S6.4):
+    the cheapest play-through a flawless team of that size achieves under the
+    suite's own rules.  Solo's is J by definition.  Every score in the thesis
+    divides by the second; J survives as `eff_j`, the cost including the rules.
+    """
     opt = {}
     path = os.path.join(ROOT, "analysis/efficiency_baseline/joint_optimum.jsonl")
     for ln in open(path):
@@ -207,6 +215,13 @@ def load_optima():
         if d.get("status") != "exact":
             continue
         opt[(d["level"], d["game_id"])] = d["opt"]
+        opt[("solo", d["level"], d["game_id"])] = d["opt"]
+    for suite in SUITES:
+        path = os.path.join(ROOT, f"analysis/efficiency_baseline/attainable_{suite}.jsonl")
+        for ln in open(path):
+            d = json.loads(ln)
+            if d.get("status") == "exact":
+                opt[(suite, d["level"], d["game_id"])] = d["stuckfree"]
     return opt
 
 
@@ -236,14 +251,16 @@ def episodes(opt):
                     continue
                 s = json.load(open(f))["episode scores"]
                 success = int(s.get("Success", 0))
-                eff = None
+                eff = eff_j = None
+                suite = "solo" if is_solo else "dyad"
                 if success and s.get("Move Count"):
-                    if (level, gid) in opt:
-                        eff = opt[(level, gid)] / s["Move Count"]
+                    if (suite, level, gid) in opt:
+                        eff = opt[(suite, level, gid)] / s["Move Count"]
+                        eff_j = opt[(level, gid)] / s["Move Count"]
                     else:
                         missing.add((level, gid))
                 out.append(dict(model=model, level=level, game_id=gid,
-                                cond=cond, success=success, eff=eff,
+                                cond=cond, success=success, eff=eff, eff_j=eff_j,
                                 ab=int(s["Aborted"]), q=quality(s, eff)))
     return out, missing
 
@@ -305,7 +322,7 @@ def signed(x, dp):
 
 
 def quality(s, eff):
-    """BENCH_SCORE on the exact joint optimum: None if aborted, else 0 or
+    """BENCH_SCORE on the given efficiency: None if aborted, else 0 or
     100 x efficiency.  The clembench Quality Score is its mean over played
     episodes (tab:clembench)."""
     if s["Aborted"]:
@@ -317,9 +334,14 @@ def cell(rows):
     n = len(rows)
     k = sum(r["success"] for r in rows)
     effs = [r["eff"] for r in rows if r["success"] and r["eff"] is not None]
+    effj = [r["eff_j"] for r in rows if r["success"] and r.get("eff_j") is not None]
     qs = [r["q"] for r in rows if r["q"] is not None]
+    qj = [min(100.0, 100.0 * r["eff_j"]) if r["success"] else 0.0
+          for r in rows if r["q"] is not None and "eff_j" in r]
     return dict(n=n, k=k, rate=100.0 * k / n if n else float("nan"),
                 eff=st.mean(effs) if effs else float("nan"), eff_n=len(effs),
+                eff_j=st.mean(effj) if effj else float("nan"),
+                q_j=st.mean(qj) if qj else float("nan"),
                 played=100.0 * len(qs) / n if n else float("nan"),
                 q=st.mean(qs) if qs else float("nan"))
 
@@ -341,11 +363,11 @@ def psci(x):
     return "<10^{-4}" if x < 1e-4 else f"= {sci(x)}"
 
 
-def qpairs(a_rows, b_rows, key):
+def qpairs(a_rows, b_rows, key, field="q"):
     """Quality differences a - b over the keys both played."""
-    ia = {key(r): r for r in a_rows if r["q"] is not None}
-    ib = {key(r): r for r in b_rows if r["q"] is not None}
-    return [ia[k]["q"] - ib[k]["q"] for k in ia if k in ib]
+    ia = {key(r): r for r in a_rows if r[field] is not None}
+    ib = {key(r): r for r in b_rows if r[field] is not None}
+    return [ia[k][field] - ib[k][field] for k in ia if k in ib]
 
 
 def table(caption, label, spec, header, body, note=None, tight=False):
@@ -378,7 +400,8 @@ def pct(x):
 def all_episodes(opt, games=("solo",) + SUITES):
     """Every episode of the three arms, one dict each: model, suite, level,
     cond (solo_silent / solo_thinking, or the protocol), game_id, success,
-    eff (exact joint optimum over move count, successes only), ab, q."""
+    eff (the suite's attainable optimum over move count, successes only),
+    eff_j (the same on the free-order joint optimum), ab, q."""
     out = []
     for model, prefix in ARMS.items():
         for suite in games:
@@ -399,10 +422,12 @@ def all_episodes(opt, games=("solo",) + SUITES):
                     continue
                 s = json.load(open(f))["episode scores"]
                 ok = int(s.get("Success", 0))
-                eff = opt[(level, gid)] / s["Move Count"] if ok else None
+                eff = opt[(suite, level, gid)] / s["Move Count"] if ok else None
+                eff_j = opt[(level, gid)] / s["Move Count"] if ok else None
                 out.append(dict(model=model, suite=suite, level=level, cond=cond,
-                                game_id=gid, success=ok, eff=eff,
-                                ab=int(s["Aborted"]), q=quality(s, eff)))
+                                game_id=gid, success=ok, eff=eff, eff_j=eff_j,
+                                ab=int(s["Aborted"]), q=quality(s, eff),
+                                q_j=quality(s, eff_j)))
     return out
 
 
@@ -657,7 +682,7 @@ def clembench_table(opt, check):
 
     Only the aggregation is clemcore's.  The per-episode score is NOT the
     shipped `Main Score`, which divides by the stored per-object BFS bound and
-    understates S2-S4 (S6.1); it is recomputed on the exact joint optimum,
+    understates S2-S4 (S6.1); it is recomputed on each suite's attainable optimum,
     BENCH_SCORE as S5.4 defines it.  The cross-check above was run on the
     shipped scores, so it verifies the aggregation, not these values.
     """
@@ -679,7 +704,7 @@ def clembench_table(opt, check):
                 goals += t
                 if s["Aborted"]:
                     continue
-                q.append(min(100.0, 100.0 * opt[(level, gid)] / s["Move Count"])
+                q.append(min(100.0, 100.0 * opt[(game, level, gid)] / s["Move Count"])
                          if s["Success"] else 0.0)
             cells[(model, game)] = dict(
                 n=n, played=round(100.0 * (n - aborted) / n, 2),
@@ -731,8 +756,10 @@ def clembench_table(opt, check):
         "episode leaves the Quality Score untouched and lowers \\% Played instead. "
         "\\emph{All} is the macro-average over the four games and "
         "\\emph{clemscore} is Average \\% Played / 100 $\\times$ Average Quality "
-        "Score. \\texttt{BENCH\\_SCORE} is taken on the exact joint optimum "
-        "(\\S6.1), not on the per-object bound the games store, which "
+        "Score. \\texttt{BENCH\\_SCORE} is taken on each game's attainable "
+        "optimum (\\S5.4, \\S6.4), the fewest moves a flawless team of that "
+        "size needs under that game's rules, so a perfect play-through scores "
+        "100 in every game; not on the per-object bound the games store, which "
         "understates S2--S4. \\emph{Success} is successes over "
         "all episodes, the denominator used everywhere else in this thesis, where "
         "an abort counts as a failure. \\emph{Goal rate} is objects on target "
@@ -846,55 +873,63 @@ TEAMSIZE_STEPS = (("dyad", "3p"), ("3p", "6p"), ("dyad", "6p"))
 
 def teamsize_cells(opt, tests=True):
     """(suite, level) -> cell() over the two strong models pooled, and the
-    paired per-model Quality drops (m, a, b) -> (mean, n, perm p).  Shared by
-    tab:teamsize and figures/teamsize.py so the two cannot drift apart."""
+    paired per-model Quality drops (m, a, b) -> (mean, n, perm p), on the
+    per-suite denominator (`paired`) and on the joint optimum (`paired_j`, the
+    cost including the rules).  Shared by tab:teamsize and figures/teamsize.py
+    so the two cannot drift apart."""
     eps = [e for e in all_episodes(opt) if e["model"] in STRONG]
     cells = {(s, l): cell([e for e in eps if e["suite"] == s and e["level"] == l])
              for s in ("solo",) + SUITES for l in ALL_LEVELS}
-    paired = {}
+    paired, paired_j = {}, {}
     for m in STRONG if tests else ():
         for a, b in TEAMSIZE_STEPS:
-            d = qpairs([e for e in eps if e["model"] == m and e["suite"] == a],
-                       [e for e in eps if e["model"] == m and e["suite"] == b],
-                       lambda r: (r["level"], r["cond"], r["game_id"]))
-            paired[(m, a, b)] = (st.mean(d), len(d), perm_p(d))
-    return cells, paired
+            for out, field in ((paired, "q"), (paired_j, "q_j")):
+                d = qpairs([e for e in eps if e["model"] == m and e["suite"] == a],
+                           [e for e in eps if e["model"] == m and e["suite"] == b],
+                           lambda r: (r["level"], r["cond"], r["game_id"]), field)
+                out[(m, a, b)] = (st.mean(d), len(d), perm_p(d))
+    return cells, paired, paired_j
 
 
 def teamsize_table(opt, check):
     """tab:teamsize (the inventory's tab 12): S9.1's cost of team size.
 
     The two strong models pooled, each suite by level, solo as the reference
-    row.  The paired dyad->3p->6p Quality contrasts are per model, over
-    (level, protocol, board) played in both suites, with perm_p; the note
-    carries them because S9.1's lead cites them beside the cells.  F-teamsize
+    row.  Quality and efficiency are on each suite's attainable optimum; the
+    Quality on the joint optimum is the extra row that carries the rules.  The
+    paired dyad->3p->6p Quality contrasts are per model, over (level, protocol,
+    board) played in both suites, with perm_p.  F-teamsize
     (figures/teamsize.py) draws the same cells.
     """
-    cells, paired = teamsize_cells(opt)
+    cells, paired, paired_j = teamsize_cells(opt)
     steps = TEAMSIZE_STEPS
 
     if check:
         for (s, l), c in cells.items():
             print(f"{s:<5} {l} n={c['n']:>3} P {c['played']:6.1f} Q {c['q']:6.2f} "
-                  f"k={c['k']:>3} eff {c['eff']:.3f}")
+                  f"QJ {c['q_j']:6.2f} k={c['k']:>3} eff {c['eff']:.3f} effJ {c['eff_j']:.3f}")
         for (m, a, b), (dq, n, p) in paired.items():
-            print(f"{m:<20} {a}->{b}  dQ {dq:+.2f} (n={n}, perm p={p:.2g})")
+            dj, _, pj = paired_j[(m, a, b)]
+            print(f"{m:<20} {a}->{b}  dQ {dq:+.2f} (n={n}, perm p={p:.2g})"
+                  f"   on J {dj:+.2f} (p={pj:.2g})")
         print()
         return None
 
-    # The lead says the cost is monotone at every level; assert it, so a rerun
-    # that breaks it breaks the build rather than the prose.
-    for l in ALL_LEVELS:
-        qs = [cells[(s, l)]["q"] for s in SUITES]
-        assert qs == sorted(qs, reverse=True), f"Quality not monotone at {l}"
-    for (m, a, b), (dq, _, p) in paired.items():
-        assert dq > 0 and p < 0.001, f"{m} {a}->{b} not a significant drop"
+    # The prose of S9.1, asserted so that a rerun which breaks it breaks the
+    # build: the third agent is a significant cost in both models, the 3->6
+    # step is not, and on the joint optimum every step still is (the rules).
+    for m in STRONG:
+        assert paired[(m, "dyad", "3p")][0] > 0 and paired[(m, "dyad", "3p")][2] < 0.001
+        assert paired[(m, "3p", "6p")][2] > 0.05, f"{m} 3p->6p now significant"
+        assert all(paired_j[(m, a, b)][0] > 0 and paired_j[(m, a, b)][2] < 0.001
+                   for a, b in steps)
 
     name = {"solo": "Solo (ref.)", "dyad": "Dyad", "3p": "3p", "6p": "6p"}
     body = []
     for label, fmt in (
             ("Quality / \\% Played",
              lambda c: f"{c['q']:.2f} / {c['played']:.1f}"),
+            ("Quality on $J$", lambda c: f"{c['q_j']:.2f}"),
             ("Success", lambda c: f"{c['k']}/{c['n']} ({pct(c['rate'])})"),
             ("Efficiency", lambda c: f"{c['eff']:.2f}")):
         if body:
@@ -902,77 +937,93 @@ def teamsize_table(opt, check):
         for i, s in enumerate(("solo",) + SUITES):
             body.append(f"{label if i == 0 else ''} & {name[s]} & "
                         + " & ".join(fmt(cells[(s, l)]) for l in ALL_LEVELS))
-        if label.startswith("Quality"):
-            body.append(r" & \emph{dyad$\to$6p} & " + " & ".join(
-                f"\\emph{{{signed(cells[('6p', l)]['q'] - cells[('dyad', l)]['q'], 2)}}}"
-                for l in ALL_LEVELS))
 
-    def step(a, b):
-        (q1, n1, p1), (q2, n2, p2) = (paired[(m, a, b)] for m in STRONG)
-        return (f"{a}$\\to${b} {signed(q1, 2)} and {signed(q2, 2)} "
-                f"($n = {n1}, {n2}$)")
-    pmax = max(p for _, _, p in paired.values())
+    def step(pr, a, b):
+        (q1, n1, p1), (q2, n2, p2) = (pr[(m, a, b)] for m in STRONG)
+        pp = lambda p: "p < 10^{-4}" if p < 1e-4 else f"p = {sci(p)}"
+        return (f"{a}$\\to${b} {signed(q1, 2)} (${pp(p1)}$) and "
+                f"{signed(q2, 2)} (${pp(p2)}$)")
     caption = (
         "The cost of team size at each level: Quality Score and \\% Played, "
         "success and move efficiency by suite, Qwen3.8 and DeepSeek-V4.1-Flash "
-        "pooled ($n = 120$ per multiplayer cell, 60 for solo). Solo is the "
-        "reference row, not a step of the ladder. The Quality Score falls with "
-        "every added agent at every level, most at S3; below 6p every episode "
-        "is played, so the 6p fall is partly aborts.")
+        "pooled ($n = 120$ per multiplayer cell, 60 for solo). Quality and "
+        "efficiency divide by each suite's attainable optimum (\\S6.4), so a "
+        "flawless team of any size scores 100; \\emph{Quality on $J$} divides "
+        "by the free-order joint optimum instead and so also charges the moves "
+        "the suite's rules force. Solo is the reference row, not a step of the "
+        "ladder. The third agent costs Quality at every level, most at S3; the "
+        "remaining three cost none beyond what the rules force, and below 6p "
+        "every episode is played.")
     note = ("\\emph{Paired Quality drops}, per model (Qwen3.8, then DeepSeek), "
             "over (level, protocol, board) played in both suites, two-sided "
-            "paired permutation test: " + "; ".join(step(a, b) for a, b in steps)
-            + f"; all $p \\le {sci(pmax)}$. Efficiency is over successes only and "
-            "uses the exact joint optimum (\\S6.1).")
+            "paired permutation test. On the attainable optimum: "
+            + "; ".join(step(paired, a, b) for a, b in steps)
+            + ". On $J$: " + "; ".join(step(paired_j, a, b) for a, b in steps)
+            + ". Efficiency is over successes only.")
     return table(caption, "tab:teamsize", "llrrrr",
                  r"Measure & Suite & S1 & S2 & S3 & S4", body, note=note, tight=True)
 
 
 def teamsize_steps_table(opt):
-    """tab:teamsize-steps: S9.1's 'two steps are not the same phenomenon'.
-    Per-step change in Quality and % Played by level, strong models pooled."""
-    cells, _ = teamsize_cells(opt, tests=False)
-    d = {(f, a, b): [cells[(b, l)][f] - cells[(a, l)][f] for l in ALL_LEVELS]
-         for f in ("q", "played") for a, b in (("dyad", "3p"), ("3p", "6p"))}
-    # The prose's shape: the third agent's cost peaks at S3, the 3->6 tax
-    # peaks at S4, and only the 3->6 step costs played episodes.
-    s3, s4 = ALL_LEVELS.index("S3"), ALL_LEVELS.index("S4")
+    """tab:teamsize-steps: what each added agent costs, split into the rules
+    and the agents.  Per-step change in Quality on the joint optimum (the whole
+    cost), on the attainable optimum (the agents), their difference (the
+    rules), and % Played, by level, strong models pooled."""
+    cells, _, _ = teamsize_cells(opt, tests=False)
+    d = {}
+    for a, b in (("dyad", "3p"), ("3p", "6p")):
+        d[("q_j", a, b)] = [cells[(b, l)]["q_j"] - cells[(a, l)]["q_j"] for l in ALL_LEVELS]
+        d[("q", a, b)] = [cells[(b, l)]["q"] - cells[(a, l)]["q"] for l in ALL_LEVELS]
+        d[("rules", a, b)] = [x - y for x, y in zip(d[("q_j", a, b)], d[("q", a, b)])]
+        d[("played", a, b)] = [cells[(b, l)]["played"] - cells[(a, l)]["played"]
+                               for l in ALL_LEVELS]
+    # The prose's shape: the third agent's cost to the agents peaks at S3; the
+    # 3->6 step costs the agents nothing at any level beyond S1's rounding and
+    # is carried by the rules; only the 3->6 step costs played episodes.
+    s3 = ALL_LEVELS.index("S3")
     assert min(d[("q", "dyad", "3p")]) == d[("q", "dyad", "3p")][s3]
-    assert min(d[("q", "3p", "6p")]) == d[("q", "3p", "6p")][s4]
+    assert all(x > -1.0 for x in d[("q", "3p", "6p")])
+    assert all(x < 0 for x in d[("rules", "3p", "6p")])
     assert all(x == 0 for x in d[("played", "dyad", "3p")])
     body = []
-    for f, label in (("q", "Quality"), ("played", "\\% Played")):
-        if body:
+    for f, label in (("q_j", "Quality on $J$"), ("rules", "\\quad rules"),
+                     ("q", "\\quad agents"), ("played", "\\% Played")):
+        if body and f in ("q_j", "played"):
             body.append(r"\midrule")
         for i, (a, b) in enumerate((("dyad", "3p"), ("3p", "6p"))):
             row = d[(f, a, b)]
             peak = min(row)
             body.append(f"{label if i == 0 else ''} & {a}$\\to${b} & " + " & ".join(
-                ("0.0" if x == 0 else f"\\textbf{{{signed(x, 1)}}}" if x == peak
+                ("0.0" if abs(x) < 0.05 else f"\\textbf{{{signed(x, 1)}}}" if x == peak and x < -0.5
                  else signed(x, 1))
                 for x in row))
     caption = (
-        "What each added agent costs, by level: change in Quality Score and in "
-        "\\% Played from dyad to 3p and from 3p to 6p, Qwen3.8 and "
-        "DeepSeek-V4.1-Flash pooled ($n = 120$ per cell). The third agent's "
-        "cost is concentrated at S3; the remaining three cost a similar amount "
-        "at every level, and from S2 up part of that cost is paid in aborted "
-        "episodes, which the Quality Score does not count. Largest cost per row "
-        "in bold.")
+        "What each added agent costs, by level, and who pays it: change in "
+        "Quality Score on the free-order joint optimum $J$ (the whole cost), "
+        "split into the part the suite's rules force (the change in what a "
+        "flawless team scores on $J$) and the part the agents add (the change "
+        "in Quality on each suite's attainable optimum), with the change in "
+        "\\% Played beneath. Qwen3.8 and DeepSeek-V4.1-Flash pooled ($n = 120$ "
+        "per cell). The third agent's cost is mostly the agents' and "
+        "concentrated at S3; the remaining three cost the agents nothing, and "
+        "their whole Quality cost is the rules, while from S2 up they also cost "
+        "aborted episodes, which the Quality Score does not count. Largest cost "
+        "per row in bold.")
     return table(caption, "tab:teamsize-steps", "llrrrr",
                  r"Measure & Step & S1 & S2 & S3 & S4", body)
 
 
 def teamsize_tests_table(opt):
-    """tab:teamsize-tests: the six paired Quality contrasts behind S9.1's
-    'every step is significant', one row each, with Holm over the six."""
-    _, paired = teamsize_cells(opt)
+    """tab:teamsize-tests: the six paired Quality contrasts behind S9.1, one
+    row each, on the attainable optimum, with Holm over the six."""
+    _, paired, _ = teamsize_cells(opt)
     keys = sorted(paired, key=lambda k: paired[k][2])
     holm, run = {}, 0.0
     for i, k in enumerate(keys):
         run = max(run, min(1.0, paired[k][2] * (len(keys) - i)))
         holm[k] = run
-    assert all(p < 0.001 for p in holm.values()), "a team-size step fails Holm"
+    assert all(holm[(m, "dyad", "3p")] < 0.01 for m in STRONG)
+    assert all(holm[(m, "3p", "6p")] > 0.05 for m in STRONG)
     fp = lambda p: "<10^{-4}" if p < 1e-4 else sci(p)
     body = []
     for a, b in TEAMSIZE_STEPS:
@@ -981,10 +1032,11 @@ def teamsize_tests_table(opt):
             f"${fp(paired[(m, a, b)][2])}$ & ${fp(holm[(m, a, b)])}$"
             for m in STRONG))
     caption = (
-        "Paired Quality Score drops with team size, per model. Each pair is one "
-        "(level, protocol, board) played in both suites; $\\Delta Q$ is the mean "
-        "of smaller-team minus larger-team Quality. Every step is a significant "
-        "drop in both models, and all six survive Holm correction.")
+        "Paired Quality Score drops with team size, per model, on each suite's "
+        "attainable optimum. Each pair is one (level, protocol, board) played in "
+        "both suites; $\\Delta Q$ is the mean of smaller-team minus larger-team "
+        "Quality. The third agent is a significant drop in both models after "
+        "Holm correction; the step from three to six is not a drop in either.")
     note = ("Two-sided paired permutation (sign-flip) test on the mean "
             "difference, $10^5$ resamples at a fixed seed, and $p < 10^{-4}$ marks the resampling "
             "floor. $n$ falls below 240 where a 6p "
@@ -1231,15 +1283,16 @@ def main():
         r"15 boards. Solo pools "
         r"\textsc{silent} and \textsc{thinking} as the baseline the dyad is "
         r"measured against. "
-        r"\emph{Efficiency} is the exact joint optimum over the episode's move "
-        r"count, the scoring denominator of \S5.6 --- not the stored per-object "
+        r"\emph{Efficiency} is the attainable optimum of the episode's game over "
+        r"its move count (the exact joint optimum for solo, where the two "
+        r"coincide), the scoring denominator of \S5.4 --- not the stored per-object "
         r"BFS bound, which is for budgeting and understates efficiency here by "
         r"0.07--0.08. It is conditioned on success, so the cells rest on "
         r"different board sets; the one contrast whose direction turns on this is "
         r"\textsc{structured} against \textsc{none}, which on the 75 boards solved "
-        r"under both is $-0.027$ at a paired permutation $p = 0.060$. That is "
+        r"under both is $-0.027$ at a paired permutation $p = 0.063$. That is "
         r"contrast A4 of the confirmatory set, which Holm retains as a null "
-        r"($p_\mathrm{Holm} = 0.54$): the direction is reported throughout and "
+        r"($p_\mathrm{Holm} = 0.56$): the direction is reported throughout and "
         r"the cost is not established.")
 
     print("% Generated by analysis/thesis/tables_comm.py -- do not hand-edit.")
@@ -1324,7 +1377,7 @@ def main():
         r"\emph{Exploratory, with one exception.} The first row is contrasts "
         r"A1 and A2 of Table~\ref{tab:confirmatory} --- the same pairs, the "
         r"same tests --- and carries the Holm correction there ($p_\mathrm{Holm} "
-        r"= 0.54$ on success, $0.0020$ on efficiency). The other four are "
+        r"= 0.56$ on success, $0.0056$ on efficiency). The other four are "
         r"outside the confirmatory set, carry no correction and support no "
         r"confirmatory claim.")
     print(table(cap2, "tab:decomposition", "lrrrrrrr",
