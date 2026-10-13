@@ -237,6 +237,9 @@ class MatrixPlayer(Player):
 
 class NPlayerMatrixGameMaster(DialogueGameMaster):
 
+    # Seat names in turn order; the final arm overrides them.
+    ROLE_NAMES = tuple(f"Player {c}" for c in "ABCDEF")
+
     def __init__(self, game_spec: GameSpec, experiment: Dict, player_models: List[Model]):
         super().__init__(game_spec, experiment, player_models)
         self.request_counts = 0
@@ -294,7 +297,7 @@ class NPlayerMatrixGameMaster(DialogueGameMaster):
         self._player_to_index: Dict["MatrixPlayer", int] = {}
         n_other = self.num_players - 1
         for i in range(self.num_players):
-            role = f"Player {chr(ord('A') + i)}"
+            role = self.ROLE_NAMES[i]
             model = (
                 self.player_models[i]
                 if i < len(self.player_models)
@@ -372,6 +375,13 @@ class NPlayerMatrixGameMaster(DialogueGameMaster):
         if visible is not None:
             return self.board.render_targets_for_player(visible)
         return self.board.render_targets()
+
+    def _state_block(self, player: Player) -> str:
+        """Current and goal boards: the tail of every turn and retry context."""
+        return (
+            f"CURRENT BOARD:\n{self._render_for(player)}\n\n"
+            f"GOAL BOARD:\n{self._render_targets_for(player)}"
+        )
 
     def _masked_move_message(self, player: Player) -> str:
         """Targeted redirect for a player that tried to move a masked ('X')
@@ -452,8 +462,7 @@ class NPlayerMatrixGameMaster(DialogueGameMaster):
                 self.set_context_for(player, (
                     f"{guidance}\n"
                     f"{self._format_reminder()}\n\n"
-                    f"CURRENT BOARD:\n{self._render_for(player)}\n\n"
-                    f"GOAL BOARD:\n{self._render_targets_for(player)}"
+                    f"{self._state_block(player)}"
                 ))
             return False
 
@@ -508,8 +517,7 @@ class NPlayerMatrixGameMaster(DialogueGameMaster):
                 self.set_context_for(player, (
                     "\n".join(lines) + "\n\n"
                     f"{self._format_reminder()}\n\n"
-                    f"CURRENT BOARD:\n{self._render_for(player)}\n\n"
-                    f"GOAL BOARD:\n{self._render_targets_for(player)}"
+                    f"{self._state_block(player)}"
                 ))
             return False
 
@@ -548,8 +556,7 @@ class NPlayerMatrixGameMaster(DialogueGameMaster):
                 self.set_context_for(player, (
                     f"{guidance}\n\n"
                     f"{self._format_reminder()}\n\n"
-                    f"CURRENT BOARD:\n{self._render_for(player)}\n\n"
-                    f"GOAL BOARD:\n{self._render_targets_for(player)}"
+                    f"{self._state_block(player)}"
                 ))
             return False
 
@@ -681,8 +688,7 @@ class NPlayerMatrixGameMaster(DialogueGameMaster):
         return (
             f"{comm_block}"
             f"{move_block}"
-            f"CURRENT BOARD:\n{self._render_for(recipient)}\n\n"
-            f"GOAL BOARD:\n{self._render_targets_for(recipient)}\n\n"
+            f"{self._state_block(recipient)}\n\n"
             f"Your turn. Respond with:\n{self._format_reminder()}"
         )
 
@@ -699,7 +705,7 @@ class NPlayerMatrixGameMaster(DialogueGameMaster):
         self.log_key(BLOCKED_ATTEMPTS, self.blocked_attempts)
         self.log_key(TURN_MOVES, self.move_log)
         for i, done in enumerate(self.player_done):
-            role = f"Player {chr(ord('A') + i)}"
+            role = self.ROLE_NAMES[i]
             self.log_key(f"{role} Done", int(done))
 
 

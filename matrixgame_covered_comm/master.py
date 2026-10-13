@@ -239,6 +239,9 @@ class MatrixPlayer(Player):
 
 class MatrixGameMaster(DialogueGameMaster):
 
+    # Seat names; the final arm overrides them.
+    ROLE_NAMES = ("Player A", "Player B")
+
     def __init__(self, game_spec: GameSpec, experiment: Dict, player_models: List[Model]):
         super().__init__(game_spec, experiment, player_models)
         self.request_counts = 0
@@ -288,13 +291,13 @@ class MatrixGameMaster(DialogueGameMaster):
         self.player_b_done: bool = False
         # Each player's most recent message, relayed back to everyone (including
         # the sender) in the Markovian per-turn context.
-        self.last_message: Dict[str, Optional[str]] = {"Player A": None, "Player B": None}
+        self.last_message: Dict[str, Optional[str]] = {r: None for r in self.ROLE_NAMES}
 
         model_a = self.player_models[0]
         model_b = self.player_models[1] if len(self.player_models) > 1 else self.player_models[0]
 
-        self.player_a = MatrixPlayer(model_a, "Player A", self.player_a_objects)
-        self.player_b = MatrixPlayer(model_b, "Player B", self.player_b_objects)
+        self.player_a = MatrixPlayer(model_a, self.ROLE_NAMES[0], self.player_a_objects)
+        self.player_b = MatrixPlayer(model_b, self.ROLE_NAMES[1], self.player_b_objects)
 
         prompt_template = game_instance["player_prompt"]
         objs_a = ", ".join(sorted(self.player_a_objects))
@@ -341,8 +344,7 @@ class MatrixGameMaster(DialogueGameMaster):
         return (
             f"{comm_block}"
             f"{notice_block}"
-            f"CURRENT BOARD:\n{self._render_for(recipient)}\n\n"
-            f"GOAL BOARD:\n{self._render_targets_for(recipient)}\n\n"
+            f"{self._state_block(recipient)}\n\n"
             f"Your turn. Respond with:\n{self._format_reminder()}"
         )
 
@@ -386,6 +388,13 @@ class MatrixGameMaster(DialogueGameMaster):
         if visible is not None:
             return self.board.render_targets_for_player(visible)
         return self.board.render_targets()
+
+    def _state_block(self, player: Player) -> str:
+        """Current and goal boards: the tail of every turn and retry context."""
+        return (
+            f"CURRENT BOARD:\n{self._render_for(player)}\n\n"
+            f"GOAL BOARD:\n{self._render_targets_for(player)}"
+        )
 
     def _masked_move_message(self, player: Player) -> str:
         """Targeted redirect for a player that tried to move a masked ('X')
@@ -467,8 +476,7 @@ class MatrixGameMaster(DialogueGameMaster):
                 self.set_context_for(player, (
                     f"{guidance}\n"
                     f"{self._format_reminder()}\n\n"
-                    f"CURRENT BOARD:\n{self._render_for(player)}\n\n"
-                    f"GOAL BOARD:\n{self._render_targets_for(player)}"
+                    f"{self._state_block(player)}"
                 ))
             return False
 
@@ -523,8 +531,7 @@ class MatrixGameMaster(DialogueGameMaster):
                 self.set_context_for(player, (
                     "\n".join(lines) + "\n\n"
                     f"{self._format_reminder()}\n\n"
-                    f"CURRENT BOARD:\n{self._render_for(player)}\n\n"
-                    f"GOAL BOARD:\n{self._render_targets_for(player)}"
+                    f"{self._state_block(player)}"
                 ))
             return False
 
@@ -563,8 +570,7 @@ class MatrixGameMaster(DialogueGameMaster):
                 self.set_context_for(player, (
                     f"{guidance}\n\n"
                     f"{self._format_reminder()}\n\n"
-                    f"CURRENT BOARD:\n{self._render_for(player)}\n\n"
-                    f"GOAL BOARD:\n{self._render_targets_for(player)}"
+                    f"{self._state_block(player)}"
                 ))
             return False
 
@@ -683,8 +689,8 @@ class MatrixGameMaster(DialogueGameMaster):
         self.log_key(ILLEGAL_ATTEMPTS, self.illegal_attempts)
         self.log_key(BLOCKED_ATTEMPTS, self.blocked_attempts)
         self.log_key(TURN_MOVES, self.move_log)
-        self.log_key("Player A Done", int(self.player_a_done))
-        self.log_key("Player B Done", int(self.player_b_done))
+        self.log_key(f"{self.ROLE_NAMES[0]} Done", int(self.player_a_done))
+        self.log_key(f"{self.ROLE_NAMES[1]} Done", int(self.player_b_done))
 
 
 # ── Scorer ─────────────────────────────────────────────────────────────

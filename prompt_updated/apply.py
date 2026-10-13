@@ -27,16 +27,31 @@ import re
 PLACEHOLDER = re.compile(r"\$[A-Z_]+\$")
 
 
+def _protocol(instance):
+    # Solo instances have no protocol; their templates are named by variant.
+    return instance.get("comm_protocol") or ("thinking" if instance["thinking"] else "silent")
+
+
+def _only(data, protocols):
+    if not protocols:
+        return data
+    kept = [e for e in data["experiments"] if _protocol(e["game_instances"][0]) in protocols]
+    assert kept, f"no experiment has protocol {protocols}"
+    return {**data, "experiments": kept}
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--src", required=True, help="existing instances.json to copy")
     ap.add_argument("--prompts", required=True, help="directory of player_prompt_<protocol>.template")
     ap.add_argument("--out", required=True, help="instances.json to write")
     ap.add_argument("--budget", help="attainable_<suite>.jsonl; recompute max_turns from A_k")
+    ap.add_argument("--only", nargs="+", help="keep only the experiments of these protocols (e.g. silent)")
     args = ap.parse_args()
 
     with open(args.src) as fh:
         data = json.load(fh)
+    data = _only(data, args.only)
 
     attainable = {}
     if args.budget:
@@ -52,7 +67,7 @@ def main():
     rebudgeted = 0
     for experiment in data["experiments"]:
         for instance in experiment["game_instances"]:
-            protocol = instance["comm_protocol"]
+            protocol = _protocol(instance)
             if protocol not in templates:
                 path = os.path.join(args.prompts, f"player_prompt_{protocol}.template")
                 with open(path) as fh:
@@ -86,7 +101,7 @@ def main():
 
     # Everything except the prompt (and the budget, when asked) must survive untouched.
     with open(args.src) as fh:
-        original = json.load(fh)
+        original = _only(json.load(fh), args.only)
     mutable = {"player_prompt": "",
                **({"max_turns": 0, "optimal_moves": 0} if attainable else {})}
     strip = lambda d: [  # noqa: E731

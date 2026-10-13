@@ -231,6 +231,23 @@ class SoloMatrixGameMaster(DialogueGameMaster):
     def _render_goal(self) -> str:
         return _render_targets_view(self.board, self.compact_board)
 
+    def _state_block(self) -> str:
+        """Current and goal boards: the tail of every turn and retry context."""
+        return (
+            f"CURRENT BOARD:\n{self._render_board()}\n\n"
+            f"GOAL BOARD:\n{self._render_goal()}"
+        )
+
+    def _turn_context(self) -> str:
+        """Next-turn context: the player's own last note, the boards and the
+        response-format reminder."""
+        note_block = f"Your note from last turn: {self.last_note}\n\n" if self.last_note else ""
+        return (
+            f"{note_block}"
+            f"{self._state_block()}\n\n"
+            f"Your turn. Respond with:\n{self._format_reminder()}"
+        )
+
     # ── game loop ──────────────────────────────────────────────────────
 
     def _does_game_proceed(self) -> bool:
@@ -258,8 +275,7 @@ class SoloMatrixGameMaster(DialogueGameMaster):
                 self.set_context_for(player, (
                     "Your response could not be parsed. Please respond exactly in this format:\n"
                     f"{self._format_reminder()}\n\n"
-                    f"CURRENT BOARD:\n{self._render_board()}\n\n"
-                    f"GOAL BOARD:\n{self._render_goal()}"
+                    f"{self._state_block()}"
                 ))
             return False
 
@@ -288,8 +304,7 @@ class SoloMatrixGameMaster(DialogueGameMaster):
                 self.set_context_for(player, (
                     f"Invalid move: {err_msg}\nPlease try again.\n\n"
                     f"{self._format_reminder()}\n\n"
-                    f"CURRENT BOARD:\n{self._render_board()}\n\n"
-                    f"GOAL BOARD:\n{self._render_goal()}"
+                    f"{self._state_block()}"
                 ))
             return False
 
@@ -345,14 +360,7 @@ class SoloMatrixGameMaster(DialogueGameMaster):
             self.log_to_self("success", "All objects have reached their targets")
             return
 
-        # Build next-turn context
-        note_block = f"Your note from last turn: {self.last_note}\n\n" if self.last_note else ""
-        self.set_context_for(player, (
-            f"{note_block}"
-            f"CURRENT BOARD:\n{self._render_board()}\n\n"
-            f"GOAL BOARD:\n{self._render_goal()}\n\n"
-            f"Your turn. Respond with:\n{self._format_reminder()}"
-        ))
+        self.set_context_for(player, self._turn_context())
 
     def _on_after_game(self):
         self.log_key(METRIC_ABORTED, int(self.aborted))
