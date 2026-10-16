@@ -38,10 +38,14 @@ class FinalSoloMatrixGameMaster(base.SoloMatrixGameMaster):
         history.capture(self.record, player.role_name, self.current_parsed, self.board, base.DIRECTIONS)
         super()._on_valid_player_response(player, parsed_response)
 
+    def _build_initial_context(self, template, own_objects_str):
+        prompt, first_ctx = super()._build_initial_context(template, own_objects_str)
+        return prompt, history.aligned(first_ctx)
+
     def _state_block(self):
         return (
             history.boards(self.record, self.player.role_name, "")
-            + super()._state_block()
+            + history.aligned(super()._state_block())
         )
 
     def _turn_context(self):

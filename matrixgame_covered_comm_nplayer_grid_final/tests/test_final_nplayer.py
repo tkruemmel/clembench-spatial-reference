@@ -76,7 +76,11 @@ class _Dummy:
         pass
 
 
-def _master(a_placed=False):
+# The final masters' grid header: each label over its cell (history.aligned).
+HEADER = "       C1   C2   C3   C4   C5   C6   C7   C8"
+
+
+def _master(a_placed=False, protocol="freeform", grid=False):
     from clemcore.clemgame.registry import GameSpec
     objs = "ABCDEF"
     starts = {o: [0, i] for i, o in enumerate(objs)}
@@ -86,8 +90,8 @@ def _master(a_placed=False):
         "start_positions": starts,
         "target_positions": {o: (starts[o] if a_placed and o in "AB" else [7, i]) for i, o in enumerate(objs)},
         "optimal_moves": 42, "max_turns": 100, "max_retries": 2, "strict": False,
-        "use_masking": True, "spatial_level": "S1", "comm_protocol": "freeform",
-        "compact_board": True, "player_prompt": "PROMPT $YOUR_ROLE$ $YOUR_OBJECTS$ $GRID_SIZE$ $N_OTHER_PLAYERS$",
+        "use_masking": True, "spatial_level": "S1", "comm_protocol": protocol,
+        "compact_board": not grid, "player_prompt": "PROMPT $YOUR_ROLE$ $YOUR_OBJECTS$ $GRID_SIZE$ $N_OTHER_PLAYERS$",
     }
     m = M.FinalNPlayerMatrixGameMaster(GameSpec(game_name="g", game_path=str(PKG), players=3),
                                        {"name": "x"}, [_Dummy() for _ in range(3)])
@@ -157,12 +161,34 @@ def test_seats_are_named_by_colour():
     assert len(set(M.history.SEATS)) == 6 and all(len(n.split()[1]) > 1 for n in M.history.SEATS)
 
 
-def test_finished_teammates_stay_listed():
+def test_a_finish_shows_only_on_the_message_board():
     m = _master(a_placed=True)
     a, b, c = m.get_players()
     _play(m, a, "message: done\ndone: all my objects are placed")
+    assert "finished" not in m.get_context_for(b)["content"]  # no one-off notice either
     _play(m, b, "message: ok\nmove: C down")
     _play(m, c, "message: ok\nmove: E down")
     ctx = m.get_context_for(b)["content"]
-    assert "All their objects are at their target positions" not in ctx  # the base notice is one-off
-    assert "Player Green has finished. Their objects will not move again." in ctx
+    assert "Player Green declared done" in ctx.split("\n\n")[0] and "finished" not in ctx
+
+
+def test_no_finish_notice_under_none():
+    # Uniform with the messaging protocols: no notice, and no MESSAGE BOARD to carry one.
+    m = _master(a_placed=True, protocol="none")
+    a, b, c = m.get_players()
+    _play(m, a, "done: all my objects are placed")
+    assert "finished" not in m.get_context_for(b)["content"]
+    _play(m, b, "move: C down")
+    _play(m, c, "move: E down")
+    ctx = m.get_context_for(b)["content"]
+    assert "finished" not in ctx and "MESSAGE BOARD" not in ctx and "done" not in ctx.split("Your turn.")[0]
+
+
+def test_grid_header_sits_over_its_cells():
+    m = _master(grid=True)
+    lines = m.get_context_for(m.get_players()[0])["content"].splitlines()
+    headers = [i for i, l in enumerate(lines) if l == HEADER]
+    assert len(headers) == 2  # CURRENT and GOAL BOARD
+    for i in headers:
+        row = lines[i + 2]  # R1: each cell's content starts two characters after its `|`
+        assert [HEADER.index(f"C{k + 1}") for k in range(8)] == [j + 2 for j, ch in enumerate(row) if ch == "|"][:-1]

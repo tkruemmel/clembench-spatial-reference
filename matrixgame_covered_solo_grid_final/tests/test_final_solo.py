@@ -78,7 +78,11 @@ class _Dummy:
         pass
 
 
-def _master():
+# The final masters' grid header: each label over its cell (history.aligned).
+HEADER = "       C1   C2   C3   C4   C5   C6   C7   C8"
+
+
+def _master(grid=False):
     from clemcore.clemgame.registry import GameSpec
     objs = "ABCDEF"
     inst = {
@@ -86,7 +90,7 @@ def _master():
         "start_positions": {o: [0, i] for i, o in enumerate(objs)},
         "target_positions": {o: [7, i] for i, o in enumerate(objs)},
         "optimal_moves": 42, "max_turns": 100, "max_retries": 2, "strict": False,
-        "thinking": False, "spatial_level": "S1", "compact_board": True,
+        "thinking": False, "spatial_level": "S1", "compact_board": not grid,
         "player_prompt": "PROMPT $YOUR_OBJECTS$ $GRID_SIZE$",
     }
     m = M.FinalSoloMatrixGameMaster(GameSpec(game_name="g", game_path=str(PKG), players=1),
@@ -116,3 +120,10 @@ def test_retry_context_keeps_the_record():
     assert not m._validate_player_response(m.player, "blah")
     ctx = m.get_context_for(m.player)["content"]
     assert "could not be parsed" in ctx and "You moved A from (R1,C1) to (R2,C1)" in ctx
+
+
+def test_grid_header_sits_over_its_cells():
+    m = _master(grid=True)
+    assert m.get_context_for(m.player)["content"].count(HEADER + "\n") == 2  # first turn
+    _play(m, "move: A down")
+    assert m.get_context_for(m.player)["content"].count(HEADER + "\n") == 2

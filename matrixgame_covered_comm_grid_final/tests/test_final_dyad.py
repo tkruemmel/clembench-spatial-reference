@@ -96,7 +96,11 @@ class _Dummy:
         pass
 
 
-def _master(protocol="freeform", a_placed=False):
+# The final masters' grid header: each label over its cell (history.aligned).
+HEADER = "       C1   C2   C3   C4   C5   C6   C7   C8"
+
+
+def _master(protocol="freeform", a_placed=False, grid=False):
     from clemcore.clemgame.registry import GameSpec
     objs = "ABCDEF"
     starts = {o: [0, i] for i, o in enumerate(objs)}
@@ -107,7 +111,7 @@ def _master(protocol="freeform", a_placed=False):
         "target_positions": {o: (starts[o] if a_placed and o in "ABC" else [7, i]) for i, o in enumerate(objs)},
         "optimal_moves": 42, "max_turns": 100, "max_retries": 2, "strict": False,
         "use_masking": True, "spatial_level": "S1", "comm_protocol": protocol,
-        "compact_board": True, "player_prompt": "PROMPT $YOUR_OBJECTS$ $GRID_SIZE$",
+        "compact_board": not grid, "player_prompt": "PROMPT $YOUR_OBJECTS$ $GRID_SIZE$",
     }
     m = M.FinalMatrixGameMaster(GameSpec(game_name="g", game_path=str(PKG), players=2),
                                 {"name": "x"}, [_Dummy(), _Dummy()])
@@ -172,12 +176,26 @@ def test_no_warning_before_the_cycle_rule_fires():
     assert m.lost
 
 
-def test_done_is_no_move_and_its_message_is_dropped():
+def test_done_is_no_move_and_shows_on_the_message_board():
     m = _master(a_placed=True)
     _play(m, m.player_a, "message: done\ndone: all my objects are placed")
     ctx = _ctx(m, m.player_b)
-    assert "MOVE BOARD" not in ctx and "MESSAGE BOARD" not in ctx and '"done"' not in ctx
-    assert "Player Green has finished" in ctx
+    assert "MOVE BOARD" not in ctx and '"done"' not in ctx
+    assert "MESSAGE BOARD" in ctx and "Player Green declared done" in ctx
+    assert "finished" not in ctx  # the MESSAGE BOARD line is the only finish signal
+    _play(m, m.player_b, "message: ok\nmove: D down")
+    assert "finished" not in _ctx(m, m.player_b)
+    m = _master("none", a_placed=True)  # no MESSAGE BOARD under `none`, and no notice either
+    _play(m, m.player_a, "done: all my objects are placed")
+    ctx = _ctx(m, m.player_b)
+    assert "MESSAGE BOARD" not in ctx and "done" not in ctx.split("Your turn.")[0] and "finished" not in ctx
+
+
+def test_grid_header_sits_over_its_cells():
+    m = _master(grid=True)
+    assert _ctx(m, m.player_a).count(HEADER + "\n") == 2  # first turn, CURRENT and GOAL BOARD
+    _play(m, m.player_a, "message: hi\nmove: A down")
+    assert _ctx(m, m.player_b).count(HEADER + "\n") == 2
 
 
 def test_seats_are_named_by_colour():
