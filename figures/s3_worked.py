@@ -1,16 +1,18 @@
-"""The start position of S3 #10, for the worked example of S9.4.
+"""The start position of S3 #10, for the worked example (fig:s3-10-start).
 
-The level figure of S5.2 draws the same board under the level-figure rule of
-marks only. This one is allowed three annotations, because the worked example
-is about them: the dead-end corridor, its entrance, and the order in which the
-chain D -> C -> B has to arrive. The second chain (E, F) and A, whose arrival
-is not forced, are drawn but left unnumbered.
+The level figure of the method chapter draws the same board under the
+level-figure rule of marks only. This one is allowed three annotations, because
+the worked example is about them: the dead-end corridor, its entrance, and the
+order in which the chain D -> C -> B has to arrive. The second chain (E, F) and
+A, whose arrival is not forced, are drawn but left unnumbered.
 
-`s3_worked_views` is the decision point of the same board in DeepSeek's hybrid
-episode: the state in which B, already on the entrance, declares `done`. It
-shows that state with D's path to its target running through B's cell.
+Asserted before drawing: the order is forced by the board (C's target is D's
+start, B's target is C's start, B's target is the entrance), every strong-tier
+six-player episode on S3 #10 was played on exactly this board, and the one
+six-player success on it (Qwen3.8, freeform) brings D, C and B home in that
+order. The board at B's `done` (fig:s3-10-views) is drawn by s3_promise.py.
 
-Board read from the released six-player instances, so it regenerates with them.
+Board read from the released six-player instances of the updated-prompt game.
 
     python3 figures/s3_worked.py
 """
@@ -34,12 +36,14 @@ from style import (CUE, FAINT, HIDDEN, INK, MUTED, OBJECT, OWNER, PAPER, WALL,
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OUT_DIR = os.path.join(REPO_ROOT, "figures", "out")
-INSTANCES = os.path.join(REPO_ROOT, "matrixgame_covered_comm_nplayer_grid",
+INSTANCES = os.path.join(REPO_ROOT, "matrixgame_covered_comm_nplayer_grid_updated_prompt",
                          "in", "instances_6p.json")
 LEVEL, GAME_ID = "S3", 10
 SIDE = FAINT  # objects outside the corridor chain
-RUN = os.path.join(REPO_ROOT, "results_dsv41_grid_n15_6p", "*", "*",
-                   "S3_hybrid_6p_grid", "instance_00010", "interactions.json")
+EPISODES = os.path.join(REPO_ROOT, "results_{}_grid_updated_prompt_n15_6p", "*", "*",
+                        "S3_{}_6p_grid", "instance_00010")
+BOARD_KEYS = ("grid_size", "walls", "start_positions", "target_positions",
+              "player_objects")
 STEP = {"up": (-1, 0), "down": (1, 0), "left": (0, -1), "right": (0, 1)}
 
 
@@ -128,24 +132,43 @@ def render(out_dir: str = OUT_DIR):
     return save(fig, out_dir, "s3_worked_start", ("pdf", "png"))
 
 
-def state_at_done(inst: dict, who: str = "B"):
-    """Replay the recorded moves up to `who`'s done declaration."""
-    d = json.load(open(glob.glob(RUN)[0]))
+def replay(run_dir: str):
+    """Positions after every accepted move, and the outcome."""
+    inst = json.load(open(os.path.join(run_dir, "instance.json")))
+    it = json.load(open(os.path.join(run_dir, "interactions.json")))
     pos = {k: tuple(v) for k, v in inst["start_positions"].items()}
-    n = 0
-    for rnd in d["turns"]:
+    states, outcome = [dict(pos)], None
+    for rnd in it["turns"]:
         for e in rnd:
             a = e["action"]
             if e["from"] != "GM":
                 continue
             if a["type"] == "move":
-                obj, way = re.search(r"moved (\w) (\w+)", a["content"]).groups()
-                pos[obj] = (pos[obj][0] + STEP[way][0], pos[obj][1] + STEP[way][1])
-                n += 1
-            elif a["type"] == "player_done" and f"Player {who} " in a["content"]:
-                assert pos[who] == tuple(inst["target_positions"][who])
-                return pos, n
-    raise SystemExit(f"{who} never declares done in {RUN}")
+                m = re.search(r"moved (\w) (\w+)$", a["content"])
+                if m:
+                    obj, way = m.groups()
+                    pos[obj] = (pos[obj][0] + STEP[way][0], pos[obj][1] + STEP[way][1])
+                    states.append(dict(pos))
+            elif a["type"] in ("success", "lose", "abort"):
+                outcome = a["type"]
+    return inst, states, outcome
+
+
+def check(inst: dict):
+    """The board the figure draws is the board the episodes played, and the one
+    six-player success on it keeps the numbered order."""
+    for model in ("qwen38", "dsv41"):
+        for proto in ("none", "structured", "freeform", "hybrid"):
+            run, = glob.glob(EPISODES.format(model, proto))
+            ep = json.load(open(os.path.join(run, "instance.json")))
+            assert all(ep[k] == inst[k] for k in BOARD_KEYS), (model, proto)
+    ep, states, outcome = replay(glob.glob(EPISODES.format("qwen38", "freeform"))[0])
+    assert outcome == "success", outcome
+    target = {k: tuple(v) for k, v in inst["target_positions"].items()}
+    home = {k: max(i for i, s in enumerate(states) if s[k] != target[k]) + 1
+            for k, _ in order(inst)}          # the move after which it stays home
+    assert home["D"] < home["C"] < home["B"], home
+    return home
 
 
 def shortest_route(inst: dict, src, dst, blocked=()):
@@ -170,49 +193,8 @@ def shortest_route(inst: dict, src, dst, blocked=()):
     return path[::-1]
 
 
-def render_views(out_dir: str = OUT_DIR):
-    inst = load_instance()
-    _, entrance = corridor(inst)
-    pos, n = state_at_done(inst)
-    assert pos["B"] == entrance
-    now = dict(inst, start_positions={k: list(v) for k, v in pos.items()})
-    others = "#8FAED0"
-    truth = {k: others for k in pos}
-    truth.update(B=OWNER["B"], D=OBJECT)
-    # around every object except B, so the only thing in D's way is B
-    route = shortest_route(inst, pos["D"], tuple(inst["target_positions"]["D"]),
-                           blocked=[c for k, c in pos.items() if k not in "BD"])
-    assert entrance in route
-
-    fig = plt.figure(figsize=(3.7, 4.0))
-    ax = fig.add_axes([0.075, 0.1, 0.905, 0.84])
-    draw_grid(ax, inst["grid_size"], inst["walls"], labels=6.6)
-    ax.add_patch(Rectangle((entrance[1] + 0.02, entrance[0] + 0.02), 0.96, 0.96,
-                           facecolor="none", edgecolor=CUE, linewidth=1.6,
-                           zorder=6.5))
-    xs, ys = map(list, zip(*(centre(c) for c in route)))
-    ys[-1] += 0.5  # stop at the target's edge, clear of its letter
-    ax.plot(xs, ys, color=OBJECT, lw=1.2, ls=(0, (2.4, 1.6)), zorder=4)
-    for k in "BD":  # every object, but only B's and D's targets
-        draw_target(ax, tuple(inst["target_positions"][k]), k, truth[k],
-                    nested=False, letter=11.0)
-    for k, c in sorted(pos.items()):
-        draw_disc(ax, c, k, truth[k], letter=8.6)
-
-    handles = [
-        Line2D([], [], marker="o", ls="none", ms=6, mfc=OWNER["B"], mec=PAPER,
-               label="B, declaring done"),
-        Line2D([], [], color=OBJECT, lw=1.2, ls=(0, (2.4, 1.6)),
-               label="D's path to its target"),
-        Line2D([], [], marker="s", ls="none", ms=6.2, mfc="none", mec=CUE,
-               mew=1.4, label="entrance"),
-    ]
-    fig.legend(handles=handles, loc="lower center", bbox_to_anchor=(0.53, 0.0),
-               ncol=3, frameon=False, fontsize=6.6, handletextpad=0.4,
-               columnspacing=1.2, labelcolor=INK)
-    return save(fig, out_dir, "s3_worked_views", ("pdf", "png"))
-
-
 if __name__ == "__main__":
-    for path in render() + render_views():
+    print("Qwen3.8 freeform, the one six-player success: home after move",
+          check(load_instance()))
+    for path in render():
         print(path)

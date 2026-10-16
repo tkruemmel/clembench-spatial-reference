@@ -1,17 +1,17 @@
-"""The two figures for S9.3.2: what a permanent cut is made of.
+"""fig:cut-corridor: one fork on S3 #14, two choices (D10).
 
-`cut_corridor` is the shape 54 of the 101 cuts take — a player finishes on the
-corridor entrance, which is the cell its own target sits on, and the board dies
-the moment it declares `done`. `cut_twocut` is the other shape, where the
-board's free space is 2-connected and no single cell can sever anything, so it
-takes two finished objects, one on each way round.
+DeepSeek, six players, S3 board 14. In both episodes B steps onto its own
+target, the corridor entrance, with move 50, and D still needs to pass it.
+(a) Under freeform B declares `done` on its next turn: the cell becomes a wall
+and D (and E) can no longer reach their targets. (b) Under hybrid B steps off
+on its next turn instead, and the episode is won. Panel (a) is the recorded
+cut from analysis/qualitative_analysis/cut.py; panel (b) is replayed and
+checked by figures/giveway.py.
 
-Both figures are drawn on the state one instant before the fatal declaration,
-so the left and right panel of each differ only in the `done`: no object moves
-between them. That is the claim the pair exists to make.
-
-Every position, route and count is replayed from the recorded move log by
-analysis/qualitative_analysis/cut.py; nothing here is hand-placed.
+The population counts of the caption are recomputed from cut.py and pinned to
+the ledger; the pair is an illustration chosen after inspection. Every
+position, route and count is replayed from the recorded move logs; nothing
+here is hand-placed.
 
     python3 figures/cuts.py
 """
@@ -41,16 +41,15 @@ import cut  # noqa: E402
 VICTIM = OWNER["B"]   # the object that can no longer reach its target
 ACTOR = OBJECT        # the player whose declaration this panel is about
 
-# The two episodes drawn, named rather than searched for so the figures are
-# stable, with the property that made each the right example asserted below.
+# The episode drawn in panel (a), named rather than searched for so the figure
+# is stable, with the property that made it the right example asserted below.
 CORRIDOR = ("dsv41", "6p", "S3", "freeform", "instance_00014", "D")
-TWOCUT = ("qwen38", "6p", "S4", "none", "instance_00003", "D")
-
-# B spends eight messages promising to wait, then declares done four moves
-# after stepping onto the entrance. Quoted verbatim; checked against the
-# transcript before it is drawn.
-PROMISE = ("B moves right to goal R5C2. D: I know you need R5C2 to reach "
-           "R1C2; I'll step left to R5C1 when you reach R5C3, so signal me.")
+# B's promise before it settles, and its declaration; quoted verbatim, checked
+# against the transcript before drawing
+FREEFORM_SAID = [
+    (44, ["D: R5C2 stays clear this turn, and I\u2019ll yield it for your",
+          "transit before settling."]),
+]
 
 
 def cell_name(cell):
@@ -69,13 +68,6 @@ SIDE, GAP, LEFT = 2.56, 0.5592, 0.42
 COLS = (LEFT, LEFT + SIDE + GAP)
 HEAD = 1.16                        # title, subtitle, panel titles, column labels
 LEAD, LEG_LEAD, CLOSE_LEAD = 0.205, 0.168, 0.21
-
-
-def page_height(n_legend, n_notes, n_close=2):
-    """Tall enough for exactly the blocks this figure has, and no taller."""
-    rows = -(-n_legend // 2)
-    return (HEAD + SIDE + 0.24 + rows * LEG_LEAD + 0.18
-            + n_notes * LEAD + 0.16 + n_close * CLOSE_LEAD + 0.16)
 
 
 def square_axes(fig, left_in, bottom_in, side_in):
@@ -209,300 +201,167 @@ def board(ax, case, *, sealed, routes=(), lost=(), labels=5.0):
     return region
 
 
-def legend(fig, y_in, *, dead_route):
-    """The key. Returns the y (inches) below it."""
-    handles = [
-        Line2D([], [], marker="o", linestyle="none", markersize=6.0,
-               markerfacecolor=FAINT, markeredgecolor=INK, markeredgewidth=0.7,
-               label="object, still able to move"),
+def render(case, gw, out_dir):
+    from matplotlib.lines import Line2D
+    from matplotlib.patches import Patch
+    from style import MOVE
+    from warning import bubble, height_of, marked
+
+    v, holder, ent = case["victim"], case["sealer"], case["entrance"]
+    path_f = os.path.join(REPO_ROOT, case["meta"]["path"])
+    import giveway as gwm
+    _, _, _, said_f, _ = gwm.replay(path_f)
+    texts_a = [(p, marked(said_f[p], f)) for p, f in FREEFORM_SAID]
+    texts_b = [(p, marked(gw["said"][p], f)) for p, f in gwm.SAID]
+    chars = 46
+    col_h = max(sum(height_of(t, chars) + 0.06 for _, t in texts_a) + height_of("done", chars),
+                sum(height_of(t, chars) + 0.06 for _, t in texts_b))
+    H = HEAD + SIDE + 0.30 + col_h + 0.42 + 0.66      # + notes + key
+    fig = plt.figure(figsize=(WIDTH, H))
+    fig.text(*at(fig, COLS[0], H - 0.20), "One fork, two choices", fontsize=10.4,
+             color=INK, va="top", fontweight="bold")
+    fig.text(*at(fig, COLS[0], H - 0.52),
+             "DeepSeek, six players, S3 board %s: B's next turn after stepping onto "
+             "its own target, the corridor entrance" % case["meta"]["inst"].split("_")[1].lstrip("0"),
+             fontsize=7.5, color=MUTED, va="top")
+    bottom = H - HEAD - SIDE
+    ax_a, ax_b = (square_axes(fig, x, bottom, SIDE) for x in COLS)
+    before = reachable(case, set(case["frozen_pre"].values()))
+    after = reachable(case, set(case["frozen_post"].values()))
+    board(ax_a, case, sealed=True,
+          lost=before - after - set(case["frozen_post"].values()))
+    board(ax_b, gw["case"], sealed=False, routes=[(gw["live"], VICTIM, OPEN_DASH)])
+    pos = gw["case"]["pre"]
+    draw_arrow(ax_b, pos[holder], cut.step(pos, holder, "left")[holder], MOVE,
+               lw=2.2, scale=11.0, shrink=(6.0, 0.0), zorder=9)
+    for x, tag, text in zip(COLS, "ab", (
+            "freeform, after move %d: %s declares done" % (case["ply"], holder),
+            "hybrid, move %d: %s steps off its target" % (gw["step_off"], holder))):
+        fig.text(*at(fig, x, bottom + SIDE + 0.26), "(%s)" % tag, fontsize=8.6,
+                 color=INK, va="bottom", fontweight="bold")
+        fig.text(*at(fig, x + 0.24, bottom + SIDE + 0.26), text, fontsize=8.2,
+                 color=INK, va="bottom")
+
+    cut_objs = sorted(r["victim"] for r in gw["cuts"])
+    y = bottom - 0.24
+    for p, t in texts_a:
+        y -= bubble(fig, COLS[0], y, SIDE, holder, "move %d" % p, t, chars=chars,
+                    colour=ACTOR) + 0.06
+    y -= bubble(fig, COLS[0], y, SIDE, holder, "after move %d" % case["ply"],
+                "done", chars=chars, colour=ACTOR) + 0.04
+    notes(fig, COLS[0], y - 0.02, [
+        (INK, "%s can no longer reach their targets; the team" % " and ".join(cut_objs)),
+        (INK, "plays %d more moves and loses after move %d." % (case["tail"],
+                                                              case["meta"]["moves"]))],
+        size=7.2, leading=0.17)
+    y = bottom - 0.24
+    for p, t in texts_b:
+        y -= bubble(fig, COLS[1], y, SIDE, holder, "move %d" % p, t, chars=chars,
+                    colour=ACTOR) + 0.06
+    notes(fig, COLS[1], y - 0.02, [
+        (INK, "%s declares done after move %d; the episode" % (holder, gw["done"])),
+        (INK, "is won in %d moves." % gw["total"])], size=7.2, leading=0.17)
+
+    keys = [
         Patch(facecolor=to_rgba(WALL, 0.20), edgecolor=WALL, hatch="xxx",
-              linewidth=0.5, label="owner declared done: object frozen (square), cell walled"),
-        Patch(facecolor="none", edgecolor=VICTIM, linewidth=1.3,
-              linestyle=(0, (2.2, 1.5)), label="the cut object's target"),
+              linewidth=0.5, label="declared done: object frozen (square), cell walled"),
         Patch(facecolor=to_rgba(VICTIM, 0.13), edgecolor=VICTIM, linewidth=1.1,
-              label="where the cut object can still move"),
+              label="where %s can still move" % v),
         Patch(facecolor="none", edgecolor=to_rgba(VICTIM, 0.5), hatch="//",
-              linewidth=0.3, label="cells it loses to this declaration"),
+              linewidth=0.3, label="cells %s loses to %s's done" % (v, holder)),
+        Patch(facecolor="none", edgecolor=VICTIM, linewidth=1.3,
+              linestyle=(0, (2.2, 1.5)), label="%s's target" % v),
         Line2D([], [], color=VICTIM, linestyle=OPEN_DASH, linewidth=1.2,
-               label="a route that still exists"),
+               label="%s's route, open while %s can move" % (v, holder)),
+        Line2D([], [], color=MOVE, linewidth=2.0, marker=">", markersize=4,
+               label="%s's move off its target" % holder),
     ]
-    if dead_route:
-        handles.append(Line2D([], [], color=MUTED, linestyle=DEAD_DASH,
-                              linewidth=1.2, label="a route already closed"))
-    fig.legend(handles=handles, loc="upper left",
-               bbox_to_anchor=at(fig, COLS[0] - 0.06, y_in), ncol=2,
-               frameon=False, fontsize=6.8, handletextpad=0.7,
-               columnspacing=1.4, labelspacing=0.45, borderpad=0.0)
-    return y_in - (-(-len(handles) // 2)) * LEG_LEAD - 0.18
-
-
-def frame(fig, title, subtitle, case, titles, *, routes_open, routes_dead=()):
-    """Header, the two panels and the key. Returns the y the notes start at."""
-    height = fig.get_size_inches()[1]
-    board_bottom = height - HEAD - SIDE
-    fig.text(*at(fig, COLS[0], height - 0.20), title, fontsize=10.4, color=INK,
-             va="top", fontweight="bold")
-    fig.text(*at(fig, COLS[0], height - 0.52), subtitle, fontsize=7.5,
-             color=MUTED, va="top")
-    axes = [square_axes(fig, x, board_bottom, SIDE) for x in COLS]
-    before = board(axes[0], case, sealed=False,
-                   routes=list(routes_open) + list(routes_dead))
-    after = board(axes[1], case, sealed=True, routes=list(routes_dead),
-                  lost=before - reachable(case, set(case["frozen_post"].values()))
-                  - set(case["frozen_post"].values()))
-    for x, tag, text in zip(COLS, "ab", titles):
-        fig.text(*at(fig, x, board_bottom + SIDE + 0.26), "(%s)" % tag,
-                 fontsize=8.6, color=INK, va="bottom", fontweight="bold")
-        fig.text(*at(fig, x + 0.22, board_bottom + SIDE + 0.26), text,
-                 fontsize=8.2, color=INK, va="bottom")
-    return legend(fig, board_bottom - 0.24, dead_route=bool(routes_dead))
-
-
-def render_corridor(case, out_dir):
-    v, s = case["victim"], case["sealer"]
-    ent, dead = case["entrance"], tuple(case["device"]["dead_end"])
-
-    fig = plt.figure(figsize=(WIDTH, page_height(6, 7)))
-    top = frame(fig, "The seal behind half of every cycle loss",
-          "six players, S3 board %s, %s, %s — one board, one turn apart, "
-          "and nothing moves in between"
-          % (case["meta"]["inst"].split("_")[1].lstrip("0"),
-             cut.MODELS[case["meta"]["model"]], case["meta"]["proto"]),
-          case,
-          ("move %d: %s stands on %s" % (case["ply"], s, cell_name(ent)),
-           "move %d: %s declares done" % (case["ply"], s)),
-          routes_open=[(case["route"], VICTIM, OPEN_DASH)])
-    tail = notes(fig, COLS[0], top, [
-        (VICTIM, "%s must reach %s, the dead end of the corridor, and every route"
-                 % (v, cell_name(dead))),
-        (VICTIM, "     to it passes %s, the corridor's only entrance."
-                 % cell_name(ent)),
-        (ACTOR, "%s's own target is that entrance. Standing there costs nothing —"
-                % s),
-        (ACTOR, "     an object can be asked to step aside, and %s had offered to." % s),
-        (CUE, "The declaration is what turns the cell into a wall. The hatched"),
-        (CUE, "     cells in (b) are what %s loses by it, for the next %d moves."
-              % (v, case["tail"])),
-        (INK, "%d of the %d recorded cuts have exactly this shape." % (54, 101)),
-    ])
-    fig.text(*at(fig, COLS[0], tail - 0.10), "“%s”" % PROMISE,
-             fontsize=7.2, color=MUTED, va="top", style="italic")
-    fig.text(*at(fig, COLS[0], tail - 0.31),
-             "%s, four moves before declaring done, and the eighth message in a "
-             "row promising to wait." % s,
-             fontsize=7.2, color=MUTED, va="top")
+    fig.legend(handles=keys, loc="lower left",
+               bbox_to_anchor=at(fig, COLS[0] - 0.06, 0.08), ncol=2,
+               frameon=False, fontsize=6.6, handletextpad=0.6,
+               columnspacing=1.2, labelspacing=0.45, borderpad=0.0)
     return save(fig, out_dir, "cut_corridor", ("pdf", "png"))
 
 
-def render_twocut(case, out_dir):
-    v, s = case["victim"], case["sealer"]
-    early = [o for o in case["culprits"] if o != s]
-
-    fig = plt.figure(figsize=(WIDTH, page_height(7, 7)))
-    top = frame(fig, "Where no single cell can cut the board, two finished objects can",
-          "six players, S4 board %s, %s, %s — the corridor plays no part in this one"
-          % (case["meta"]["inst"].split("_")[1].lstrip("0"),
-             cut.MODELS[case["meta"]["model"]], case["meta"]["proto"]),
-          case,
-          ("move %d: the southern way round already frozen" % case["ply"],
-           "move %d: %s declares done, closing the northern" % (case["ply"], s)),
-          routes_open=[(case["route"], VICTIM, OPEN_DASH)],
-          routes_dead=[(case["other_route"], MUTED, DEAD_DASH)])
-    tail = notes(fig, COLS[0], top, [
-        (VICTIM, "%s must reach %s, and the wall block leaves exactly two ways"
-                 % (v, cell_name(case["targets"][v]))),
-        (VICTIM, "     round it: north through %s, south through %s."
-                 % (cell_name(case["pre"][s]), cell_name(case["pre"][early[0]]))),
-        (MUTED, "%s finished on the southern cell earlier and froze it (long dashes)."
-                % early[0]),
-        (ACTOR, "%s now finishes on the northern one. Both are ordinary target cells,"
-                % s),
-        (ACTOR, "     and under masking neither player can see the other's route."),
-        (CUE, "The generator certifies the free space 2-connected, so no single cell"),
-        (CUE, "     severs anything here — and two is all 2-connectedness buys."),
-    ])
-    fig.text(*at(fig, COLS[0], tail - 0.10),
-             "%d of the %d cuts take this form, every one on a board whose minimum "
-             "vertex cut is 2." % (31, 101),
-             fontsize=7.2, color=INK, va="top")
-    fig.text(*at(fig, COLS[0], tail - 0.31),
-             "This same pair of targets closed this same board in four independent "
-             "episodes, two per strong model.",
-             fontsize=7.2, color=MUTED, va="top")
-    return save(fig, out_dir, "cut_twocut", ("pdf", "png"))
-
-
-FLOATS = r"""%% Figure floats for the two cut figures, written by figures/cuts.py.
-%% Every number in a caption is read off the replayed episodes, so a changed
-%% tree cannot leave a caption asserting something the picture no longer shows.
+FLOAT = r"""%% Figure float for fig:cut-corridor, written by figures/cuts.py.
+%% Every number in the caption is read off the replayed episodes or the cut
+%% population, both asserted in main().
 \begin{figure}[tbp]
     \centering
     \thesisfig{cut_corridor.pdf}
-    \caption[%(short_corridor)s]{%(cap_corridor)s}
+    \caption[One fork, two choices]{%(cap)s}
     \label{fig:cut-corridor}
-\end{figure}
-
-\begin{figure}[tbp]
-    \centering
-    \thesisfig{cut_twocut.pdf}
-    \caption[%(short_twocut)s]{%(cap_twocut)s}
-    \label{fig:cut-twocut}
 \end{figure}
 """
 
 
-def write_floats(rows, corridor, twocut, out_dir):
-    total = len(rows)
-    ent = sum(1 for r in rows
-              if r["kind"] in (cut.ENTRANCE, cut.ENTRANCE_OTHER))
-    opn = sum(1 for r in rows if r["kind"] == cut.OPEN)
-    early = [o for o in twocut["culprits"] if o != twocut["sealer"]][0]
-    caps = {
-        "short_corridor": "A \\texttt{done} declaration on the corridor entrance",
-        "short_twocut": "A cut that takes two declarations, not one",
-        "cap_corridor": (
-            "How a \\texttt{done} declaration kills a board. %s, S3 board %s, "
-            "\\textsc{%s}, six players: both panels show move %d of %d, and no "
-            "object moves between them. \\texttt{%s} needs \\texttt{%s}, the "
-            "dead end of the corridor, and every route to it --- one is dotted "
-            "--- runs through \\texttt{%s}, the corridor's single entrance, "
-            "where \\texttt{%s} "
-            "is standing on its own target. Occupying that cell costs nothing "
-            "while \\texttt{%s} can still be asked to move; declaring "
-            "\\texttt{done} turns it into a wall, and the tinted region is "
-            "everywhere \\texttt{%s} can reach for the remaining %d moves of "
-            "the episode. %d of the %d permanent cuts recorded across the %d "
-            "cycle losses take this form. An object is drawn as a circle while "
-            "it can still move and as a square once its owner has declared "
-            "\\texttt{done}, so colour carries nothing the shapes, hatches and "
-            "the key do not."
-            % (cut.MODELS[corridor["meta"]["model"]],
-               corridor["meta"]["inst"].split("_")[1].lstrip("0"),
-               corridor["meta"]["proto"], corridor["ply"],
-               corridor["meta"]["moves"], corridor["victim"],
-               cell_name(tuple(corridor["device"]["dead_end"])),
-               cell_name(corridor["entrance"]), corridor["sealer"],
-               corridor["sealer"], corridor["victim"], corridor["tail"],
-               ent, total, len({r["meta"]["path"] for r in rows}))),
-        "cap_twocut": (
-            "The same failure where the geometry forbids a one-cell seal. %s, "
-            "S4 board %s, \\textsc{%s}, six players, move %d of %d in both "
-            "panels; the corridor plays no part. \\texttt{%s} must reach "
-            "\\texttt{%s}, and the wall block leaves exactly two routes: "
-            "\\texttt{%s} had already finished on the southern one (long grey "
-            "dashes) and "
-            "frozen it, and \\texttt{%s} now finishes on the northern one. "
-            "Neither cell is an articulation point --- the generator certifies "
-            "the free space 2-connected, and the minimum vertex cut between "
-            "\\texttt{%s} and its target is %d --- which is why it takes two "
-            "declarations rather than one. %d of the %d cuts have this shape, "
-            "every one of them at minimum cut 2. Marks as in "
-            "Figure~\\ref{fig:cut-corridor} and the key."
-            % (cut.MODELS[twocut["meta"]["model"]],
-               twocut["meta"]["inst"].split("_")[1].lstrip("0"),
-               twocut["meta"]["proto"], twocut["ply"], twocut["meta"]["moves"],
-               twocut["victim"], cell_name(twocut["targets"][twocut["victim"]]),
-               early, twocut["sealer"], twocut["victim"], twocut["mincut"],
-               opn, total)),
-    }
+def write_float(rows, case, gw, out_dir):
+    ent = sum(r["kind"] in (cut.ENTRANCE, cut.ENTRANCE_OTHER) for r in rows)
+    cap = (
+        "One fork, two choices, on one board: %s, S3~\\#%s, six players, "
+        "chosen after inspection. In both episodes \\texttt{%s} steps onto its "
+        "own target \\texttt{%s}, the corridor's single entrance, with move %d, "
+        "and \\texttt{%s} still has to pass it to reach \\texttt{%s}. "
+        "(a)~Under \\textsc{freeform}, \\texttt{%s} declares \\texttt{done} on "
+        "its next turn, after move %d; the cell becomes a wall, \\texttt{%s} and "
+        "\\texttt{%s} can no longer reach their targets, and the team plays %d "
+        "more moves and loses after move %d. (b)~Under \\textsc{hybrid}, "
+        "\\texttt{%s} steps off on its next turn, move %d, declares "
+        "\\texttt{done} after move %d, and the episode is won in %d moves. "
+        "Of the %d permanent cuts recorded across the %d cycle losses, %d are "
+        "seals on a corridor entrance. Messages are quoted verbatim; "
+        "\\ldots{} marks omitted text."
+        % (cut.MODELS[case["meta"]["model"]],
+           case["meta"]["inst"].split("_")[1].lstrip("0"), case["sealer"],
+           cell_name(case["entrance"]), gw["arrive"], case["victim"],
+           cell_name(tuple(case["device"]["dead_end"])), case["sealer"],
+           case["ply"], *sorted(r["victim"] for r in gw["cuts"]), case["tail"],
+           case["meta"]["moves"], case["sealer"], gw["step_off"], gw["done"],
+           gw["total"], len(rows), len({r["meta"]["path"] for r in rows}), ent))
     path = os.path.join(out_dir, "cuts.tex")
     with open(path, "w") as fh:
-        fh.write(FLOATS % caps)
+        fh.write(FLOAT % dict(cap=cap))
     return [path]
 
 
-ALT = {
-    "cut_corridor":
-        "Two eight-by-eight grid boards side by side, the same board one "
-        "instant apart. In (a) object B stands as a circle on R5C2, the only "
-        "entrance to a dead-end corridor, and a dotted route runs from object "
-        "D through that cell and up the corridor to D's target at R1C2. In (b) "
-        "B's owner has declared done: B is now a square on a walled cell, the "
-        "dotted route is gone, and the shaded region D can still move in no "
-        "longer contains its target.",
-    "cut_twocut":
-        "Two eight-by-eight grid boards side by side, the same board one "
-        "instant apart. Object D at centre must reach R8C7, and a wall block "
-        "leaves two routes round it: a northern one through R4C6 and a "
-        "southern one through R7C6. In (a) E is already a frozen square on the "
-        "southern cell and that route is drawn in long grey dashes, while the "
-        "northern route is dotted and open through B. In (b) B has declared "
-        "done, is drawn as a frozen square, and the shaded region D can move "
-        "in no longer contains its target.",
-}
-
-
-def write_provenance(rows, cases_by_stem, out_dir):
-    """What each panel was built from, so the figures can be checked or redrawn.
-
-    The two episodes are illustrative; the population they stand for is the
-    whole set of cuts, whose counts are recorded here and asserted in main().
-    """
+def write_provenance(rows, case, gw, out_dir):
+    """What each panel was built from, so the figure can be checked or redrawn."""
     record = {
-        "figures": {},
+        "figure": "cut_corridor",
         "population": {
-            "scope": "cycle losses in 3p and 6p, Qwen3.8 and DeepSeek-V4.1",
+            "scope": "cycle losses in 3p and 6p, Qwen3.8 and DeepSeek-V4.1, "
+                     "updated-prompt arm",
             "episodes": len({r["meta"]["path"] for r in rows}),
             "cut_objects": len(rows),
             "by_shape": {k: sum(1 for r in rows if r["kind"] == k)
                          for k in sorted({r["kind"] for r in rows})},
-            "formed_by_a_done_declaration": sum(1 for r in rows),
+        },
+        "panel_a": {
+            "episode": case["meta"]["path"], "protocol": case["meta"]["proto"],
+            "accepted_moves_before_the_declaration": case["ply"],
+            "episode_length_moves": case["meta"]["moves"],
+            "declaring_player": case["sealer_player"],
+            "cut_objects": sorted(r["victim"] for r in gw["cuts"]),
+            "shape": case["kind"], "minimum_vertex_cut": case["mincut"],
+            "moves_played_after_the_cut": case["tail"],
+        },
+        "panel_b": {
+            "episode": gw["path"], "protocol": "hybrid",
+            "holder_on_entrance_after_move": gw["arrive"],
+            "holder_steps_off_at_move": gw["step_off"],
+            "holder_done_after_move": gw["done"],
+            "episode_length_moves": gw["total"], "outcome": "success",
         },
         "method": {
             "replay": "accepted moves parsed from interactions.json and applied "
-                      "to instance.json start positions; no state is taken from "
-                      "scores.json",
+                      "to instance.json start positions",
             "reachability": "breadth-first search over free cells, with walls and "
                             "the objects of players that have declared done "
                             "treated as blocked and all other objects passable",
-            "routes": "breadth-first shortest paths under the same blocking rule",
-            "minimum_vertex_cut": "exhaustive search over free cells up to size 3",
-            "hand_placed_elements": "none; every cell, route and count is computed",
             "analysis_module": "analysis/qualitative_analysis/cut.py",
-            "renderer": "figures/cuts.py",
-        },
-        "rendering": {
-            "page_width_in": round(WIDTH, 4),
-            "page_width_note": "the document's \\textwidth, 455.24411 pt, so "
-                               "\\thesisfig scales the figure 1:1",
-            "bbox_inches": None,
-            "png_dpi": 300,
-            "pdf_fonttype": 42,
-            "colour_is_redundant": "object mobility is shape, a frozen cell is "
-                                   "cross-hatched, lost cells are hatched, the "
-                                   "reachable region is outlined, and the two "
-                                   "routes use different dash patterns",
-            "palette_audit": "house palette; VICTIM vs ACTOR 9.85 and VICTIM vs "
-                             "MUTED 0.06 CIE L*, both below the 10.0 grayscale "
-                             "screening heuristic, which is why no meaning rests "
-                             "on hue alone",
+            "renderer": "figures/cuts.py, figures/giveway.py",
         },
     }
-    for stem, case in cases_by_stem.items():
-        record["figures"][stem] = {
-            "outputs": [stem + ".pdf", stem + ".png"],
-            "alt_text": ALT[stem],
-            "episode": case["meta"]["path"],
-            "source_files": [case["meta"]["path"] + "/instance.json",
-                             case["meta"]["path"] + "/interactions.json"],
-            "model": cut.MODELS[case["meta"]["model"]],
-            "suite": case["meta"]["suite"],
-            "level": case["meta"]["level"],
-            "protocol": case["meta"]["proto"],
-            "instance": case["meta"]["inst"],
-            "grid_size": case["grid"],
-            "panel_state": {
-                "accepted_moves_before_the_declaration": case["ply"],
-                "episode_length_moves": case["meta"]["moves"],
-                "declaring_player": case["sealer_player"],
-                "objects_frozen_before": sorted(case["frozen_pre"]),
-                "objects_frozen_after": sorted(case["frozen_post"]),
-                "cut_object": case["victim"],
-                "shape": case["kind"],
-                "minimum_vertex_cut": case["mincut"],
-                "moves_played_after_the_cut": case["tail"],
-            },
-        }
     path = os.path.join(out_dir, "cuts.provenance.json")
     with open(path, "w") as fh:
         json.dump(record, fh, indent=2, sort_keys=True)
@@ -526,32 +385,37 @@ def main():
     args = ap.parse_args()
 
     rows = cut.cases()
-    # the counts S9.3.2 quotes: a changed tree fails here rather than in a caption
-    assert len({r["meta"]["path"] for r in rows}) == 78, "episode count moved"
-    assert len(rows) == 101, len(rows)
-    assert sum(r["kind"] in (cut.ENTRANCE, cut.ENTRANCE_OTHER)
-               for r in rows) == 54
-    assert sum(r["kind"] == cut.OPEN for r in rows) == 31
-    assert sum(r["kind"] == cut.POCKET for r in rows) == 4
+    # the population the caption quotes, pinned to the ledger (results_numbers.md
+    # B33, B68, B73, B74, B42): a changed tree fails here rather than in a caption
+    assert len({r["meta"]["path"] for r in rows}) == 88, "episode count moved"
+    assert len(rows) == 120, len(rows)
+    assert sum(r["kind"] in (cut.ENTRANCE, cut.ENTRANCE_OTHER) for r in rows) == 62
+    assert sum(r["kind"] == cut.OPEN for r in rows) == 34
+    assert sum(r["kind"] == cut.POCKET for r in rows) == 5
 
-    corridor, twocut = pick(rows, CORRIDOR), pick(rows, TWOCUT)
-    assert corridor["pre"][corridor["sealer"]] == corridor["entrance"]
-    assert corridor["mincut"] == 1 and len(corridor["culprits"]) == 1
-    assert twocut["mincut"] == 2 and len(twocut["culprits"]) == 2
-    assert twocut["kind"] == cut.OPEN and twocut["other_route"]
-    # the quote is drawn, so it has to still be in the transcript verbatim
-    import json
-    it = json.load(open(os.path.join(REPO_ROOT, corridor["meta"]["path"],
-                                     "interactions.json")))
-    said = [e["action"]["content"] for t in it["turns"] for e in t
-            if e.get("action", {}).get("type") == "message"]
-    assert any(PROMISE in s.replace("’", "'") for s in said), "promise reworded"
+    case = pick(rows, CORRIDOR)
+    # the property panel (a) shows: B on its own target at the entrance, and its
+    # done alone severs D (minimum cut 1, one culprit); E goes with it
+    assert case["pre"][case["sealer"]] == case["entrance"] == case["targets"][case["sealer"]]
+    assert case["kind"] == cut.ENTRANCE and case["mincut"] == 1
+    assert len(case["culprits"]) == 1
+    same = [r for r in rows if r["meta"]["path"] == case["meta"]["path"]]
+    assert {(r["victim"], r["sealer"], r["ply"]) for r in same} == \
+        {("D", "B", case["ply"]), ("E", "B", case["ply"])}, same
+    assert (case["ply"], case["tail"], case["meta"]["moves"]) == (54, 30, 84)  # B67
+    import giveway as gwm
+    gw = gwm.giveway(case)
+    gw["cuts"] = same
+    assert (gw["arrive"], gw["step_off"], gw["done"], gw["total"]) == (50, 56, 103, 110)
+    _, _, _, said, _ = gwm.replay(os.path.join(REPO_ROOT, case["meta"]["path"]))
+    for p, frags in FREEFORM_SAID:
+        at_ = 0
+        for f in frags:
+            at_ = said[p].index(f, at_)                  # verbatim, in order
 
-    paths = render_corridor(corridor, args.out)
-    paths += render_twocut(twocut, args.out)
-    paths += write_floats(rows, corridor, twocut, args.out)
-    paths += write_provenance(rows, {"cut_corridor": corridor,
-                                     "cut_twocut": twocut}, args.out)
+    paths = render(case, gw, args.out)
+    paths += write_float(rows, case, gw, args.out)
+    paths += write_provenance(rows, case, gw, args.out)
     for path in paths:
         print(f"wrote {os.path.relpath(path, REPO_ROOT)}")
 

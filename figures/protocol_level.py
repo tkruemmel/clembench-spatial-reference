@@ -67,8 +67,9 @@ def render(out_dir):
                         fontsize=6.8, color=INK)
         else:
             s3 = tc.ALL_LEVELS.index("S3")
-            ax.text(s3 + 0.12, sil[s3], f"{sil[s3]:.0f}", ha="left", va="top",
-                    fontsize=6.6, color=MUTED)
+            # below-left of the point: the line into S3 runs above it there
+            ax.text(s3 - 0.12, sil[s3] - 1.5, f"{sil[s3]:.0f}", ha="right",
+                    va="top", fontsize=6.6, color=MUTED)
             ax.text(s3, pro[s3] - 4.5, f"{pro[s3]:.0f}", ha="center", va="top",
                     fontsize=6.6, color=MUTED)
         ax.set_title(title, fontsize=7.8, color=INK, pad=4,
@@ -107,12 +108,13 @@ def main():
     args = ap.parse_args()
 
     lad = tc.ladder()
-    # the numbers the chapter quotes from this figure, so a changed tree fails loudly
+    # the numbers the figure prints, pinned to the ledger (results_numbers.md
+    # A123: success gap by level; A80/A125: S3 by suite), so a changed tree fails
     gap = [round(b - a, 1) for a, b in rates(lad, tc.SUITES)]
-    assert gap == [2.2, 11.1, 46.1, 26.1], gap
+    assert gap == [1.1, 14.4, 38.9, 25.6], gap
     s3 = [rates(lad, (s,))[2] for s in tc.SUITES]
-    assert [round(a) for a, _ in s3] == [80, 30, 37], s3
-    assert [round(b) for _, b in s3] == [98, 100, 87], s3
+    assert [round(a) for a, _ in s3] == [87, 47, 30], s3
+    assert [round(b) for _, b in s3] == [100, 98, 82], s3
 
     for path in render(args.out):
         print(f"wrote {os.path.relpath(path)}")

@@ -6,8 +6,9 @@ and the gap between them is the whole result: self-localisation does not
 separate the models, claims about others do.
 
 Counts come from the annotated corpus cache written by
-analysis/qualitative_analysis/qual_corpus.py, so the figure and Sections 5.3 / 2.3 of
-results_three_models_grid.md cannot drift apart.
+analysis/qualitative_analysis/qual_corpus.py (corpus.{ARM}.json, team suites of
+the updated-prompt arm by default), the same lines ledger_extra.py prints as
+claims.all.*, so the figure and the ledger cannot drift apart.
 
     python3 figures/grounding.py                # whole multiplayer corpus
     python3 figures/grounding.py --scope dyad   # the Table 12 cell
@@ -129,9 +130,10 @@ def main():
     args = ap.parse_args()
 
     agg = tally("all")
-    # the two figures Section 5.3 leads with, so a changed cache fails loudly
-    assert agg[("nemotron", "freeform")][2:] == [168, 560], agg[("nemotron", "freeform")]
-    assert agg[("nemotron", "hybrid")][2:] == [3, 50], agg[("nemotron", "hybrid")]
+    # the weak tier's teammate claims, pinned to the ledger (results_numbers.md
+    # A106/A107): freeform 75 of 177; hybrid rests on 3 claims
+    assert agg[("nemotron", "freeform")][2:] == [75, 177], agg[("nemotron", "freeform")]
+    assert agg[("nemotron", "hybrid")][2:] == [1, 3], agg[("nemotron", "hybrid")]
 
     for path in render(args.scope, args.out):
         print(f"wrote {os.path.relpath(path)}")

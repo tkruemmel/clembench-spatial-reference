@@ -87,10 +87,13 @@ def main():
     args = ap.parse_args()
 
     cells, _, _ = tc.teamsize_cells(tc.load_optima(), tests=False)
-    # the numbers S9.1 quotes from this figure, so a changed tree fails loudly
-    q = [(round(cells[("dyad", l)]["q"], 2), round(cells[("6p", l)]["q"], 2))
-         for l in tc.ALL_LEVELS]
-    assert q == [(97.20, 94.87), (83.02, 83.37), (73.09, 60.98), (80.02, 79.50)], q
+    # the plotted Quality Scores, pinned to the ledger (results_numbers.md A130),
+    # so a changed tree fails loudly
+    q = [tuple(round(cells[(s, l)]["q"], 2) for s in tc.SUITES) for l in tc.ALL_LEVELS]
+    assert q == [(97.32, 95.60, 96.03), (83.35, 77.36, 80.35),
+                 (76.19, 62.89, 53.49), (80.74, 74.14, 77.48)], q
+    # hollow 6p points: % Played below 100 at S2-S4 (A132)
+    assert [round(cells[("6p", l)]["played"], 1) for l in tc.ALL_LEVELS] == [100.0, 95.8, 90.0, 89.2]
 
     for path in render(cells, args.out):
         print(f"wrote {os.path.relpath(path)}")

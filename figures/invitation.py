@@ -1,15 +1,17 @@
-"""Draws the strong tier's failure at the pinch: the stranded player invites it.
+"""Draws the strong tier's failure at the pinch: the stranded player invites it
+(fig:invitation-sealed).
 
-The twin of figures/warning.py. Under the prose protocols the strong tier played
-30 sealing moves that had a harmless alternative. In 29 the player about to be
-stranded had named the cell and the mover in the last round of messages; 12
-fall in episodes that fail, and in 10 of those the message invites the move.
-Two of the ten are drawn: the player vacates a cell, offers it to the teammate
-behind, and the teammate's acceptance leaves it with no legal move.
+Under the prose protocols the strong tier played
+30 sealing moves that had a harmless alternative. In 22 the player about to be
+stranded had named the cell and the mover in the six plies before; 8 fall in
+episodes that fail, and in 6 of those the message invites the move under the
+written coding rule of analysis/qualitative_analysis/failures.py. Two of the six
+are drawn, one per model: the player names a cell and the teammate who should
+take it, and the teammate's move into it leaves the player with no legal move.
 
-The counts are recomputed from analysis/qualitative_analysis/seal_averted.py except the
-last, which is a hand reading of the 12 and is pinned below; every board is
-replayed from the move log and every quoted fragment is checked verbatim.
+All four counts come from failures.invitation_chain; every board is replayed
+from the move log, each drawn case is asserted to be one of the six and to
+satisfy the rule, and every quoted fragment is checked verbatim.
 
     python3 figures/invitation.py
 """
@@ -33,72 +35,48 @@ import seal_alt as sa
 import warning as wn
 
 sys.path.insert(0, os.path.join(REPO_ROOT, "analysis/qualitative_analysis"))
+import failures  # noqa: E402
 import seal_averted as sv  # noqa: E402
 
 VICTIM, ACTOR = OWNER["B"], OBJECT
 BYSTANDER = MUTED        # FAINT is 2.6:1 on white, below 3:1 for a mark that matters
 
-# The hand reading of the 12 failing pinches: the stranded player's message
-# offers the mover the cell (one of the ten only hedges: "free if you need it,
-# but I may need it"). The other two are a request to a player already done
-# and a neutral "wait for D to clear".
-INVITED = {
-    ("qwen38", "S3", "instance_00010", "freeform", 56),
-    ("qwen38", "S3", "instance_00010", "hybrid", 82),
-    ("qwen38", "S4", "instance_00008", "freeform", 17),
-    ("qwen38", "S4", "instance_00008", "freeform", 21),
-    ("qwen38", "S4", "instance_00011", "freeform", 19),
-    ("dsv41", "S3", "instance_00006", "freeform", 24),
-    ("dsv41", "S3", "instance_00010", "freeform", 47),
-    ("dsv41", "S3", "instance_00010", "freeform", 53),
-    ("dsv41", "S4", "instance_00005", "freeform", 33),
-    ("dsv41", "S4", "instance_00008", "hybrid", 22),
-}
-
-# (results root, level, instance, victim, mover, invitation move, seal move,
-#  {move: fragments cut from its message, never reworded})
+# one per model, from the six invited failing seals; S3 #10 is left to the
+# worked example. inv = the victim's move whose message offers the cell,
+# seal = the mover's move into it; {move: fragments, never reworded}
 CASES = [
-    ("results_qwen38_grid_n15_6p", "Qwen3.8", "S4", "instance_00011", "A", "B",
-     19, 20,
-     {19: ["I’m moving A right to (R4,C5) to free (R4,C4) for B. "
-           "B, take (R4,C4) next"],
-      20: ["A, thanks; I'm taking (R4,C4).",
-           "A, hold (R4,C5) until I'm at (R3,C4)."]}),
-    ("results_dsv41_grid_n15_6p", "DeepSeek", "S3", "instance_00006", "C", "A",
-     21, 25,
-     {21: ["C up to (R3,C3), freeing (R4,C3) for A. A, take (R4,C3) now"],
-      25: ["A right to (R4,C3) to stage behind C.",
-           "I need (R3,C3) free next after C moves."]}),
+    dict(root="results_qwen38_grid_updated_prompt_n15_6p", key="qwen38",
+         model="Qwen3.8", level="S4", proto="hybrid", inst="instance_00005",
+         v="A", m="C", inv=33, seal=34,
+         quotes={33: ["I\u2019m stepping left to (R4,C3) so C can occupy (R4,C4)",
+                      "REQUEST: C move up to (R4,C4) now"],
+                 34: ["I\u2019ll follow A\u2019s handoff: take (R4,C4) now",
+                      "A, hold (R4,C3) until I reach (R3,C4), then you can "
+                      "reclaim (R4,C4)."]}),
+    dict(root="results_dsv41_grid_updated_prompt_n15_6p", key="dsv41",
+         model="DeepSeek", level="S4", proto="freeform", inst="instance_00008",
+         v="A", m="F", inv=19, seal=23,
+         quotes={19: ["F, I'll hold R4C5 only until B vacates R5C5; please move "
+                      "to R3C5 and wait, then R4C5 is yours."],
+                 23: ["Moving F right to R3C5.",
+                      "I\u2019ll wait at R3C5 until A vacates R4C5"]}),
 ]
 
 
-def key(r):
-    m = r["meta"]
-    return m["model"], m["level"], m["inst"], m["proto"], r["ply"]
-
-
 def counts():
-    """30 -> 29 -> 12 -> 10, the first three recomputed from the pinches."""
-    rs, _ = sv.rows(models=sv.TIERS["strong"])
-    taken = [r for r in rs if r["taken"] and r["safe"]]
-    named = []
-    for r in taken:
-        cell = sv.step(r["pos"], *r["played"])[r["played"][0]]
-        rx = re.compile(sv.CELL % (cell[0] + 1, cell[1] + 1), re.I)
-        if any(r["ply"] - 6 <= p <= r["ply"] and rx.search(t)
-               and re.search(r"\b%s\b" % r["player"], t)
-               for q in r["victims"] for p, t in r["said"].get(q, [])):
-            named.append(r)
-    failing = {key(r) for r in named if r["meta"]["outcome"] != "success"}
-    assert (len(taken), len(named), len(failing)) == (30, 29, 12), \
-        (len(taken), len(named), len(failing))
-    assert INVITED <= failing and len(INVITED) == 10, INVITED - failing
-    return len(taken), len(named), len(failing), len(INVITED)
+    """30 -> 22 -> 8 -> 6, and the keys of the six."""
+    taken, named = failures.invitation_chain(
+        sv.rows(models=failures.STRONG, protos=failures.PROSE)[0])
+    failing = [x for x in named if x["fail"]]
+    invited = {x["key"] for x in failing if x["invited"]}
+    got = (len(taken), len(named), len(failing), len(invited))
+    assert got == (30, 22, 8, 6), got     # results_numbers.md B22-B24, B31
+    return got, invited
 
 
-def load(root, level, inst):
+def load(root, level, proto, inst):
     wn.RUN, = glob.glob(os.path.join(REPO_ROOT, root, "*", "*",
-                                     f"{level}_freeform_6p_grid", inst))
+                                     f"{level}_{proto}_6p_grid", inst))
     return wn.load()
 
 
@@ -129,37 +107,45 @@ def panel(ax, n, walls, pos, prev, moved, victim, mover, offered=None):
 
 
 def render(out_dir):
-    total, named, failing, invited = counts()
+    (total, named, failing, invited), six = counts()
     rows = []
-    for root, model, level, inst, v, m, inv, seal, quotes in CASES:
-        ins, moves, said, outcome = load(root, level, inst)
+    for c in CASES:
+        v, m, inv, seal = c["v"], c["m"], c["inv"], c["seal"]
+        ins, moves, said, outcome = load(c["root"], c["level"], c["proto"], c["inst"])
         n, walls = ins["grid_size"], {tuple(w) for w in ins["walls"]}
-        b = {p: wn.board_at(ins, moves, p) for p in (inv - 1, inv, seal - 1, seal)}
-        offered = b[inv - 1][v]                     # the cell the victim vacates
+        b = {p: wn.board_at(ins, moves, p) for p in range(inv - 1, seal + 1)}
+        offered = b[seal][m]                        # the cell the mover takes
         # what the figure asserts, checked against the rules before drawing
+        assert (c["key"], c["level"], c["inst"], c["proto"], seal - 1) in six
         assert moves[inv - 1][0] == v and moves[seal - 1][0] == m
-        assert b[seal][m] == offered, (b[seal][m], offered)
         assert exits(b[seal - 1], v, walls, n) == [offered]
         assert exits(b[seal], v, walls, n) == []
         assert outcome is None                      # the episode is not won
+        rx = re.compile(sv.CELL % (offered[0] + 1, offered[1] + 1), re.I)
+        assert failures.invites(said[inv], rx, m), said[inv]
         stuck = [k for k in range(seal, len(moves) + 1)
                  if not exits(wn.board_at(ins, moves, k), v, walls, n)]
         run = len([k for i, k in enumerate(stuck) if k == seal + i])
         gap = ""
         if seal - inv > 1:
-            gap = (f"Moves {inv + 1}\u2013{seal - 1} leave {cell_name(offered)} "
-                   f"as {v}'s last free cell. ")
+            last = min(k for k in range(inv, seal)
+                       if all(exits(b[j], v, walls, n) == [offered]
+                              for j in range(k, seal)))
+            gap = (f"From move {last} on, {cell_name(offered)} is {v}'s last "
+                   f"free cell. ")
         if seal + run > len(moves):
             fate = (f"{v} has no legal move; its next turn aborts the episode "
                     f"after {len(moves)} moves.")
         else:
             fate = (f"{v} has no legal move for {run} moves until a third "
                     f"player frees it; the episode is lost.")
-        rows.append(dict(src=("transcript:", f"{root}/…/", f"{level}_freeform_6p_grid/{inst}"),
-                         model=model, level=level, inst=int(inst[-2:]), v=v,
-                         m=m, inv=inv, seal=seal, n=n, walls=walls, b=b,
-                         moves=moves, cell=offered, fate=gap + fate,
-                         texts={p: wn.marked(said[p], f) for p, f in quotes.items()},
+        rows.append(dict(src=("transcript:", f"{c['root']}/…/",
+                              f"{c['level']}_{c['proto']}_6p_grid/{c['inst']}"),
+                         model=c["model"], level=c["level"], proto=c["proto"],
+                         inst=int(c["inst"][-2:]), v=v, m=m, inv=inv, seal=seal,
+                         n=n, walls=walls, b=b, moves=moves, cell=offered,
+                         fate=gap + fate,
+                         texts={p: wn.marked(said[p], f) for p, f in c["quotes"].items()},
                          left={p: len(exits(b[p], v, walls, n)) for p in (inv, seal)}))
 
     W, M, GAP = 6.3, 0.22, 0.14
@@ -178,7 +164,7 @@ def render(out_dir):
 
     for r in rows:
         fig.text(*at(fig, M, y), f"{r['model']}, six players, {r['level']} board "
-                 f"{r['inst']}, freeform", fontsize=7.8, color=INK, va="top",
+                 f"{r['inst']}, {r['proto']}", fontsize=7.8, color=INK, va="top",
                  fontweight="bold")
         top = y - 0.22
         heads = {r["inv"]: f"after move {r['inv']}: {r['v']} offers {cell_name(r['cell'])}",
@@ -234,13 +220,13 @@ def render(out_dir):
         k.add_patch(FancyArrowPatch((x, y), (x + 0.22, y), arrowstyle="-|>",
                                     mutation_scale=7, color=MOVE, lw=1.4))
 
-    rows_k = ((0.40, ((lambda x, y: disc(x, y, VICTIM, INK), "player left stranded"),
+    rows_k = ((0.40, ((lambda x, y: disc(x, y, VICTIM, INK), "player left trapped"),
                       (lambda x, y: disc(x, y, ACTOR), "teammate it invites"),
                       (lambda x, y: disc(x, y, BYSTANDER), "other players"))),
               (0.20, ((arrow, "move just played"),
                       (ghost, "where it stood"),
                       (lambda x, y: box(x, y, (0, (2.2, 1.5)), True),
-                       "cell the stranded player can move to"),
+                       "cell the trapped player can move to"),
                       (lambda x, y: box(x, y, "-", False), "the offered cell"))))
     for yk, items in rows_k:
         x = M
@@ -262,15 +248,16 @@ FLOAT = r"""%% Figure float for the strong tier's invitations, written by figure
 \begin{figure}[tbp]
     \centering
     \thesisfig{invitation_sealed.pdf}
-    \caption{How the strong tier fails at the pinch. Of the %(total)d sealing
-    moves it played under the prose protocols with a harmless alternative
-    available, %(named)d were preceded by the stranded player naming the cell
-    and the mover in the last round of messages; %(failing)d fall in failing
-    episodes, and in %(invited)d of those the message offers the cell. Two are
-    drawn, each as the full board after the move beneath it: the player
-    vacates a cell, offers it to the teammate behind, and the teammate's
-    acceptance leaves it with no legal move. Messages are quoted verbatim
-    from the episode transcripts; \ldots{} marks omitted text.}
+    \caption{The trapped player invites the seal. Of the %(total)d sealing
+    moves the strong tier played under the prose protocols with a harmless
+    alternative available, %(named)d were preceded by the trapped player
+    naming the cell and the mover in the six plies before; %(failing)d fall in
+    failing episodes, and in %(invited)d of those the message offers the cell.
+    Two of the %(invited)d are drawn, chosen after inspection, one per model,
+    each as the full board after the move beneath it: the player names a cell
+    and the teammate who should take it, and the teammate's move into it
+    leaves the player with no legal move. Messages are quoted verbatim from
+    the episode transcripts; \ldots{} marks omitted text.}
     \label{fig:invitation-sealed}
 \end{figure}
 """

@@ -34,12 +34,35 @@ SUITE_STYLE = {"dyad": ("#7D8995", "o", "dyad"),
                "6p": (INK, "^", "6 players")}
 NAMES = {"Qwen3.8": "Qwen3.8", "DeepSeek-V4.1-Flash": "DeepSeek-V4.1-Flash",
          "Nemotron": "Nemotron"}
+# successes of 60 per (model, suite), in PROTOCOLS order (none, structured,
+# freeform, hybrid); pinned to the ledger (results_numbers.md A120/A121,
+# ledger_extra ladder.succ.*), so a changed tree fails loudly
+PINNED = {
+    "Qwen3.8": {"dyad": (54, 58, 60, 59), "3p": (46, 55, 58, 59), "6p": (39, 44, 56, 53)},
+    "DeepSeek-V4.1-Flash": {"dyad": (54, 58, 60, 60), "3p": (43, 50, 60, 58),
+                            "6p": (39, 48, 55, 56)},
+    "Nemotron": {"dyad": (0, 3, 6, 3), "3p": (0, 2, 3, 2), "6p": (0, 2, 4, 3)},
+}
+
+
+def check(lad):
+    """The plotted counts, and the property the figure shows: in the strong
+    models every suite orders the protocols prose >= schema >= silence."""
+    for model, suites in PINNED.items():
+        for suite, want in suites.items():
+            got = tuple(sum(x for lv in tc.ALL_LEVELS for x in lad[(model, suite, lv, p)])
+                        for p in tc.PROTOCOLS)
+            assert got == want, (model, suite, got)
+            if model in tc.STRONG:
+                none, schema, free, hyb = got
+                assert min(free, hyb) >= schema >= none, (model, suite, got)
 
 
 def render(out_dir):
     import matplotlib.pyplot as plt
 
     lad = tc.ladder()
+    check(lad)
     fig, axes = plt.subplots(1, 3, figsize=(6.4, 2.5), sharey=True)
     xs = range(len(tc.PROTOCOLS))
     for ax, model in zip(axes, tc.ARMS):
