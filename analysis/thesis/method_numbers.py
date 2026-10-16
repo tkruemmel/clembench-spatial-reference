@@ -372,6 +372,13 @@ def main():
     print(f"DeepSeek team suites ESTIMATED {team_usd:.2f} USD vs MEASURED {ref:.2f} "
           f"({'720 updated team episodes' if T.ARM == 'updated' else '840-episode original campaign incl. solo'}); "
           f"solo ESTIMATED {solo_usd:.2f}")
+    crossed = [scan(("DeepSeek-V4.1-Flash", g, os.path.dirname(f))) for g in ("dyad", "6p")
+               for f in sorted(glob.glob(os.path.join(T.ROOT, f"results_dsv41_grid_crossed_n15_{g}",
+                                                      "*", "*", "*", "instance_*", "interactions.json")))]
+    assert len(crossed) == 240, len(crossed)
+    usd, _ = ds_cost([c for e in crossed for c in e["calls"]])
+    print(f"DeepSeek crossed probe ESTIMATED {usd:.2f} USD (240 episodes, {usd / 240:.3f}/ep); played "
+          f"{min(e['first'] for e in crossed)} to {max(e['last'] for e in crossed)} (host clock, UTC)")
     if T.ARM == "original":
         spent = topups = 0.0
         prev = None

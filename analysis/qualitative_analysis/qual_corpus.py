@@ -243,7 +243,7 @@ def report(rows, epi):
               f" {sum(r['stayarg'] for r in sel):>4} disputing it in the same message")
 
     # ---------------------------------------------------------------- 5.4
-    hdr("5.4  requests and compliance (requested move performed within six turns)")
+    hdr("5.4  requests and compliance (requested move performed within the next seven accepted moves)")
     print(f"  {'model':<14}" + "".join(f"{p:>22}" for p in ("structured", "freeform", "hybrid")))
     for m in ("qwen38", "dsv41", "nemotron"):
         cells = []

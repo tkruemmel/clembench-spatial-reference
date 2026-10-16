@@ -312,10 +312,48 @@ def failures(rows):
                                               r["abort_reason"]) for r in oth])
 
 
+def tex(rows):
+    """tab:crossed: outcomes and failure anatomy, released against crossed boards."""
+    body, notes = [], []
+    for suite in SUITES:
+        if body:
+            body.append(r"\midrule")
+        for lv in ("S3", "S3x", "S4", "S4x"):
+            rs = [r for r in rows if r["level"] == lv and r["suite"] == suite]
+            c, a = tc.cell(rs), anatomy(rs)
+            body.append(f"{suite if lv == 'S3' else ''} & {lv} & {c['q']:.1f} / {c['played']:.1f} & "
+                        f"{c['k']}/{c['n']} & {a['enc']} & {a['cut']}")
+        for x, y in PAIRS:
+            ra = [r for r in rows if r["level"] == x and r["suite"] == suite]
+            rb = [r for r in rows if r["level"] == y and r["suite"] == suite]
+            qa = [r["q"] for r in ra if r["q"] is not None]
+            qb = [r["q"] for r in rb if r["q"] is not None]
+            A, B = anatomy(ra), anatomy(rb)
+            ka, kb = sum(r["success"] for r in ra), sum(r["success"] for r in rb)
+            notes.append(f"{suite} {x}$\\to${y}: Quality $p = {tc.sci(two_sample_p(qb, qa))}$, "
+                         f"success $p = {tc.sci(fisher(kb, len(rb), ka, len(ra)))}$, "
+                         f"cut episodes $p = {tc.sci(fisher(B['cut'], len(rb), A['cut'], len(ra)))}$")
+    caption = (
+        "The crossed-device probe, DeepSeek only: the released S3 and S4 boards "
+        "against S3x and S4x, which move the level's device onto the other dependency chain "
+        "(Section~\\ref{sec:res-crossed}). Quality Score / \\% Played, successes, enclosure aborts "
+        "(an object left with no legal move) and episodes with a \\texttt{done} cut. Each cell is "
+        "60 episodes: four protocols, 15 boards. Quality and efficiency divide by each board's "
+        "own attainable optimum. Exploratory.")
+    note = ("Unpaired two-sided permutation test on Quality ($10^5$ resamples, seed 0); Fisher "
+            "exact on successes and on cut episodes: " + "; ".join(notes) + ".")
+    return tc.table(caption, "tab:crossed", "llrrrr",
+                    r"Suite & Level & Quality / \% Played & Success & Enclosures & Cut episodes",
+                    body, note=note)
+
+
 def main():
     opt = optima()
     rows, boards = load(opt)
     selfcheck(rows, opt)
+    if "--tex" in sys.argv:
+        print(tex(rows))
+        return
     motivation(rows)
     instances(boards)
     outcomes([r for r in rows if r["level"] in ("S3", "S3x", "S4", "S4x")])

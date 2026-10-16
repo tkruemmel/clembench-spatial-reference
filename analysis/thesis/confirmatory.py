@@ -441,6 +441,81 @@ def est(r, outcome):
     return T.signed(r["est"], 3)
 
 
+TEST = {"A9": "Woolf homogeneity", "B4": "Woolf homogeneity",
+        "D2": "permutation"}
+
+
+def confirmatory_table(res, h):
+    """tab:confirmatory: the nineteen contrasts as declared, with their p.
+
+    The family headers are the method's text; the counts in them are read off
+    the run, so the declaration and the outcome cannot drift apart."""
+    c_n = sorted({int(x) for rid in ("C1", "C2", "C3") for x in str(res[rid]["n"]).split("/")})
+    a_n = res["A1"]["n"]
+    head = {
+        "A": ("\\textbf{A --- the channel} (RQ2, Section~\\ref{sec:res-dyad}). Dyad only; "
+              "A1--A8 on S2--S4, S1 being at ceiling in every dyad cell, and A9 on S1--S4; "
+              f"one episode per board, paired within board ({a_n} pairs); pooled over the "
+              "two strong models. A1--A2 test the cost of the team game against silent "
+              "solo play; A3--A8 are the three prices of a channel; A9 is the level "
+              "interaction, Woolf's test of prose against \\textsc{none} across levels. "
+              "Efficiency contrasts on the boards solved under both conditions."),
+        "B": ("\\textbf{B --- team size} (RQ3, Section~\\ref{sec:res-teamsize}). Per model, "
+              f"never pooled; the same {res['B1']['n']} episodes per suite, paired within "
+              "board. B1--B3 are the steps, B4 the level interaction."),
+        "C": ("\\textbf{C --- the spatial baseline} (RQ1, Section~\\ref{sec:res-alone}). Solo; "
+              f"boards solved by both strong models under both solo protocols, {c_n[0]}--{c_n[-1]} per level; on "
+              "efficiency, success being at ceiling in every cell. Tested in each strong "
+              "model separately, the ordering claim requiring both. C1--C3 compare "
+              "\\emph{across} levels on the free-order joint optimum $J$ (Section~\\ref{sec:method-attainable}) "
+              "rather than the per-object bound the solo game stores; C4 is within board. "
+              "S2 against S4 is deliberately absent: the tie is not claimed."),
+        "D": ("\\textbf{D --- the capability range} (Section~\\ref{sec:res-capability}). "
+              f"D1: the whole analysis set, {res['D1']['n']} episodes per model, paired "
+              "within board. D2: unpaired, one accuracy per episode, over the episodes "
+              "that contain a claim about a teammate's object."),
+    }
+    body, fam, gap = [], None, ""
+    for i, (rid, contrast, outcome, _f) in enumerate(ROWS):
+        if rid[0] != fam:
+            fam = rid[0]
+            if body:
+                body.append(r"\midrule")
+            body.append(r"\multicolumn{5}{@{}p{0.96\textwidth}@{}}{" + head[fam] + "}")
+            gap = r"\addlinespace[2pt] "
+        test = TEST.get(rid, "exact McNemar" if outcome == "success" else "permutation")
+        mark = "" if h[i]["reject"] else r" $\dagger$"
+        body.append(f"{gap}{rid} & {contrast} & {outcome} & {test} & "
+                    f"{ptex(res[rid]['p'], fl(res[rid]))}{mark}")
+        gap = ""
+    body += [r"\midrule",
+             r"\multicolumn{5}{@{}p{0.96\textwidth}@{}}{\textbf{P1 --- a premise, not a "
+             r"contrast, and not counted in $m$.} Family~A pools over the two strong models, "
+             r"which is licensed only if they are exchangeable on this task, so the pooling "
+             r"has to be tested: Qwen3.8 against DeepSeek on success, whole analysis set, paired "
+             r"within board. It is reported as a bound on the difference and not as a "
+             r"$p$-value, because failing to reject is not evidence of equivalence; it is "
+             r"reported whatever it shows; and it is left uncorrected, since correction would "
+             r"cost power to detect precisely the violation it exists to catch.}"]
+    caption = (
+        "The confirmatory set: nineteen contrasts in four families, one family per "
+        "research question plus the cross-model comparison. Holm correction is applied "
+        "within these nineteen and nowhere else, so $m$ is fixed by this table; "
+        "P1 is a premise rather than a claim and is outside it. Every other "
+        "test reported in this thesis is exploratory and uncorrected. "
+        "\\textsc{success} is the binary episode score "
+        "(Section~\\ref{sec:method-metrics-primary}): 1 when every object is on its target at "
+        "termination, 0 for a loss and an abort alike. Efficiency is the attainable "
+        "optimum of the episode's game over its move count "
+        "(Section~\\ref{sec:method-attainable}), defined only for successful episodes, so "
+        "every efficiency contrast is computed on the boards solved under both of the "
+        "conditions it compares. $p$ is the raw value; $\\dagger$ marks a contrast Holm "
+        "retains as a null. Effect sizes and Holm-adjusted values are in Appendix~A "
+        "(Tables~\\ref{tab:holm} and~\\ref{tab:contrasts}).")
+    return T.table(caption, "tab:confirmatory", "@{}llll r@{}",
+                   r"\# & Contrast & Outcome & Test & $p$", body, tight=True)
+
+
 def emit(res, eps, idx, check):
     ps = [res[rid]["p"] for rid, *_ in ROWS]
     h, order, stop = holm(ps)
@@ -465,16 +540,8 @@ def emit(res, eps, idx, check):
               f"({n01}:{n10} discordant of {n})")
         return
 
-    # 1 -- the p column of tab:confirmatory, to paste
-    out = ["% ------------------------------------------------------------",
-           "% 1. The p column of tab:confirmatory.  One cell per row of the",
-           "%    table, in its order; a dagger marks a contrast Holm retains",
-           "%    as a null, and the caption needs the legend for it.",
-           "% ------------------------------------------------------------"]
-    for i, (rid, _c, _o, _f) in enumerate(ROWS):
-        out.append(f"% {rid} & {ptex(res[rid]['p'], fl(res[rid]))}"
-                   + ("" if h[i]["reject"] else r" $\dagger$"))
-    out.append("")
+    # 1 -- tab:confirmatory itself, the declared set with its p column
+    out = [confirmatory_table(res, h)]
 
     # 2 -- the ladder
     body = []
@@ -494,14 +561,14 @@ def emit(res, eps, idx, check):
                if stop else "every contrast is rejected. ")
             + "Rows below the rule are not tested further, which is what "
               "makes Holm a step-down procedure rather than nineteen separate "
-              "comparisons. \\textsc{p1} is outside the ladder by "
+              "comparisons. P1 is outside the ladder by "
               "construction.")
     out.append(T.table(
         "The Holm ladder over the confirmatory set, sorted by raw $p$. Each "
         f"row is tested against $\\alpha/(m - i + 1)$ with $m = {M}$ and "
         "$\\alpha = 0.05$; the procedure stops at the first row that fails "
-        "and every row below it is retained. $p < 10^{-4}$ marks the "
-        "resampling floor of the permutation tests.",
+        "and every row below it is retained. $p < 10^{-4}$ is printed for "
+        "permutation $p$ below $10^{-4}$.",
         "tab:holm", "llp{0.36\\textwidth}rrr",
         r"$i$ & \# & Contrast & $p$ & $\alpha/(m-i+1)$ & $p_\mathrm{Holm}$",
         body, note=note, tight=True))
@@ -519,11 +586,15 @@ def emit(res, eps, idx, check):
         "\\emph{Effect} is the difference in success rate in percentage "
         "points, the mean per-board efficiency difference, or Woolf's "
         "$\\chi^2$ on 3 degrees of freedom. \\emph{$n$} is matched pairs, or "
-        "the two group sizes where the contrast is unpaired. Families B, C "
-        "and D are per model and never pooled: the $p$ shown is the larger of "
-        "the two strong models', which is the valid test of the conjunction "
-        "the prose claims; both values are in the per-model notes below. "
-        + f"\\textsc{{p1}}: Qwen3.8 minus DeepSeek-V4.1-Flash on success over "
+        "the two group sizes where the contrast is unpaired. Families B and C "
+        "and contrast D1 are per model and never pooled: the $p$ shown is the "
+        "larger of the two strong models', which is the valid test of the "
+        "conjunction the prose claims; D2 pools the two strong models. "
+        "Per-model $p$ (Qwen3.8; DeepSeek): "
+        + "; ".join(f"{rid} ${T.sci(res[rid]['per_model'][0]['p'])}$, "
+                    f"${T.sci(res[rid]['per_model'][1]['p'])}$"
+                    for rid, *_ in ROWS if "per_model" in res[rid]) + ". "
+        + f"P1: Qwen3.8 minus DeepSeek on success over "
           f"all {n} paired cells is {d:+.2f} points, exact 95\\,\\% interval "
           f"$[{lo:+.2f}, {hi:+.2f}]$ ({n01}:{n10} discordant). It is reported "
           "as a bound and not as a $p$-value: failing to reject is not "

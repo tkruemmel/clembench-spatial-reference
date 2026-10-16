@@ -139,8 +139,7 @@ def main(tex=False):
           " non-S1 boards:", sorted(k for k, v in weak.items() if v and k[0] != "S1"))
     hs = [s for r in rows if r["name"] == "hard" for s in r["solo"]]
     print("Solo successes on the hard boards (of 4 each):", collections.Counter(hs))
-    if tex:
-        print(latex(rows))
+    return rows
 
 
 def latex(rows):
@@ -154,10 +153,42 @@ def latex(rows):
                     f"{r['gap']:.1f} & {r['ovh']:.2f} & {r['walls']:.1f} & {r['h0']:.1f} & "
                     f"{r['J']:.1f} & {r['det']:.2f} \\\\")
     return "\n".join([
-        r"  \begin{tabular}{llrrrrrrrr}", r"    \toprule",
-        r"    Level & Group & Boards & Success & Gap & 6p ovh. & Walls & Indep.\ paths & Optimum & Detour \\",
+        r"  \begin{tabular}{ll>{\raggedright\arraybackslash}p{2.4cm}rrrrrrr}", r"    \toprule",
+        r"    Level & Group & Boards & Success & Gap & 6p ovh. & Walls & Paths & Optimum & Detour \\",
         r"    \midrule", *body, r"    \bottomrule", r"  \end{tabular}"])
 
 
+def float_tex(rows):
+    """tab:hard-boards as a float; the report goes to stderr under --tex."""
+    hard = [r for r in rows if r["name"] == "hard"]
+    levels = sorted({r["lv"] for r in hard})
+    assert levels == ["S2", "S3", "S4"], levels      # the caption names them
+    s2 = [r for r in hard if r["lv"] == "S2"]
+    assert len(s2) == 1 and s2[0]["gs"] == [10], s2
+    return "\n".join([
+        r"\begin{table}[tbp]", r"  \centering", r"  \footnotesize",
+        r"  \caption{Hard and easy boards within a level, strong tier. A board is "
+        r"\emph{hard} when the two strong models solve at most 75\,\% of its 24 team "
+        r"episodes (dyad, 3p and 6p, four protocols each) and \emph{easy} when they solve "
+        r"92\,\% or more; boards in between are omitted. S1 has no hard board; S2 has one, "
+        f"S2~\\#10 ({s2[0]['succ']} of {s2[0]['n']}), whose interaction gap is the largest at "
+        r"its level. Gap, overhead, walls and paths are means over boards; detour is the "
+        r"median pooled over objects. The designed features of each level "
+        r"(Chapter~\ref{ch:setup}) are constant within it and are not shown.}",
+        r"  \label{tab:hard-boards}", r"  \setlength{\tabcolsep}{4pt}",
+        latex(rows), r"  \\[2pt]", r"  \begin{minipage}{0.9\textwidth}\footnotesize",
+        r"  \emph{Gap}: the interaction gap, the free-order joint optimum $J$ minus the "
+        r"per-object bound. \emph{6p ovh.}: the six-player attainable optimum over $J$."
+        r" \emph{Paths}: the per-object bound, the sum of per-object shortest "
+        r"paths ignoring the other objects. \emph{Optimum}: $J$. \emph{Detour}: "
+        r"per-object walled path over Manhattan distance.",
+        r"  \end{minipage}", r"\end{table}", ""])
+
+
 if __name__ == "__main__":
-    main("--tex" in sys.argv)
+    import contextlib
+    tex = "--tex" in sys.argv
+    with contextlib.redirect_stdout(sys.stderr if tex else sys.stdout):
+        rows = main(tex)
+    if tex:
+        print(float_tex(rows))

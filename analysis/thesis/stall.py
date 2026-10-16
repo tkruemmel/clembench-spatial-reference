@@ -133,7 +133,7 @@ def tex(R):
          for s in SUITES}
     return table(
         "Mean stall rate on successful episodes by level and suite, Qwen3.8 and "
-        "DeepSeek-V4.1-Flash pooled, native window $k = \\max(2n, 6)$. Exploratory.",
+        "DeepSeek pooled, native window $k = \\max(2n, 6)$. Exploratory.",
         "tab:stall-level", "lcccc", " & solo & dyad & 3p & 6p", body,
         note="Successful episodes with at least one window: "
              + ", ".join(f"{s} {n[s]}" for s in SUITES) + ".")

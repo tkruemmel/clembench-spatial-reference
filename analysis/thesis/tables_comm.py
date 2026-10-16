@@ -506,17 +506,17 @@ def solo_table(opt, check):
         "\\emph{\\% Played} and the \\emph{Quality Score} are the clembench scores "
         "of Table~\\ref{tab:clembench}; the rows beneath them are its two "
         "game-specific factors. In the strong tier every episode is played and "
-        "the Quality Score is lowest at S3, not S4, in both models: success does "
-        "not move across the levels, so the ordering is carried by efficiency. "
+        "the Quality Score is lowest at S3, not S4, in both models, and S3 is also "
+        "the efficiency low point; success is 28 or 29 of 30 at every level. "
         "The weak tier solves nothing above S1. "
-        "\\emph{Efficiency} is the exact joint optimum over the move count and "
+        "\\emph{Efficiency} is the free-order joint optimum $J$ over the move count and "
         "\\emph{moves wasted} the move count minus it, both over successful "
         "episodes only, so a cell with no success has neither.")
     note = (
         r"\emph{Tests} (exploratory, uncorrected). Quality Score across the four "
         r"levels, Kruskal--Wallis, and S3 against S4, Mann--Whitney: "
         f"{strong}. Success, smallest pairwise Fisher exact $p$ over the six "
-        f"level pairs: {ps}; no pair of levels differs in success within any model.")
+        f"level pairs: {ps}; no pair of levels differs detectably in success within any model.")
     return table(caption, "tab:solo", "llrrrr",
                  r"Model & & S1 & S2 & S3 & S4", body, note)
 
@@ -545,6 +545,15 @@ def scratchpad_table(opt, check):
         (a, n), (b, m) = ((cells[(model, "all", p)]["k"], cells[(model, "all", p)]["n"])
                           for p in ("silent", "thinking"))
         perm[(model, "fisher")] = fisher_exact([[a, n - a], [b, m - b]]).pvalue
+        # the paired test the text reports: exact McNemar over (level, board)
+        si = {(e["level"], e["game_id"]): e["success"] for e in rows["silent"]}
+        th = {(e["level"], e["game_id"]): e["success"] for e in rows["thinking"]}
+        up = sum(1 for k in si if k in th and th[k] and not si[k])
+        dn = sum(1 for k in si if k in th and si[k] and not th[k])
+        perm[(model, "mcnemar")] = (up, dn, binomtest(up, up + dn, 0.5).pvalue
+                                    if up + dn else float("nan"))
+
+    mcn = ", ".join(f"${sci(perm[(m, 'mcnemar')][2])}$ ({MODEL_NAMES[m]})" for m in STRONG)
 
     def d_eff(model, level):
         s_, t_ = (cells[(model, level, p)]["eff"] for p in ("silent", "thinking"))
@@ -595,20 +604,20 @@ def scratchpad_table(opt, check):
                if sig else "significant in neither")
     caption = (
         "Solo \\textsc{silent} against \\textsc{thinking} by level, 15 boards per "
-        "cell. The scratchpad raises the mean Quality Score by about six points "
+        "cell. With the scratchpad the mean Quality Score is about six points higher "
         f"in both strong models, pooled over the four levels ({gains}), "
         f"{verdict}: the mean moves on the few boards one protocol solves and "
         "the other does not, each of which moves the paired difference by the "
-        "full score of the solved episode. There is no success gap to close --- silent play is already "
-        "near ceiling at every level --- and the gain is not concentrated at "
+        "full score of the solved episode. There is little success to add, since silent play is already "
+        "near ceiling at every level, and the gain is not concentrated at "
         "S3 and S4. $\\Delta$ is \\textsc{thinking} minus \\textsc{silent}.")
     note = (
         r"\emph{Tests} (exploratory, uncorrected). Quality: two-sided paired "
         r"permutation test on the per-board differences. $\Delta$ Quality is over "
         r"the boards played under both protocols, so where episodes aborted "
         r"(the weak tier) it is not the difference of the two rows above it. "
-        r"Success, pooled Fisher exact: "
-        f"{fis}; no success contrast is significant. $\\Delta$ efficiency is over "
+        r"Success, exact McNemar on the same boards: "
+        f"{mcn}; no success difference is detectable. $\\Delta$ efficiency is over "
         r"each protocol's own successes, so a cell with no success under either "
         r"protocol has none.")
     return table(caption, "tab:scratchpad", "llrrrrr",
@@ -761,24 +770,24 @@ def clembench_table(opt, check):
         "\\emph{All} is the macro-average over the four games and "
         "\\emph{clemscore} is Average \\% Played / 100 $\\times$ Average Quality "
         "Score. \\texttt{BENCH\\_SCORE} is taken on each game's attainable "
-        "optimum (\\S5.4, \\S6.4), the fewest moves a flawless team of that "
+        "optimum (Sections~\\ref{sec:method-metrics-primary} and~\\ref{sec:method-attainable}), the fewest moves a flawless team of that "
         "size needs under that game's rules, so a perfect play-through scores "
-        "100 in every game. The solo game stores the per-object bound instead, "
-        "which understates S2--S4. \\emph{Success} is successes over "
+        "100 in every game. The solo instance files store the per-object bound, "
+        "which understates the optimum at S2--S4; the solo scores here are "
+        "recomputed on the free-order joint optimum $J$, which is a single "
+        "player's attainable optimum. \\emph{Success} is successes over "
         "all episodes, the denominator used everywhere else in this thesis, where "
         "an abort counts as a failure. \\emph{Goal rate} is objects on target "
         "when the episode ended, over all objects in all episodes: the "
         "partial-credit measure the three outcome scores above it cannot "
         "express, since each of them is 0 unless all six objects are home. It "
         "is the analogue of the Goal Success Rate that "
-        "Jordan et al.\\ \\rw{2025} report beside the framework scores, and "
-        "it is reconstructed by replaying the logged moves (\\S5.4.1). It is "
-        "reported as a diagnostic beside the outcome metrics and is deliberately "
-        "not folded into the Quality Score: five of six objects home is not "
-        "five-sixths of a solved board, because the object left behind is "
-        "usually the one the level was built around. The weak tier shows why "
+        "\\citet{jordan2025plant} report beside the framework scores, and "
+        "it is reconstructed by replaying the logged moves (Section~\\ref{sec:method-metrics-primary}). It is "
+        "reported as a diagnostic beside the outcome metrics and is not folded "
+        "into the Quality Score. The weak tier shows why "
         f"the scores cannot be read apart: a Quality Score of {wk['q']:.0f} at "
-        f"{'the dyad' if wg == 'dyad' else wg} rests on the {wk['played']:.1f}\\% of episodes that were played "
+        f"{'the dyad' if wg == 'dyad' else wg} rests on the {wk['played']:.1f}\\,\\% of episodes that were played "
         "at all, and its goal rate over all episodes is a small fraction of that.")
     return table(caption, "tab:clembench", "llrrrrr",
                  r"Model & & Solo & Dyad & 3p & 6p & All", body)
@@ -859,14 +868,14 @@ def goals_table(check):
         "Objects on target when the episode ended, for the episodes that did not "
         "succeed: the distribution behind the Goal rate row of "
         "Table~\\ref{tab:clembench}, reconstructed by replaying every logged move "
-        "against the instance's start positions (\\S5.4.1). Successes are omitted "
-        "because they carry no distribution --- an episode counts as a success "
+        "against the instance's start positions (Section~\\ref{sec:method-metrics-primary}). Successes are omitted "
+        "because they carry no distribution: an episode counts as a success "
         f"only when all six objects are home, so all {n_succ_tex} of them replay to 6/6, "
         "which is how the reconstruction is verified rather than something the "
         "table reports. What is left is exactly what \\texttt{BENCH\\_SCORE} "
         "cannot distinguish, since it is 0 for all of it alike. \\emph{In the "
-        f"strong tier a loss is a near miss}}: {near5:.0f}\\% of the {len(lost)} lost "
-        f"episodes end one object short and {near4:.0f}\\% end at four of six or "
+        f"strong tier a loss is a near miss}}: {near5:.0f}\\,\\% of the {len(lost)} lost "
+        f"episodes end one object short and {near4:.0f}\\,\\% end at four of six or "
         f"better, the means being {mean[(STRONG[0], 'lost')]:.2f} and "
         f"{mean[(STRONG[1], 'lost')]:.2f}. \\emph{{An abort is not}}: the same models average "
         f"{mean[(STRONG[0], 'aborted')]:.2f} and {mean[(STRONG[1], 'aborted')]:.2f}, and the "
@@ -907,6 +916,45 @@ def teamsize_cells(opt, tests=True):
     return cells, paired, paired_j
 
 
+def zero_pairs(opt):
+    """(m, a, b) -> (mean, n, perm p) of the paired Quality drop a - b per
+    strong model, with aborted episodes scored as zero (D6; ledger E61)."""
+    eps = [e for e in all_episodes(opt, SUITES) if e["model"] in STRONG]
+    z = {}
+    for m in STRONG:
+        for a, b in TEAMSIZE_STEPS:
+            pa = {(e["level"], e["cond"], e["game_id"]): (e["q"] or 0.0) for e in eps
+                  if e["model"] == m and e["suite"] == a}
+            pb = {(e["level"], e["cond"], e["game_id"]): (e["q"] or 0.0) for e in eps
+                  if e["model"] == m and e["suite"] == b}
+            d = [pa[k] - pb[k] for k in pa if k in pb]
+            z[(m, a, b)] = (st.mean(d), len(d), perm_p(d))
+    return z
+
+
+def zero_steps_3p6p(opt):
+    """Strong models pooled, level -> (mean, n, perm p) of the paired 3p->6p
+    Quality change (6p minus 3p) with aborted episodes scored as zero (D6;
+    ledger E61).  The captions quote S2 and S4, where the sign flips."""
+    eps = [e for e in all_episodes(opt, SUITES) if e["model"] in STRONG]
+    key = lambda e: (e["model"], e["level"], e["cond"], e["game_id"])
+    q3 = {key(e): e["q"] or 0.0 for e in eps if e["suite"] == "3p"}
+    q6 = {key(e): e["q"] or 0.0 for e in eps if e["suite"] == "6p"}
+    out = {}
+    for l in ALL_LEVELS:
+        d = [q6[k] - q3[k] for k in q6 if k[1] == l and k in q3]
+        out[l] = (st.mean(d), len(d), perm_p(d))
+    assert [round(out[l][0], 2) for l in ("S2", "S4")] == [-0.36, -5.05], out
+    assert all(out[l][2] > 0.05 for l in ("S2", "S4")), out
+    return out
+
+
+def zero_steps_text(opt):
+    z = zero_steps_3p6p(opt)
+    return (f"by {-z['S2'][0]:.1f} and {-z['S4'][0]:.1f} points, $p = {sci(z['S2'][2])}$ "
+            f"and ${sci(z['S4'][2])}$")
+
+
 def teamsize_table(opt, check):
     """tab:teamsize (the inventory's tab 12): S9.1's cost of team size.
 
@@ -943,7 +991,7 @@ def teamsize_table(opt, check):
     assert paired[(qwen, "3p", "6p")][0] > 0 and paired[(qwen, "3p", "6p")][2] < 0.05
     assert paired[(ds, "3p", "6p")][2] > 0.5
 
-    name = {"solo": "Solo (ref.)", "dyad": "Dyad", "3p": "3p", "6p": "6p"}
+    name = {"solo": "Solo", "dyad": "Dyad", "3p": "3p", "6p": "6p"}
     body = []
     for label, fmt in (
             ("Quality / \\% Played",
@@ -964,21 +1012,28 @@ def teamsize_table(opt, check):
                 f"{signed(q2, 2)} (${pp(p2)}$)")
     caption = (
         "The cost of team size at each level: Quality Score and \\% Played, "
-        "success and move efficiency by suite, Qwen3.8 and DeepSeek-V4.1-Flash "
+        "success and move efficiency by suite, Qwen3.8 and DeepSeek "
         "pooled ($n = 120$ per multiplayer cell, 60 for solo). Quality and "
-        "efficiency divide by each suite's attainable optimum (\\S6.4), so a "
+        "efficiency divide by each suite's attainable optimum (Section~\\ref{sec:method-attainable}), so a "
         "flawless team of any size scores 100; \\emph{Quality on $J$} divides "
         "by the free-order joint optimum instead and so also charges the moves "
         "the suite's rules force. Solo is the reference row, not a step of the "
-        "ladder. The third agent costs Quality at every level, most at S3. The "
-        "remaining three cost the agents Quality only at S3; at the other levels "
-        "their cost is what the rules force, and the aborted episodes that "
-        "appear at 6p from S2 up. Below 6p every episode is played.")
+        "ladder. The third agent costs Quality at every level, most at S3. On "
+        "played episodes the fourth to sixth cost the agents Quality only at S3; "
+        "at the other levels their cost is what the rules force, together with "
+        "the aborted episodes that appear at 6p from S2 up. With aborts scored as "
+        "zero, six-player teams fall below three-player ones at S2 and S4 as well ("
+        + zero_steps_text(opt) + "). "
+        "Below 6p every episode is played.")
+    z = zero_pairs(opt)
     note = ("\\emph{Paired Quality drops}, per model (Qwen3.8, then DeepSeek), "
             "over (level, protocol, board) played in both suites, two-sided "
-            "paired permutation test. On the attainable optimum: "
-            + "; ".join(step(paired, a, b) for a, b in steps)
-            + ". On $J$: " + "; ".join(step(paired_j, a, b) for a, b in steps)
+            "paired permutation test. On the attainable optimum they are in "
+            "Table~\\ref{tab:teamsize-tests}; on $J$: "
+            + "; ".join(step(paired_j, a, b) for a, b in steps)
+            + ". With aborts scored as zero, 3p$\\to$6p: "
+            + " and ".join(f"{signed(z[(m, '3p', '6p')][0], 2)} ($p = {sci(z[(m, '3p', '6p')][2])}$)"
+                           for m in STRONG)
             + ". Efficiency is over successes only.")
     return table(caption, "tab:teamsize", "llrrrr",
                  r"Measure & Suite & S1 & S2 & S3 & S4", body, note=note, tight=True)
@@ -1023,12 +1078,14 @@ def teamsize_steps_table(opt):
         "split into the part the suite's rules force (the change in what a "
         "flawless team scores on $J$) and the part the agents add (the change "
         "in Quality on each suite's attainable optimum), with the change in "
-        "\\% Played beneath. Qwen3.8 and DeepSeek-V4.1-Flash pooled ($n = 120$ "
+        "\\% Played beneath. Qwen3.8 and DeepSeek pooled ($n = 120$ "
         "per cell). The third agent's cost is mostly the agents' and "
-        "concentrated at S3. The remaining three cost the agents Quality only at "
-        "S3; at the other levels their whole Quality cost is the rules, and from "
-        "S2 up they also cost aborted episodes, which the Quality Score does not "
-        "count. Largest cost per row in bold.")
+        "concentrated at S3. On played episodes the fourth to sixth cost the "
+        "agents Quality only at S3; at the other levels their whole Quality cost "
+        "is the rules, and from S2 up they also cost aborted episodes, which the "
+        "Quality Score does not count (with aborts scored as zero, the step from "
+        "three to six costs Quality at S2 and S4 as well, " + zero_steps_text(opt) + "). Largest cost per row "
+        "in bold.")
     return table(caption, "tab:teamsize-steps", "llrrrr",
                  r"Measure & Step & S1 & S2 & S3 & S4", body)
 
@@ -1039,6 +1096,9 @@ def teamsize_tests_table(opt):
     applies only within the nineteen confirmatory contrasts."""
     _, paired, _ = teamsize_cells(opt)
     assert all(paired[(m, "dyad", "3p")][2] < 0.001 for m in STRONG)
+    z = zero_pairs(opt)
+    assert round(z[(STRONG[0], "3p", "6p")][0], 2) == 7.21, z
+    assert round(z[(STRONG[1], "3p", "6p")][0], 2) == 2.65, z
     assert paired[(STRONG[0], "3p", "6p")][2] < 0.05 < 0.5 < paired[(STRONG[1], "3p", "6p")][2]
     fp = lambda p: "<10^{-4}" if p < 1e-4 else sci(p)
     body = []
@@ -1053,10 +1113,14 @@ def teamsize_tests_table(opt):
         "both suites; $\\Delta Q$ is the mean of smaller-team minus larger-team "
         "Quality. Exploratory and uncorrected. The third agent is a drop in "
         "both models; the step from three to six is a further drop in Qwen3.8 "
-        "and none in DeepSeek.")
+        "and not detectable in DeepSeek. With aborts scored as zero, that step "
+        f"is {signed(z[(STRONG[0], '3p', '6p')][0], 2)} "
+        f"($p {psci(z[(STRONG[0], '3p', '6p')][2])}$) and "
+        f"{signed(z[(STRONG[1], '3p', '6p')][0], 2)} "
+        f"($p {psci(z[(STRONG[1], '3p', '6p')][2])}$).")
     note = ("Two-sided paired permutation (sign-flip) test on the mean "
-            "difference, $10^5$ resamples at a fixed seed, and $p < 10^{-4}$ marks the resampling "
-            "floor. $n$ falls below 240 where a 6p "
+            "difference, $10^5$ resamples at seed 0; $p < 10^{-4}$ is printed for "
+            "values below $10^{-4}$. $n$ falls below 240 where a 6p "
             "episode aborted and has no Quality Score.")
     head = " & ".join(f"\\multicolumn{{3}}{{c}}{{{MODEL_NAMES[m]}}}" for m in STRONG)
     sub = " & ".join(r"$\Delta Q$ & $n$ & $p$" for _ in STRONG)
@@ -1098,7 +1162,7 @@ def seal_greedy_table():
         + ((", and in the remaining case no move made progress" if noprog == 1 else
             f", and in the remaining {noprog} no move made progress") if noprog else "")
         + ", so avoiding the enclosure there meant giving up ground on its own "
-        "object for a teammate it cannot see.")
+        "object.")
     body = [
         f"Aborts whose sealer had a harmless alternative & {cells('n')}",
         r"\midrule",
@@ -1187,7 +1251,7 @@ def cut_shape_table():
 
     caption = (
         f"Where the chokepoint was, over the {total} of the "
-        f"{len(everything)} permanent cuts of \\S9.3.2 that pinch a route "
+        f"{len(everything)} permanent cuts of Section~\\ref{{sec:res-cut}} that pinch a route "
         f"rather than seal a destination. All {total} are severed by a "
         "\\texttt{done} declaration rather than by a move, and in every one "
         "the sealing object is standing on its own target, so the rows "
@@ -1195,9 +1259,9 @@ def cut_shape_table():
         f"accounts for {sum(per[(k, lv)] for t, ks in groups[:1] for k in ks for lv in levels)} "
         "of them and its entrance alone for "
         f"{sum(per[(k, lv)] for k in (cut.ENTRANCE, cut.ENTRANCE_OTHER) for lv in levels)}: "
-        "the S3 generator places a target on the corridor's only door "
-        "(\\S6.2), so the player that finishes there correctly is the one "
-        f"that kills the board. The remaining {pockets} cuts, all at S1 and S2, "
+        "the S3 generator places a target on the corridor's only entrance "
+        "(Section~\\ref{sec:method-levels-s3}), so the player that correctly finishes there is the one "
+        f"whose \\texttt{{done}} cuts the corridor off. The remaining {pockets} cuts, all at S1 and S2, "
         "seal the target cell's own neighbourhood instead; they are described "
         "in the text rather than placed here, having no chokepoint to locate.")
     note = (
@@ -1294,10 +1358,10 @@ def main():
     caption = (
         "The dyad against its own solo baseline, S2--S4 pooled, on the clembench "
         "scores first and their two game-specific factors after. "
-        f"The gap each protocol is asked to recover is {gap_q:.2f} points of Quality "
-        f"Score, made of {gap_s:.1f} points of success and {gap_e:.3f} of move "
-        "efficiency: what splitting six objects between two masked agents costs "
-        "the same models on the same boards. Every episode in scope is played, so "
+        f"The gap between the silent dyad and the pooled solo baseline on the same "
+        f"boards is {gap_q:.2f} points of Quality Score, made of {gap_s:.1f} points of "
+        f"success and {gap_e:.3f} of move efficiency; it is descriptive, and its "
+        "success part is not established (A1 retained). Every episode in scope is played, so "
         "the Quality Score is over all of them. "
         "The two solo conditions are shown beneath the pooled "
         "baseline they make up: \\textsc{silent} is deliberation-free, as "
@@ -1307,16 +1371,16 @@ def main():
         "cells of both models, leaving no gap to recover. The gap is computed before "
         "rounding, so it will not reproduce exactly from the printed cells.")
     note = (
-        r"\emph{Scope.} The two strong models (Qwen3.8-27B-FP8 and "
-        r"DeepSeek-V4.1-Flash), grid rendering, S2--S4, so each level contributes "
+        r"\emph{Scope.} The two strong models (Qwen3.8 and "
+        r"DeepSeek), grid rendering, S2--S4, so each level contributes "
         r"15 boards. Solo pools "
         r"\textsc{silent} and \textsc{thinking} as the baseline the dyad is "
         r"measured against. "
         r"\emph{Efficiency} is the attainable optimum of the episode's game over "
-        r"its move count (the exact joint optimum for solo, where the two "
-        r"coincide), the scoring denominator of \S5.4. It is conditioned on "
+        r"its move count (the free-order joint optimum $J$ for solo, where the two "
+        r"coincide), the scoring denominator of Section~\ref{sec:method-metrics-primary}. It is conditioned on "
         r"success, so the cells rest on different board sets. On the "
-        f"{a4['n_eff']} boards both solve, \\textsc{{structured}} against "
+        f"{a4['n_eff']} model-boards both solve, \\textsc{{structured}} against "
         f"\\textsc{{none}} is {signed(a4['d_eff'], 3)} (paired permutation "
         f"$p {psci(a4['pw'])}$), contrast A4 of the confirmatory set, which Holm "
         r"retains as a null: the schema is not established to cost or save moves.")
@@ -1357,6 +1421,8 @@ def main():
     assert ch["structured"]["pq"] < 0.05 and ch["structured"]["d_succ"] <= 0, ch
     assert ch["freeform"]["d_succ"] >= 0 and ch["hybrid"]["d_succ"] >= 0, ch
     ff_bc = ch["freeform"]["n01"] + ch["freeform"]["n10"]
+    a2 = res[("none", "solo_silent")]
+    assert all(r["pm"] > 0.05 for r in ch.values()), ch   # "no success difference"
     cap2 = (
         "The deliberation-matched contrasts, on the Quality Score first and its "
         "two game-specific factors after. Each row holds the writing surface "
@@ -1367,26 +1433,26 @@ def main():
         "per contrast. "
         "The first row, the middle three and the last are the three quantities the "
         "design was built to separate. "
-        f"\\emph{{Coordination}}: splitting the board costs {abs(coord_q):.2f} points of "
-        "Quality Score with no channel to repair it "
-        f"({abs(coord_s):.1f} of success and {abs(coord_e):.3f} of efficiency). "
+        f"\\emph{{Team game}}: the silent dyad scores {abs(coord_q):.2f} points of "
+        "Quality Score below solo-\\textsc{silent} "
+        f"({abs(coord_s):.1f} points of success, and {abs(a2['d_eff']):.3f} of "
+        f"efficiency on the {a2['n_eff']} model-boards both solve). "
         f"\\emph{{Deliberation}}: of the {gap_q:.2f} points that "
         "Table~\\ref{tab:recovery} measures against the pooled baseline, "
-        f"{abs(coord_q):.2f} are coordination and the remaining {abs(resid_q):.2f} "
+        f"{abs(coord_q):.2f} separate the silent dyad from solo-\\textsc{{silent}} and "
+        f"the remaining {abs(resid_q):.2f} are "
         "the half-share of the scratchpad that baseline carries, being half "
         "\\textsc{thinking} episodes; the scratchpad on its own is worth "
         f"{signed(delib['d_q'], 2)} ($p {psci(delib['pq'])}$). "
-        "\\emph{What a channel recovers}: the middle block. Prose recovers the "
-        "coordination penalty entire on the Quality Score --- "
+        "\\emph{What a channel recovers}: the middle block. Against "
+        "solo-\\textsc{thinking}, "
         f"\\textsc{{freeform}} ends {signed(ch['freeform']['d_q'], 2)} and "
-        f"\\textsc{{hybrid}} {signed(ch['hybrid']['d_q'], 2)} against its matched "
-        "solo baseline, neither distinguishable from it --- and the schema "
-        f"recovers none of it ({signed(ch['structured']['d_q'], 2)}, "
-        f"$p {psci(ch['structured']['pq'])}$). The factors show how: prose "
-        "trades a little efficiency "
-        f"({signed(best['d_eff'], 3)} at best, {signed(worst['d_eff'], 3)} at worst "
-        "across the three protocols) for success at or above the baseline, and "
-        "the schema loses on efficiency without a success gain to pay for it.")
+        f"\\textsc{{hybrid}} {signed(ch['hybrid']['d_q'], 2)} on the Quality Score, "
+        "neither detectably different, and \\textsc{structured} "
+        f"{signed(ch['structured']['d_q'], 2)} ($p {psci(ch['structured']['pq'])}$). "
+        "All three sit below solo-\\textsc{thinking} on efficiency "
+        f"({signed(ch['freeform']['d_eff'], 3)}, {signed(ch['hybrid']['d_eff'], 3)} and "
+        f"{signed(ch['structured']['d_eff'], 3)}); no success difference is detectable.")
     note2 = (
         r"\emph{Tests.} $\Delta$ is the first condition minus the second. "
         r"Quality: two-sided paired permutation test on the "
@@ -1395,17 +1461,17 @@ def main():
         r"(the $b\,/\,c$ column). Efficiency: two-sided paired permutation test "
         r"on the mean difference over the boards solved under \emph{both} "
         f"conditions, {min(r['n_eff'] for r in res.values())}--"
-        f"{max(r['n_eff'] for r in res.values())} per contrast. It is the test \\S5.5 declares, and "
+        f"{max(r['n_eff'] for r in res.values())} per contrast. It is the test Section~\\ref{{sec:res-stats}} declares, and "
         r"it counts a tied board rather than dropping it. "
         r"\emph{The success column is underpowered by construction.} With $b+c$ "
         r"discordant pairs the smallest attainable two-sided exact $p$ is "
-        r"$2^{1-(b+c)}$, so the freeform row could not have fallen below "
+        r"$2^{1-(b+c)}$, so the \textsc{freeform} row could not have fallen below "
         f"${2 ** (1 - ff_bc):.2f}$ "
         r"however the pairs had gone; read those rows as absence of evidence, not "
         r"evidence of absence. "
         r"\emph{Exploratory, with one exception.} The first row is contrasts "
-        r"A1 and A2 of Table~\ref{tab:confirmatory} --- the same pairs, the "
-        r"same tests --- and carries the Holm correction there "
+        r"A1 and A2 of Table~\ref{tab:confirmatory}, with the same pairs and the "
+        r"same tests, and carries the Holm correction there "
         r"(Table~\ref{tab:contrasts}). The other four are "
         r"outside the confirmatory set, carry no correction and support no "
         r"confirmatory claim.")
@@ -1453,24 +1519,21 @@ def main():
     cap3 = (
         "The protocol ladder by spatial level in the dyad, pooled over the two "
         "strong models: Quality Score, with successes of 30 in parentheses. "
-        r"\emph{The protocol effect exists only where spatial complexity does.} "
         f"At S1 the four protocols lie within {spread['S1']:.2f} points of each "
-        f"other and the channel is worth nothing; the spread is {spread['S2']:.2f} "
+        f"other; the spread is {spread['S2']:.2f} "
         f"at S2, {spread['S3']:.2f} at S3 and {spread['S4']:.2f} at S4. At S3 and S4 "
         f"silence scores {Q[('none', 'S3')]:.2f} and {Q[('none', 'S4')]:.2f} where "
-        f"prose scores {prose['S3']:.2f} and {prose['S4']:.2f}. The solo rows say why: "
-        "splitting the board costs little at S1 and S2 "
+        f"prose scores {prose['S3']:.2f} and {prose['S4']:.2f}. Dyad-\\textsc{{none}} "
+        "lies close to solo-\\textsc{silent} at S1 and S2 "
         f"(dyad-\\textsc{{none}} {Q[('none', 'S1')]:.2f} against solo-\\textsc{{silent}} "
         f"{Q[('solo_silent', 'S1')]:.2f}, and {Q[('none', 'S2')]:.2f} against "
-        f"{Q[('solo_silent', 'S2')]:.2f}) and most at S3 and S4 "
+        f"{Q[('solo_silent', 'S2')]:.2f}) and below it at S3 and S4 "
         f"({Q[('none', 'S3')]:.2f} against {Q[('solo_silent', 'S3')]:.2f}, "
-        f"{Q[('none', 'S4')]:.2f} against {Q[('solo_silent', 'S4')]:.2f}). The channel "
-        "is worth nothing until the board contains a structure a masked agent "
-        "cannot see, and it is worth something exactly where the partition starts "
-        "hiding one.")
+        f"{Q[('none', 'S4')]:.2f} against {Q[('solo_silent', 'S4')]:.2f}); the "
+        "pattern across levels is descriptive (A9 retained).")
     note3 = (
-        r"\emph{Scope.} Grid rendering, the two strong models (Qwen3.8-27B-FP8 and "
-        r"DeepSeek-V4.1-Flash), 15 boards per model per cell, so every cell in the "
+        r"\emph{Scope.} Grid rendering, the two strong models (Qwen3.8 and "
+        r"DeepSeek), 15 boards per model per cell, so every cell in the "
         r"table has the same denominator: the two solo conditions are shown "
         r"separately rather than pooled for that reason. "
         r"Every episode in scope is played (\% Played is 100 in every cell), so "
@@ -1479,13 +1542,13 @@ def main():
         r"two conditions that carry unconstrained natural language. The pattern "
         r"across levels is descriptive: contrast A9 does not reject a common "
         r"protocol effect at every level on the odds scale. The gap between prose "
-        r"and silence is larger at 3p and 6p than in the dyad "
+        r"and silence is larger, in Quality points, at 3p and 6p than in the dyad "
         r"(Table~\ref{tab:ladder}), which is where this manipulation meets the "
         r"team-size one. "
         r"\emph{The two S1 non-successes} are solo-\textsc{silent} episodes that "
         r"the cycle detector ended after 30 and 32 moves of a 144- and 164-move "
         r"budget, with four of six objects already home and no illegal or blocked "
-        r"move in either --- a termination failure on a board that was being "
+        r"move in either: a termination failure on a board that was being "
         r"solved, not a spatial one.")
     print(table(cap3, "tab:interaction", "lrrrr",
                 r"Condition & S1 & S2 & S3 & S4", body3, note3))
@@ -1504,7 +1567,7 @@ def main():
     for m in ("qwen38", "dsv41", "nemotron"):
         if body6:
             body6.append(r"\midrule")
-        body6.append(f"\\multicolumn{{8}}{{l}}{{\\emph{{{qc.MODEL_LABEL[m]}}}}}")
+        body6.append(f"\\multicolumn{{8}}{{l}}{{\\emph{{{qc.MODEL_LABEL[m].replace('-V4.1', '')}}}}}")
         for p in TALK:
             sel = [r for r in dy if r["model"] == m and r["proto"] == p]
             rn = "---" if p == "freeform" else f"{qc.rate(sel, 'reqnone'):.0f}"
@@ -1521,15 +1584,14 @@ def main():
            for m in qc.STRONG for p in TALK]
     cap6 = (
         "What a dyad message carries, by model and protocol. "
-        r"\emph{The protocols do not differ in information content}: every "
+        "Every "
         f"strong-model cell discloses the speaker's own target in "
         f"{min(tgt):.0f}--{max(tgt):.0f}\\,\\% of messages. "
-        r"\emph{They differ in the ability to order access to the board in time} "
-        "--- reference to a teammate's object is routine in prose and all but "
-        "absent from the schema, whose request slot is most often filled with "
-        "\\texttt{none}; the sequencing and acknowledgement rates behind the same "
-        "contrast are in the text. The word ``temporarily'' "
-        f"occurs in {sum(r['temp'] for r in sp)} of {thousands(len(sp))} strong-model "
+        "Reference to a teammate's object is routine in prose and rare under "
+        "the schema, whose request slot is most often filled with "
+        "\\texttt{none}; the sequencing and acknowledgement rates are in the "
+        "text. The words ``temporary'' and ``temporarily'' "
+        f"occur in {sum(r['temp'] for r in sp)} of {thousands(len(sp))} strong-model "
         f"prose messages and in {sum(r['temp'] for r in ss)} of "
         f"{thousands(len(ss))} structured ones.")
     note6 = (
@@ -1687,7 +1749,7 @@ LEXICON = [
          r"--- the parentheses, the comma and the spaces are each optional"), False),
     ("CLAIM", "an object asserted to be somewhere: the unit the replay checks",
      (S, r"an object letter \texttt{A}--\texttt{F}, then at most 24 further "
-         r"characters not crossing a sentence boundary, then ``at'' and a "
+         r"characters containing no full stop, comma, semicolon or line break, then ``at'' and a "
          r"coordinate"), False),
     ("REQ", "a politeness form addressed to the teammate",
      ["please", "could you", "can you", "kindly",
@@ -1763,7 +1825,7 @@ LEXICON = [
     ("REQUEST COMPLIANCE", "whether a request to move was acted on",
      (S, r"\emph{not a word list}: each \textsc{movereq} match opens a window "
          r"on the object and direction it names, and the request counts as "
-         r"honoured if the replay sees that exact move within six turns. The "
+         r"honoured if the replay sees that exact move within the next seven accepted moves. The "
          r"unit is the request"), False),
     ("WORDS", "message length",
      (S, r"\emph{not a word list}: whitespace-separated tokens, reported as a "
@@ -1789,12 +1851,13 @@ SURFACES = {
     "ACK":     r"the \emph{acknowledgement} row of Table~\ref{tab:dialogue}",
     "SEQ":     r"the \emph{sequencing marker} row of Table~\ref{tab:dialogue}",
     "CORR":    r"the \emph{corridor or dead end named} row of Table~\ref{tab:dialogue}",
-    "THINK":   r"the sanity check of \S8.4",
-    "CJK":     r"the sanity check of \S8.4",
-    "STAY":    r"\S9.3.1",
-    "STAYARG": r"\S9.3.1",
+    "THINK":   r"the sanity check of Section~\ref{sec:res-dyad-messages}",
+    "CJK":     r"nothing in the chapter: none of the 66\,251 messages matches it; "
+               r"listed so that the annotation is complete",
+    "STAY":    r"nothing in the chapter; listed so that the annotation is complete",
+    "STAYARG": r"nothing in the chapter; listed so that the annotation is complete",
     "TEMP":    r"the \emph{Temp.} column of Table~\ref{tab:carries}",
-    "TEMPRET": r"\S8.4's account of what the schema cannot carry",
+    "TEMPRET": r"nothing in the chapter; listed so that the annotation is complete",
     "REQNONE": r"the \texttt{none} column of Table~\ref{tab:carries}",
     "QUESTION": r"nothing: it is computed for every message and reported "
                 r"nowhere, and is listed so that the annotation is complete",
@@ -1804,11 +1867,11 @@ SURFACES = {
     "NAMES OTHER": r"the \emph{Other} column of Table~\ref{tab:carries} and "
                    r"the \emph{names a teammate's object} row of "
                    r"Table~\ref{tab:dialogue}",
-    "OWN-CLAIM ACCURACY": r"the own-object accuracies of \S8.5 and \S10.2",
-    "TEAMMATE-CLAIM ACCURACY": r"the teammate-object accuracies of \S8.5 and "
-                               r"\S10.2 --- the measurement those sections "
+    "OWN-CLAIM ACCURACY": r"the own-object accuracies of Section~\ref{sec:res-dyad-messages} and Section~\ref{sec:res-weak}",
+    "TEAMMATE-CLAIM ACCURACY": r"the teammate-object accuracies of Section~\ref{sec:res-dyad-messages} and "
+                               r"Section~\ref{sec:res-weak} --- the measurement those sections "
                                r"turn on",
-    "REQUEST COMPLIANCE": r"the compliance rates of \S8.4",
+    "REQUEST COMPLIANCE": r"the compliance rates of Section~\ref{sec:res-dyad-messages}",
     "WORDS": r"the \emph{Words} column of Table~\ref{tab:carries} and "
              r"\emph{mean words} in Table~\ref{tab:dialogue}",
 }
@@ -1857,9 +1920,10 @@ def appendix_lexicon(qc, rows):
           r"replay of the board, and the ownership partition of the instance "
           r"file, then make of those matches. No message was classified by "
           r"hand and no model was asked to judge another's output, so every "
-          r"figure in \S8.4, \S8.5 and \S10.2 is a function of the released "
+          r"figure in Section~\ref{sec:res-dyad-messages} and Section~\ref{sec:res-weak} is a function of the released "
           r"episode directories and of these two pages. Matching is "
-          r"case-insensitive and unanchored: a term matches wherever it occurs "
+          r"case-insensitive and unanchored, except that the object letter of "
+          r"\textsc{claim} must be upper case: a term matches wherever it occurs "
           r"in the message.")
     print()
 
@@ -1958,7 +2022,7 @@ def appendix_lexicon(qc, rows):
           r"then produces is checked against that snapshot rather than against "
           r"the state at the end of the turn. Each claim is scored against the "
           r"ownership partition as a claim about the speaker's own object or "
-          r"about a teammate's, which is the distinction \S8.5 rests on: the "
+          r"about a teammate's, which is the distinction Section~\ref{sec:res-dyad-messages} rests on: the "
           r"first is visible to the speaker, the second can only have been "
           r"learnt from what was said.")
     print()

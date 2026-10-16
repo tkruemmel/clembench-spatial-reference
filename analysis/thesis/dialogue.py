@@ -185,7 +185,7 @@ def tex(E, res):
         "model, suite, level and protocol and, in the right two blocks, within the "
         "speaker's board state when the message was written. Exploratory.")
     note = (
-        "\\emph{Scope.} Qwen3.8 and DeepSeek-V4.1-Flash, \\textsc{freeform} and \\textsc{hybrid}, "
+        "\\emph{Scope.} Qwen3.8 and DeepSeek, \\textsc{freeform} and \\textsc{hybrid}, "
         "S2--S4, dyad, 3p and 6p. \\emph{Unit.} The episode: each cell is the share of an "
         "episode's messages carrying the feature, in percent (words and coordinates: per-message "
         "means), averaged over episodes. \\emph{State.} A message is written with a teammate in the "
@@ -196,9 +196,10 @@ def tex(E, res):
         "(S/F) entering each block: "
         + "; ".join(f"{t} {a}/{b} in {c} strata" for t, (a, b, c) in
                     zip(("all moments", "not in the way", "in the way"), n.values()))
-        + ". \\emph{Test.} Outcome labels permuted within strata, $10^4$ resamples at a fixed "
-        "seed, two-sided, uncorrected. Failures include aborts.")
-    return tc.table(caption, "tab:dialogue", "l" + "rrrr" * 3, head, body, note=note, tight=True)
+        + ". \\emph{Test.} Outcome labels permuted within strata, 10\\,000 resamples at seed 0, "
+        "two-sided, uncorrected. Failures include aborts.")
+    return tc.table(caption, "tab:dialogue", "l" + "rrrr" * 3, head, body, note=note, tight=True).replace(
+        r"\tabcolsep}{3pt}", r"\tabcolsep}{2pt}")      # 13 columns: 3pt still overruns the text width
 
 
 if __name__ == "__main__":
