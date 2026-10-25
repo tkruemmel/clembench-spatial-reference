@@ -27,10 +27,9 @@ from matplotlib.colors import to_rgba
 from matplotlib.lines import Line2D
 from matplotlib.patches import FancyBboxPatch, Patch
 
-from cuts import at, hatch_cells, marker, outline, route, square_axes, tint, OPEN_DASH
 from results_final_figs import FS_LEGEND, FS_SMALL, FS_TICK, FS_TITLE, OUT_DIR, REPO_ROOT, TEXT_W, publish
-from style import INK, MOVE, MUTED, OWNER, PAPER, WALL, draw_arrow, draw_grid, draw_target, wrap_words
-from warning import marked
+from style import (INK, MOVE, MUTED, OPEN_DASH, OWNER, PAPER, WALL, at, draw_arrow, draw_grid, draw_target,
+                   hatch_cells, marked, marker, outline, route, square_axes, tint, wrap_words)
 
 sys.path[:0] = [os.path.join(REPO_ROOT, "analysis", "thesis"), os.path.join(REPO_ROOT, "analysis", "efficiency_baseline")]
 import move_metrics as mm  # noqa: E402

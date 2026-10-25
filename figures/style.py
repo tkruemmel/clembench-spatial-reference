@@ -18,7 +18,7 @@ import matplotlib
 matplotlib.use("Agg")
 
 import matplotlib.pyplot as plt  # noqa: E402
-from matplotlib.colors import to_rgba  # noqa: E402
+from matplotlib.colors import to_rgb, to_rgba  # noqa: E402
 from matplotlib.font_manager import FontProperties  # noqa: E402
 from matplotlib.lines import Line2D  # noqa: E402
 from matplotlib.patheffects import withStroke  # noqa: E402
@@ -338,6 +338,98 @@ def find_span(lines: Sequence[str], needle: str) -> Tuple[int, int, int]:
         if col >= 0:
             return i, col, col + len(needle)
     raise ValueError(f"{needle!r} does not occur in the rendered block")
+
+
+# ------------------------------------------------- episode panels
+#
+# Placed in inches from the bottom-left rather than through a layout engine, so
+# a figure arrives at the exact width of the thesis text block and its point
+# sizes are the sizes on the page.
+
+def square_axes(fig, left_in, bottom_in, side_in):
+    w, h = fig.get_size_inches()
+    return fig.add_axes([left_in / w, bottom_in / h, side_in / w, side_in / h])
+
+
+def at(fig, x_in, y_in):
+    w, h = fig.get_size_inches()
+    return x_in / w, y_in / h
+
+
+def tint(ax, cells, colour, alpha, *, zorder=1.5):
+    for r, c in cells:
+        ax.add_patch(Rectangle((c, r), 1, 1, facecolor=to_rgba(colour, alpha),
+                               edgecolor="none", zorder=zorder))
+
+
+def outline(ax, cells, walls, n, colour, *, lw=1.3):
+    """Trace where the region ends against something that is not a wall.
+
+    Edges against walls are left undrawn: the wall already shows them, and
+    outlining every one of them buries the informative part of the boundary,
+    which is the handful of edges where a frozen object closed the way.
+    """
+    cells = set(cells)
+    for r, c in cells:
+        for (dr, dc), (x0, y0, x1, y1) in (
+                ((-1, 0), (c, r, c + 1, r)), ((1, 0), (c, r + 1, c + 1, r + 1)),
+                ((0, -1), (c, r, c, r + 1)), ((0, 1), (c + 1, r, c + 1, r + 1))):
+            nb = (r + dr, c + dc)
+            if nb in cells or nb in walls or not (0 <= nb[0] < n and 0 <= nb[1] < n):
+                continue
+            ax.plot([x0, x1], [y0, y1], color=colour, linewidth=lw,
+                    solid_capstyle="round", zorder=4.5)
+
+
+def hatch_cells(ax, cells, colour, pattern, *, lw=0.5, alpha=0.0, edge=None):
+    for r, c in cells:
+        ax.add_patch(Rectangle((c, r), 1, 1, facecolor=to_rgba(colour, alpha),
+                               edgecolor=edge or colour, linewidth=lw,
+                               hatch=pattern, zorder=2.2))
+
+
+def ink_on(colour):
+    """Dark letters on a pale fill, pale on a dark one: keeps the letter legible."""
+    r, g, b = to_rgb(colour)
+    return INK if 0.2126 * r + 0.7152 * g + 0.0722 * b > 0.45 else PAPER
+
+
+def marker(ax, cell, label, colour, *, frozen, cue=False):
+    """An object: a circle while it can still move, a square once it cannot."""
+    edge, lw = (CUE, 2.0) if cue else (INK, 0.7)
+    if frozen:
+        side = 0.54
+        ax.add_patch(Rectangle((cell[1] + (1 - side) / 2, cell[0] + (1 - side) / 2),
+                               side, side, facecolor=colour, edgecolor=edge,
+                               linewidth=lw, zorder=7.5))
+    else:
+        ax.add_patch(Circle((cell[1] + 0.5, cell[0] + 0.5), 0.295,
+                            facecolor=colour, edgecolor=edge, linewidth=lw,
+                            zorder=7.5))
+    ax.text(cell[1] + 0.5, cell[0] + 0.5, label, ha="center", va="center",
+            fontsize=8.4, color=ink_on(colour), fontweight="bold", zorder=8)
+
+
+OPEN_DASH = (0, (1.3, 1.5))    # a route that still exists
+
+
+def route(ax, cells, colour, dash, *, lw=1.2):
+    for src, dst in zip(cells, cells[1:]):
+        draw_arrow(ax, src, dst, colour, lw=lw, scale=7.5, shrink=(4.0, 1.0),
+                   ls=dash, zorder=3.5)
+
+
+def marked(full, frags):
+    """Fragments as drawn: in quotation marks, joined by an ellipsis, with one
+    more at either end wherever the message goes on, so every cut is visible.
+    Raises unless every fragment occurs verbatim, in order, in `full`."""
+    at_ = 0
+    for f in frags:
+        at_ = full.index(f, at_) + len(f)
+    first = full.index(frags[0])
+    return ("\u201c" + ("\u2026 " if full[:first].strip() else "")
+            + " \u2026 ".join(frags)
+            + (" \u2026" if full[at_:].strip() else "") + "\u201d")
 
 
 # Re-exported so figure modules import their drawing vocabulary from one place.

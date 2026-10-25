@@ -17,7 +17,6 @@ Statement-level rates count every message, repeats included, as the declared
 D2 did: a repeat sent at a later ply is a new statement with its own truth.
 Message-level rates (§5.6 opportunities) deduplicate exact repeats.
 """
-import ast
 import collections
 import os
 import re
@@ -40,19 +39,8 @@ SOURCE = ("restates owner's last visible cell", "states an updated true cell", "
           "follows the MOVE BOARD from the owner's cell")  # the last only on the final arm
 
 
-def _old_claim():
-    """The old scorer's CLAIM regex, read from its source: importing
-    qual_corpus would run its ARM environment check."""
-    path = os.path.join(corpus.REPO, "analysis", "qualitative_analysis", "qual_corpus.py")
-    for node in ast.parse(open(path).read()).body:
-        if isinstance(node, ast.Assign) and getattr(node.targets[0], "id", None) == "CLAIM":
-            ns = {"re": re}
-            exec(compile(ast.Module([node], []), path, "exec"), ns)
-            return ns["CLAIM"]
-    raise AssertionError("CLAIM not found in qual_corpus.py")
-
-
-CLAIM = _old_claim()
+# The old scorer's claim regex (a letter, then "at (Rr,Cc)" within 24 characters).
+CLAIM = re.compile(r"\b(?-i:([A-F]))\b[^.;,\n]{0,24}?\bat\s*\(?R\s*(\d+)\s*,?\s*C\s*(\d+)\)?", re.I)
 
 
 def ekeys(ep):

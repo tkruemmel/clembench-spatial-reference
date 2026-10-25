@@ -26,10 +26,9 @@ import matplotlib.pyplot as plt
 from matplotlib.lines import Line2D
 from matplotlib.patches import Patch
 
-from cuts import at, marker, square_axes
 from res_cut_s3 import load, region
 from results_final_figs import FS_LEGEND, FS_SMALL, FS_TICK, FS_TITLE, OUT_DIR, REPO_ROOT, TEXT_W, publish
-from style import FAINT, INK, MOVE, OWNER, WALL, draw_arrow, draw_grid, draw_target
+from style import FAINT, INK, MOVE, OWNER, WALL, at, draw_arrow, draw_grid, draw_target, marker, square_axes
 
 RUN = "results_dsv41_grid_final_chrono_n15_6p/DeepSeek-V4.1-Flash/matrixgame_covered_comm_6p_grid_final_chrono"
 CUT = f"{RUN}/S2_none_6p_grid/instance_00012"

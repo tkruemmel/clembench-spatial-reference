@@ -5,8 +5,8 @@ on, and scored on:
 
   illegal, blocked  rejected move attempts over all move attempts: the game's
                     Illegal / Blocked Move Rate, pooled here
-  osc               eq:oscillation, k = 4 (oscillation.osc_moves)
-  stall             eq:stall, k = max(2n, 6) (stall.stall_rate).  At S4 the
+  osc               eq:oscillation, k = 4 (osc_moves)
+  stall             eq:stall, k = max(2n, 6) (stall_rate).  At S4 the
                     outer object, which starts on device.inner_adjacent and
                     whose target is the dead end, is left out of D_t
   regret r_m        eq:regret.  h*(s) is the exact optimum from the state
@@ -47,8 +47,6 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(os.path.dirname(HERE))
 sys.path[:0] = [HERE, os.path.join(ROOT, "analysis/efficiency_baseline"), ROOT]
 import stuckfree as SF                                        # noqa: E402
-from oscillation import osc_moves                             # noqa: E402
-from stall import stall_rate                                  # noqa: E402
 from matrixgame_covered_shared.history import SEATS           # noqa: E402
 
 BINARY = os.path.join(ROOT, "analysis/efficiency_baseline/hstar_c")
@@ -58,6 +56,38 @@ CHRONO = re.compile(r"^results_(\w+?)_grid_final_chrono_n15_(3p|6p)$")
 MOVE = re.compile(r"^Player(?: (\w+))? moved ([A-F]) (up|down|left|right)$")
 DONE = re.compile(r"^(Player \w+) declared done$")
 STEP = {name: d for d, name in SF.DIRNAME.items()}
+
+
+def osc_moves(cells, k=4):
+    """Oscillating moves in one object's cell sequence c_0, c_1, ... (eq:oscillation)."""
+    return sum(cells[j + 1] in cells[max(0, j - k):j] for j in range(len(cells) - 1))
+
+
+def stall_rate(D, k):
+    """Share of the k-move windows of the distance series D that make no progress (eq:stall)."""
+    T = len(D) - 1
+    if T < k:
+        return None
+    return sum(D[t + k] >= D[t] for t in range(T - k + 1)) / (T - k + 1)
+
+
+def table(caption, label, spec, header, body, note=None, tight=False):
+    out = [r"\begin{table}[tbp]", r"  \centering", r"  \footnotesize"]
+    if tight:  # wide contrast tables: narrower column gaps, not smaller type
+        out.append(r"  \setlength{\tabcolsep}{3pt}")
+    out += [f"  \\caption{{{caption}}}", f"  \\label{{{label}}}",
+            f"  \\begin{{tabular}}{{{spec}}}", r"    \toprule",
+            "    " + header + r" \\", r"    \midrule"]
+    for b in body:
+        out.append(r"    \midrule" if b == r"\midrule" else "    " + b + r" \\")
+    out += [r"    \bottomrule", r"  \end{tabular}"]
+    if note:
+        out += [r"  \\[2pt]", r"  \begin{minipage}{0.9\textwidth}\footnotesize",
+                "  " + note, r"  \end{minipage}"]
+    out += [r"\end{table}", ""]
+    return "\n".join(out)
+
+
 SUITES = ("solo", "dyad", "3p", "6p")
 LEVELS = ("S1", "S2", "S3", "S4")
 LABEL = {"qwen38": "Qwen3.8", "dsv41": "DeepSeek-V4.1", "dsv41nt": "DeepSeek-V4.1 (no thinking)"}
@@ -409,7 +439,6 @@ def checks(R):
 
 
 def tex(R):
-    from tables_comm import table
     body = []
     for suite in SUITES:
         for model in sorted({r["model"] for r in R}):

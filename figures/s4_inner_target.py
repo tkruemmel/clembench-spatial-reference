@@ -18,10 +18,9 @@ from __future__ import annotations
 import matplotlib.pyplot as plt
 from matplotlib.patches import Rectangle
 
-from cuts import at
 from results_final_figs import FS_TICK, FS_TITLE, OUT_DIR, publish
 from spatial_levels import load_instances
-from style import FRAME, INK, OWNER, draw_grid, draw_objects
+from style import FRAME, INK, OWNER, at, draw_grid, draw_objects
 
 ROWS, COLS = (2, 8), (2, 5)  # R3-R8 and C3-C5: the corridor, its entrance and the cells beside it
 CELL = 0.38  # inches on the page
