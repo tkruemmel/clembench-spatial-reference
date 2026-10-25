@@ -59,3 +59,13 @@ touches only S4, so it commutes with the split_s3.py steps; a second run is a
 no-op. The packages' tests fail if it is forgotten.
 
 Runner suites: `solo_grid_final`, `dyad_grid_final`, `3p_grid_final`, `6p_grid_final`.
+
+The chrono variant (`matrixgame_covered_comm_nplayer_grid_final_chrono`, games
+`matrixgame_covered_comm_{3p,6p}_grid_final_chrono`) lists teammates' messages
+in the order sent instead of shuffled within a round. Its instances are the
+final 3p/6p ones minus the sentence announcing the shuffle, so rebuild them
+after every change to the final nplayer instances:
+
+```
+python3 prompt_final/chrono.py
+```
