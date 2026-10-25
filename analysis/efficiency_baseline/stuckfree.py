@@ -122,13 +122,15 @@ def board(gi: dict):
     return letters, groups, starts, targets, nbr, dist, free
 
 
-def solve(gi: dict, cap: int = 20_000_000, want_path: bool = False):
+def solve(gi: dict, cap: int = 20_000_000, want_path: bool = False, start=None):
     """Optimal stuck-free play-through, or None if every line runs into a dead end.
 
     Returns (moves, expanded, path, dead) where path is a list of
     (player, action) with action either a direction name or "done", and dead
     counts the expanded states in which the player to move had no legal
-    response -- the abort condition of Section 7.1.
+    response -- the abort condition of Section 7.1.  ``start`` is a state
+    (positions, done mask, player to move) to search from instead of the
+    board's start; it is the reference hstar.c is checked against.
     """
     letters, groups, starts, targets, nbr, dist, free = board(gi)
     n = len(groups)                                   # players
@@ -145,10 +147,10 @@ def solve(gi: dict, cap: int = 20_000_000, want_path: bool = False):
                 return t
         return -1                                     # everybody is done
 
-    start = (starts, 0, 0)
+    start = start or (starts, 0, 0)
     best = {start: 0}
     came: Dict[tuple, tuple] = {}
-    pq = [(h(starts), 0, start)]
+    pq = [(h(start[0]), 0, start)]
     expanded = 0
     dead = 0                                          # states with no legal response
 
