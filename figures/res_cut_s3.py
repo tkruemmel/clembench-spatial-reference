@@ -36,9 +36,9 @@ import move_metrics as mm  # noqa: E402
 import results_final as rf  # noqa: E402
 from matrixgame.utils import solver as SF  # noqa: E402
 
-RUN = "results_dsv41_grid_final_chrono_n15_3p/DeepSeek-V4.1-Flash/matrixgame_covered_comm_3p_grid_final_chrono"
-EPISODES = {"freeform": f"{RUN}/S3_freeform_3p_grid/instance_00013",
-            "structured": f"{RUN}/S3_structured_3p_grid/instance_00013"}
+RUN = "results/DeepSeek-V4.1-Flash/matrixgame_3p"
+EPISODES = {"freeform": f"{RUN}/S3_freeform/instance_00013",
+            "structured": f"{RUN}/S3_structured/instance_00013"}
 DECISION = 26          # Orange's action in both episodes
 SEAT = {"Green": MOVE, "Orange": OWNER["B"], "Blue": OWNER["A"]}
 # (action, speaker, fragments); each fragment must occur verbatim, in order

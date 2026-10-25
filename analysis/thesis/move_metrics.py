@@ -1,6 +1,6 @@
 """Spatial efficiency breakdown (sec:method-metrics-efficiency) on the final arm.
 
-Every episode of every final-arm tree (trees()) is replayed action by action (moves and `done` declarations) on the board it was played
+Every episode under results/ (trees()) is replayed action by action (moves and `done` declarations) on the board it was played
 on, and scored on:
 
   illegal, blocked  rejected move attempts over all move attempts: the game's
@@ -28,7 +28,7 @@ episodes with a capped state when --cap is raised.  Build the solver once:
     cc -O3 -o analysis/thesis/hstar_c analysis/thesis/hstar.c
 
     python3 analysis/thesis/move_metrics.py            # report
-    python3 analysis/thesis/move_metrics.py --tex      # also thesis/numbers/tab_move_metrics.final.tex
+    python3 analysis/thesis/move_metrics.py --tex      # also the LaTeX table of the spatial metrics
     python3 analysis/thesis/move_metrics.py --check    # hstar_c against solver.solve first
 
 Exploratory: not one of the confirmatory contrasts.
@@ -51,8 +51,7 @@ from matrixgame.utils.history import SEATS                    # noqa: E402
 
 BINARY = os.path.join(HERE, "hstar_c")
 CACHE = os.path.join(HERE, "move_metrics.final.jsonl")
-TREE = re.compile(r"^results_(\w+?)_grid_final_n15_(solo|dyad|3p|6p)$")
-CHRONO = re.compile(r"^results_(\w+?)_grid_final_chrono_n15_(3p|6p)$")
+MODELS = {"DeepSeek-V4.1-Flash": "dsv41"}  # results/ model directory -> short name
 MOVE = re.compile(r"^Player(?: (\w+))? moved ([A-F]) (up|down|left|right)$")
 DONE = re.compile(r"^(Player \w+) declared done$")
 STEP = {name: d for d, name in SF.DIRNAME.items()}
@@ -302,22 +301,15 @@ def episode(gi, it, B):
 
 
 def trees():
-    """[(model, suite, tree)] of the final arm. At 3p and 6p a model's run with
-    teammates' messages in the order sent (results_<model>_grid_final_chrono_n15_<suite>)
-    replaces its shuffled run when it exists."""
-    out = {}
-    for rx in (TREE, CHRONO):  # chrono second, so it wins
-        for d in sorted(glob.glob(os.path.join(ROOT, "results_*_n15_*"))):
-            m = rx.match(os.path.basename(d))
-            if m:
-                out[m.groups()] = d
-    return [(model, suite, d) for (model, suite), d in sorted(out.items())]
+    """[(model, suite, game directory)] under results/."""
+    return sorted((MODELS[os.path.basename(os.path.dirname(d))], os.path.basename(d).split("_", 1)[1], d)
+                  for d in glob.glob(os.path.join(ROOT, "results", "*", "matrixgame_*")))
 
 
 def discover():
     eps = []
     for model, suite, d in trees():
-        for f in sorted(glob.glob(os.path.join(d, "*", "*", "*", "instance_*", "interactions.json"))):
+        for f in sorted(glob.glob(os.path.join(d, "*", "instance_*", "interactions.json"))):
             eps.append((model, suite, os.path.dirname(f)))
     return eps
 
@@ -509,9 +501,7 @@ def main():
     report(R)
     good = checks(R)
     if a.tex:
-        out = os.path.join(ROOT, "thesis/numbers/tab_move_metrics.final.tex")
-        open(out, "w").write(tex(R))
-        print("wrote", out)
+        print(tex(R))
     if a.check and not good:
         sys.exit(1)
 

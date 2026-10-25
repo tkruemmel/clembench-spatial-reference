@@ -1,4 +1,4 @@
-"""Figures of the results outline (thesis/results_outline.tex), one model at a time.
+"""Figures of the results chapter, one model at a time.
 
     res_clem_level        clemscore by spatial level, one panel per team game, one line per
                           protocol, solo by level as the dashed baseline

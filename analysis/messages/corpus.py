@@ -23,7 +23,7 @@ DIRS = {"up": (-1, 0), "down": (1, 0), "left": (0, -1), "right": (0, 1)}
 ROUNDS = 4  # matrixgame/utils/history.py
 FINAL_SEATS = tuple(f"Player {c}" for c in ("Green", "Orange", "Blue", "Yellow", "Red", "Purple"))
 DEV_SEATS = tuple(f"Player {c}" for c in "ABCDEF")
-MODELS = ("qwen38", "dsv41", "nemotron")
+MODELS = ("dsv41",)
 TIER = {"qwen38": "strong", "dsv41": "strong", "nemotron": "weak"}
 SUITES = {2: "dyad", 3: "3p", 6: "6p"}
 PROTOS = ("none", "structured", "hybrid", "freeform")
@@ -31,26 +31,8 @@ MOVE = re.compile(r"^(Player \w+) moved ([A-F]) (up|down|left|right)$")
 SPK = re.compile(r"^(Player \w+): (.*)$", re.S)
 DONE = re.compile(r"^(Player \w+) declared done$")
 REJECT = {"invalid_format", "invalid_move", "malformed_message", "invalid_done"}
-TREES = {
-    ("dev", "qwen38"): "results_qwen38_grid_updated_prompt_n15",
-    ("dev", "dsv41"): "results_dsv41_grid_updated_prompt_n15",
-    ("dev", "nemotron"): "results_nemotron_grid_updated_prompt_n15",
-    ("final", "qwen38"): "results_qwen38_grid_final_n15",
-    ("final", "dsv41"): "results_dsv41_grid_final_n15",
-    ("final", "nemotron"): "results_nemotron_grid_final_n15",
-}
-# At 3p and 6p a final-arm run with teammates' messages in the order sent
-# (`_final_chrono`) replaces the shuffled run when it exists (tree()).
-FINAL_GAME = re.compile(r"_final(_chrono)?$")
-# Final-arm episodes outside S1 that were read during development (spec §2):
-# (model, suite, protocol, level, board). The structured ones are X1's
-# "six DeepSeek S2 structured episodes", reconstructed from completion times
-# with the 3p tie at 08:58 resolved by taking both; the hybrid one is the
-# context printed on 2026-10-17 while checking the MOVE BOARD format.
-EXPOSED = ({("dsv41", "3p", "structured", "S2", g) for g in (1, 2, 3, 4, 5)}
-           | {("dsv41", "6p", "structured", "S2", g) for g in (1, 2)}
-           | {("dsv41", "3p", "hybrid", "S2", 3)})
-# All of them are episodes of DeepSeek's shuffled 3p/6p run, so they do not apply to its chrono run.
+TREES = {("final", "dsv41"): os.path.join("results", "DeepSeek-V4.1-Flash")}
+FINAL_GAME = re.compile(r"^matrixgame_")
 
 
 def _master_regexes():
@@ -88,17 +70,11 @@ def norm(s):
 # ---------------------------------------------------------------- episodes
 
 def tree(arm, model, suite):
-    base = TREES[(arm, model)]
-    chrono = base.replace("_grid_final_", "_grid_final_chrono_")
-    if arm == "final" and suite in ("3p", "6p") and os.path.isdir(os.path.join(REPO, f"{chrono}_{suite}")):
-        return f"{chrono}_{suite}"
-    return f"{base}_{suite}"
+    return os.path.join(TREES[(arm, model)], f"matrixgame_{suite}")
 
 
 def episode_paths(arm, model, suite):
-    pat = os.path.join(REPO, tree(arm, model, suite), "*", "*", "*", "instance_*", "interactions.json")
-    return sorted(p for p in glob.glob(pat)
-                  if not re.search(r"_stale_|_killed|/_campaign/", p))
+    return sorted(glob.glob(os.path.join(REPO, tree(arm, model, suite), "*", "instance_*", "interactions.json")))
 
 
 def owner_map(ins, it):
@@ -216,8 +192,8 @@ def _annotate(ep):
 def visible(ep, idx, retry):
     """Plies of earlier messages shown in the context of the call that produced turn idx.
 
-    dev  (matrixgame_covered_comm/master.py:332-349, nplayer master.py:672-693):
-         every seat's latest message, own included; retry contexts carry none.
+    dev  (the earlier, updated-prompt arm, not in this repository): every
+         seat's latest message, own included; retry contexts carry none.
     final (matrixgame/utils/history.py): every message since the
          viewer's ROUNDS-th last own turn, first call and retries alike; a done
          turn whose message is just "done" shows as `declared done` only.
@@ -295,14 +271,13 @@ def logged_entries(ep, tr):
 
 # ---------------------------------------------------------------- scopes
 
-def scope_of(arm, model, suite, proto, level, board, chrono=False):
+def scope_of(arm, model, suite, proto, level, board):
     if arm == "dev":
         return "dev"
-    exposed = not chrono and (model, suite, proto, level, board) in EXPOSED
-    return "calib" if level == "S1" or exposed else "test"
+    return "calib" if level == "S1" else "test"
 
 
-PATH_KEY = re.compile(r"/(S\d)_(none|structured|hybrid|freeform)_.*?/instance_(\d+)/")
+PATH_KEY = re.compile(r"/(S\d)_(none|structured|hybrid|freeform)/instance_(\d+)/")
 
 
 _LOCK = None
@@ -347,7 +322,7 @@ def load(scope, models=MODELS, suites=("dyad", "3p", "6p"), protos=PROTOS, check
             for p in episode_paths(arm, m, s):
                 # scope from the path, so no test-arm file is opened outside `test`
                 lv, pr, g = PATH_KEY.search(p).groups()
-                if pr not in protos or scope_of(arm, m, s, pr, lv, int(g), "_final_chrono_" in p) != scope:
+                if pr not in protos or scope_of(arm, m, s, pr, lv, int(g)) != scope:
                     continue
                 ep = parse(p, arm, m)
                 assert (ep["meta"]["level"], ep["meta"]["board"]) == (lv, int(g)), p
@@ -455,15 +430,15 @@ def hazards(ep):
 def _hazards(ep):
     """Every decision of a player at which a fork or a free pinch is live.
 
-    Ported from analysis/qualitative_analysis/averted.py (fork) and
-    seal_averted.py (pinch), on the seat-index owner map:
+    The fork and pinch rules of the earlier qualitative analysis, on the
+    seat-index owner map:
     - fork: every object of the decider is home, and freezing them (as `done`
       would) severs a live teammate object's last route; finished objects are
       walls, active ones are not. Case: the decider declares done.
     - pinch: at a move decision, some legal move leaves an active teammate
       that can move now with no legal move. Case: the decider takes one. The
-      pinch is `free` when a harmless legal move also exists (seal_averted.py's
-      risk set); a forced pinch is still a fatal decision for `first_fatal`.
+      pinch is `free` when a harmless legal move also exists; a forced pinch
+      is still a fatal decision for `first_fatal`.
     Returns [dict(ply, seat, kind, case, victims, critical, free)]: `critical`
     are the decider's door cells (fork) or the sealing destinations (pinch)."""
     T, n, walls, tg = ep["turns"], ep["grid"], ep["walls"], ep["targets"]

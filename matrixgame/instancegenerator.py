@@ -9,14 +9,12 @@ members on different players.
 The turn budget is four times the optimal move count of the board under the
 game's rules, max(4 * A, 20). A is the attainable optimum an A* search over
 the real turn order, ownership and `done` rules finds (utils/solver.py), read
-from resources/optimal_moves.json; recompute that table with
-
-    python3 matrixgame/utils/solver.py --table
+from resources/optimal_moves.json (`python3 matrixgame/utils/solver.py --table`
+recomputes it).
 
     python3 matrixgame/instancegenerator.py
 """
 
-import json
 import os
 
 from clemcore.clemgame import GameInstanceGenerator

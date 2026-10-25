@@ -38,8 +38,7 @@ from clemcore.clemgame import GameSpec, Player, GameBenchmark
 from clemcore.clemgame.legacy.scorer import GameScorer
 from clemcore.clemgame.legacy.master import DialogueGameMaster
 from clemcore.clemgame.metrics import (
-    METRIC_ABORTED, METRIC_SUCCESS, METRIC_LOSE, METRIC_PLAYED,
-    METRIC_REQUEST_COUNT, METRIC_REQUEST_COUNT_VIOLATED,
+    METRIC_ABORTED, METRIC_SUCCESS, METRIC_LOSE, METRIC_REQUEST_COUNT, METRIC_REQUEST_COUNT_VIOLATED,
     METRIC_REQUEST_COUNT_PARSED, BENCH_SCORE,
 )
 
@@ -671,7 +670,6 @@ class MatrixGameScorer(GameScorer):
         self.log_episode_score(METRIC_SUCCESS, success)
         lost = episode_interactions.get(METRIC_LOSE, int(not success and not aborted))
         self.log_episode_score(METRIC_LOSE, lost)
-        self.log_episode_score(METRIC_PLAYED, 1 - aborted)
         self.log_episode_score(MOVE_COUNT, move_count)
 
         if aborted:

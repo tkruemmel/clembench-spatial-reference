@@ -56,12 +56,9 @@ def test_visible_final_window():
 
 
 def test_scope_from_path():
-    assert corpus.scope_of("final", "dsv41", "3p", "structured", "S2", 1) == "calib"
-    assert corpus.scope_of("final", "dsv41", "3p", "structured", "S2", 1, chrono=True) == "test"
-    assert corpus.scope_of("final", "dsv41", "3p", "structured", "S2", 6) == "test"
-    assert corpus.scope_of("final", "qwen38", "6p", "hybrid", "S1", 9) == "calib"
-    assert corpus.scope_of("final", "qwen38", "6p", "hybrid", "S4", 9) == "test"
-    assert corpus.scope_of("dev", "nemotron", "dyad", "none", "S4", 1) == "dev"
+    assert corpus.scope_of("final", "dsv41", "3p", "structured", "S2", 1) == "test"
+    assert corpus.scope_of("final", "dsv41", "6p", "hybrid", "S1", 9) == "calib"
+    assert corpus.scope_of("final", "dsv41", "6p", "hybrid", "S4", 9) == "test"
 
 
 def test_master_regexes_loaded():

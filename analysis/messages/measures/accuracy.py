@@ -18,7 +18,6 @@ D2 did: a repeat sent at a later ply is a new statement with its own truth.
 Message-level rates (§5.6 opportunities) deduplicate exact repeats.
 """
 import collections
-import os
 import re
 
 import numpy as np

@@ -3,7 +3,7 @@
 Clembench scores and goal rate per episode (scores.json, or the log when the
 episode is not scored yet), how each unsuccessful episode ended, the spatial
 metrics from move_metrics.final.jsonl, and the action that cut the board.
-Prints LaTeX tabular bodies for thesis/results_outline.tex.
+Prints LaTeX tabular bodies for the results chapter.
 
     python3 analysis/thesis/results_final.py [model]      (default dsv41)
 """
@@ -50,7 +50,7 @@ def episodes(model):
     for tree_model, suite, d in trees():
         if tree_model != model:
             continue
-        for f in glob.glob(os.path.join(d, "*", "*", "*", "instance_*", "interactions.json")):
+        for f in glob.glob(os.path.join(d, "*", "instance_*", "interactions.json")):
             e = os.path.dirname(f)
             it = json.load(open(f))
             if "Success" not in it:

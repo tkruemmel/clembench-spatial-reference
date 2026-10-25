@@ -158,7 +158,7 @@ def test_spending_cap_and_unpriced_model(tmp_path, monkeypatch):
     monkeypatch.setitem(run.PRICES, "fake-model", (1.0, 1.0))
     state = run.extract("primary", "fake-model", fake, units, workers=1, max_usd=2.0)
     assert len(calls) == 2 and state["skipped"] == 3 and state["unanswered"] == 3
-    # the CLI exits non-zero while batches are unanswered (finish.py must not go on to the test arm)
+    # the CLI exits non-zero while batches are unanswered
     monkeypatch.setattr(run.corpus, "load", lambda scope: [ep])
     monkeypatch.setattr(run.client, "openai_api", lambda effort: fake)
     with pytest.raises(SystemExit, match="incomplete extraction"):

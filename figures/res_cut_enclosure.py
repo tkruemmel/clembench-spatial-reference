@@ -30,9 +30,9 @@ from res_cut_s3 import load, region
 from results_final_figs import FS_LEGEND, FS_SMALL, FS_TICK, FS_TITLE, OUT_DIR, REPO_ROOT, TEXT_W, publish
 from style import FAINT, INK, MOVE, OWNER, WALL, at, draw_arrow, draw_grid, draw_target, marker, square_axes
 
-RUN = "results_dsv41_grid_final_chrono_n15_6p/DeepSeek-V4.1-Flash/matrixgame_covered_comm_6p_grid_final_chrono"
-CUT = f"{RUN}/S2_none_6p_grid/instance_00012"
-ENCLOSURE = f"{RUN}/S2_none_6p_grid/instance_00010"
+RUN = "results/DeepSeek-V4.1-Flash/matrixgame_6p"
+CUT = f"{RUN}/S2_none/instance_00012"
+ENCLOSURE = f"{RUN}/S2_none/instance_00010"
 # Only the two objects a panel is about are coloured, each in its owner's seat colour.
 SEAT = {"Green": MOVE, "Orange": OWNER["B"], "Yellow": "#B08D00", "Purple": "#6A3D9A"}
 OTHER = FAINT

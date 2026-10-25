@@ -19,7 +19,6 @@ matplotlib.use("Agg")
 
 import matplotlib.pyplot as plt  # noqa: E402
 from matplotlib.colors import to_rgb, to_rgba  # noqa: E402
-from matplotlib.font_manager import FontProperties  # noqa: E402
 from matplotlib.lines import Line2D  # noqa: E402
 from matplotlib.patheffects import withStroke  # noqa: E402
 from matplotlib.patches import (  # noqa: E402
@@ -31,9 +30,6 @@ from matplotlib.patches import (  # noqa: E402
 
 Cell = Tuple[int, int]
 
-# STIX math renders these; most text serifs carry no arrow glyphs.
-LARR = r"$\leftarrow$"
-RARR = r"$\rightarrow$"
 
 # ------------------------------------------------------------------- palette
 
@@ -84,10 +80,6 @@ def centre(cell: Cell) -> Tuple[float, float]:
     return cell[1] + 0.5, cell[0] + 0.5
 
 
-def wrap_pairs(items: Sequence[str], per_line: int) -> List[str]:
-    return ["  ".join(items[i : i + per_line]) for i in range(0, len(items), per_line)]
-
-
 def wrap_words(text: str, width: int) -> List[str]:
     lines, row = [], ""
     for word in text.split():
@@ -96,27 +88,6 @@ def wrap_words(text: str, width: int) -> List[str]:
             row = word
         else:
             row = f"{row} {word}".strip()
-    if row:
-        lines.append(row)
-    return lines
-
-
-def wrap_mono(text: str, width: int, indent: str = "") -> List[str]:
-    """Wrap one logical line, continuing under a hanging indent.
-
-    Used for the listing lines, whose wraps have to look like continuations of
-    the same line rather than new fields.
-    """
-    lines, row = [], ""
-    for word in text.split(" "):
-        # no strip(): it would eat the hanging indent as soon as a second word
-        # joined the continuation row
-        candidate = f"{row} {word}" if row else word
-        if row and len(candidate) > width:
-            lines.append(row)
-            row = indent + word
-        else:
-            row = candidate
     if row:
         lines.append(row)
     return lines
@@ -258,30 +229,6 @@ def draw_arrow(ax, src: Cell, dst: Cell, colour: str, *, rad: float = 0.0,
     )
 
 
-def clear_bend(src: Cell, dst: Cell, avoid: Iterable[Cell],
-               magnitude: float = 0.27) -> float:
-    """Pick the arc side whose midpoint sits furthest from everything else.
-
-    Straight arrows collide with discs and walls on a crowded board, and a
-    hand-tuned bend per object does not survive changing the instance. Both
-    candidate arcs are scored on clearance and the roomier one wins; ties break
-    positive so the choice is deterministic.
-    """
-    (x0, y0), (x1, y1) = centre(src), centre(dst)
-    mx, my = (x0 + x1) / 2.0, (y0 + y1) / 2.0
-    dx, dy = x1 - x0, y1 - y0
-    others = [centre(c) for c in avoid if c != src and c != dst]
-    if not others:
-        return magnitude
-
-    def clearance(sign: float) -> float:
-        # matplotlib's arc3 offsets the chord midpoint by rad/2 perpendicular
-        px, py = mx - sign * magnitude * dy / 2.0, my + sign * magnitude * dx / 2.0
-        return min((px - ox) ** 2 + (py - oy) ** 2 for ox, oy in others)
-
-    return magnitude if clearance(1.0) >= clearance(-1.0) else -magnitude
-
-
 def board_legend(fig, y: float, x: float = 0.085, *, masked: bool = False,
                  walls: bool = True, size: float = 7.0) -> None:
     handles = [
@@ -311,33 +258,6 @@ def board_legend(fig, y: float, x: float = 0.085, *, masked: bool = False,
 
 
 # ------------------------------------------------------- monospaced passages
-
-
-def mono_advance(ax, size: float) -> float:
-    """Width of one monospaced character, as a fraction of the axes width.
-
-    Measured by differencing two runs: `get_text_width_height_descent` reports
-    the ink box, which is narrower than the advance by the glyph's side
-    bearings, and differencing cancels them. Requires a drawn canvas.
-    """
-    renderer = ax.figure.canvas.get_renderer()
-    prop = FontProperties(family="monospace", size=size)
-    long_run = renderer.get_text_width_height_descent("M" * 41, prop, False)[0]
-    one = renderer.get_text_width_height_descent("M", prop, False)[0]
-    return (long_run - one) / 40.0 / ax.get_window_extent().width
-
-
-def find_span(lines: Sequence[str], needle: str) -> Tuple[int, int, int]:
-    """Locate `needle` in a wrapped block, as (line index, start col, end col).
-
-    Highlights are anchored to the text they mark rather than to hand-counted
-    offsets, so rewrapping or a changed transcript cannot silently shift them.
-    """
-    for i, line in enumerate(lines):
-        col = line.find(needle)
-        if col >= 0:
-            return i, col, col + len(needle)
-    raise ValueError(f"{needle!r} does not occur in the rendered block")
 
 
 # ------------------------------------------------- episode panels

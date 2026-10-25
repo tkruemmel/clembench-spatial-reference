@@ -1,41 +1,43 @@
 # analysis/messages: the message analysis
 
-Implements `thesis/message_analysis_design.md` (the spec) and the E5 part of
-`thesis/message_analysis_extension.md`. The old pipeline
-(`analysis/qualitative_analysis/`) is untouched.
+The analysis behind the thesis's Communication section and Appendix B, run on
+the DeepSeek-V4.1-Flash episodes in `results/`. The § numbers in the code refer
+to the analysis design notes written alongside the thesis.
 
 ```
-python3 -m analysis.messages.corpus dev            # build + self-check the development corpus
-python3 -m analysis.messages.grammar --build-lists # data/wordlists.json from the sources
-python3 -m analysis.messages.run dev               # every output into out/dev/
+python3 -m analysis.messages.run test --models dsv41 --out test_dsv41   # every output into out/test_dsv41/
+python3 analysis/thesis/probe_targets.py                                 # the listener probe's target split
 python3 -m pytest analysis/messages/tests -q
 ```
+
+`out/` is rebuilt by these commands. The language-model answers they score are
+cached: the E5 extraction replies in `extract/cache/`, the listener probe's in
+`probe/cache/`, so a rerun calls no API.
 
 ## E5 and the author check (spec §9.6, extension E5)
 
 ```
-python3 -m analysis.messages.extract.run dev --dry-run --model gpt-5.6-luna      # cost, no calls
-python3 -m analysis.messages.extract.run dev --backend openai --model gpt-5.6-luna --max-usd 10
-python3 -m analysis.messages.extract.run dev --backend openai --model gpt-5.6-luna --prompts alt1,alt2 --limit 5000
-python3 -m analysis.messages.extract.run dev --report --model gpt-5.6-luna
-python3 -m analysis.messages.finish --draw                                       # E5 on the test arm, both blind samples once
-open analysis/messages/coding/sample/tool.html                                   # label, then export the JSON
-python3 -m analysis.messages.coding.importer ~/Downloads/labels_<id>.json
-python3 -m analysis.messages.coding.metrics                                      # the §9.6 decision
+python3 -m analysis.messages.extract.run test --dry-run --model gpt-5.6-luna      # what is not cached yet, no calls
+python3 -m analysis.messages.coding.sampler --pools                               # sample sizes, writes nothing
+open analysis/messages/coding/sample/tool.html                                    # the labelling tool
+python3 -m analysis.messages.coding.importer analysis/messages/coding/sample/labels_5f798ba8.json
+python3 -m analysis.messages.coding.metrics                                       # the §9.6 decision
+python3 -m analysis.messages.coding.dest analysis/messages/coding/dest/labels_0e97b9ba.json   # destination check
 ```
 
-Replies are cached in `extract/cache/` per prompt hash and model, so reruns never pay twice. Do not open `coding/sample/key.json` before labelling: it holds tier, extractor and truth.
+`coding/sample/` holds the author check of the teammate-position records and
+`coding/dest/` the check of announced destinations, each with its items, the
+exported labels and the scored metrics. `key.json` in each holds tier,
+extractor and truth; it is not opened before labelling.
 
-## Scopes and exposure (spec §2)
+## Scopes (spec §2)
 
-| scope | what | when |
+| scope | what | use |
 |---|---|---|
-| `dev` | updated-prompt arm, 2,160 episodes, 63,589 messages | now |
-| `calib` | final arm S1 plus the exposed S2 episodes (`corpus.EXPOSED`) | grammar coverage and frame composition only, never estimates |
-| `test` | final arm S2–S4 minus `EXPOSED` | once, when the campaigns are complete |
+| `calib` | S1 episodes | grammar coverage and frame composition only, never estimates |
+| `test` | S2–S4 episodes | the reported estimates |
 
-Scope is decided from the path, so no test-arm file is opened outside `test`.
-Do not read final-arm S2–S4 files by any other route.
+Scope is decided from the path, so no S2–S4 file is opened outside `test`.
 
 ## Modules
 
@@ -51,14 +53,14 @@ Do not read final-arm S2–S4 files by any other route.
 | `cases.py` | §10 |
 | `coding/` | §9.6 author check: sampler, HTML tool, import, metrics |
 | `extract/` | E5: language-model extraction of teammate-position statements (extension §4) |
-| `tables.py`, `run.py` | outputs into `out/{dev,calib,test}/` |
+| `tables.py`, `run.py` | outputs into `out/<scope>/` |
 | `data/` | VerbNet class files (commit in `grammar.VN_COMMIT`), `wordlists.json` |
 
 ## Data model (corpus.py)
 
 `load(scope, models=MODELS, suites=..., protos=..., check=True)` returns a list of episode dicts:
 
-- `ep["meta"]`: `id` (`arm|model|suite|level|proto|board`), `arm`, `model` (`qwen38`, `dsv41`, `nemotron`), `tier` (`strong`/`weak`), `suite` (`dyad`/`3p`/`6p`), `n`, `level` (`S1`–`S4`), `board` (int game id), `proto` (`none`/`structured`/`hybrid`/`freeform`), `success`, `aborted`, `lose`, `path`.
+- `ep["meta"]`: `id` (`arm|model|suite|level|proto|board`), `arm`, `model` (`dsv41`), `tier` (`strong`), `suite` (`dyad`/`3p`/`6p`), `n`, `level` (`S1`–`S4`), `board` (int game id), `proto` (`none`/`structured`/`hybrid`/`freeform`), `success`, `aborted`, `lose`, `path`.
 - `ep["seats"]` (turn order), `ep["owner"]` (object -> seat), `ep["objs"]` (seat -> sorted objects), `ep["grid"]`, `ep["walls"]` (frozenset of (r, c)), `ep["start"]`, `ep["targets"]` (object -> (r, c)), `ep["device"]` (S3/S4: `entrance`, `corridor`, `dead_end`, S4 `inner_adjacent`), `ep["done_ply"]` (seat -> ply), `ep["final_pos"]`, `ep["calls"]` (every call with its logged context `ctx`).
 - `ep["turns"]`: accepted turns in order. Each has `ply`, `seat`, `si` (seat index), `own_turn`, `obj`, `dir`, `src`, `dst`, `done`, `msg`, `board` (B_t⁻, object -> (r, c)), `after` (B_t⁺), `retry`, `attempts`, `call`, `is_msg` (a message unit), `slots` (structured/hybrid: `prose`, `plan`, `plan_obj`, `plan_from`, `plan_to`, `request`, `request_none`), `dup` (exact repeat within the seat), `vis` (plies of messages shown in the context of the accepting call).
 

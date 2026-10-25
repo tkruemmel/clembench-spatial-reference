@@ -2,7 +2,7 @@
 
 Point estimates only (the chapter is descriptive); per-episode means over the
 cell, as in analysis/messages/out/<dir>/. Prints LaTeX tabular bodies and the
-pooled numbers the bullets of thesis/results_outline.tex need.
+pooled numbers the results chapter cites.
 
     python3 analysis/thesis/results_messages.py [out_dir] [model]   (default test_dsv41 dsv41)
 """

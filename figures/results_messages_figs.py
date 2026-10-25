@@ -1,4 +1,4 @@
-"""Message-analysis figures of the results outline (thesis/results_outline.tex), one model's test arm.
+"""Message-analysis figures of the results chapter, one model's test arm.
 
     res_msg_o1           instructions followed: in view against left the board, instructed against other moves
     res_msg_baselines    REQUEST and PLAN outcomes against their baselines

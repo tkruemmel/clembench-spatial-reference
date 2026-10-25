@@ -1,11 +1,8 @@
 """Every output of the message analysis for one scope (spec §13), into out/<scope>/.
 
-    python3 -m analysis.messages.run dev
-    python3 -m analysis.messages.run calib   # coverage, frame composition and the cross-arm report only
-    python3 -m analysis.messages.run test    # once, when the campaigns are complete
-
-    python3 -m analysis.messages.run dev --only accuracy,failure   # a subset
-    python3 -m analysis.messages.run test --models dsv41 --out test_dsv41   # one model's test arm (finish.py)
+    python3 -m analysis.messages.run test --models dsv41 --out test_dsv41   # the thesis outputs
+    python3 -m analysis.messages.run calib                                  # coverage and frame composition only
+    python3 -m analysis.messages.run test --only accuracy,failure           # a subset
 """
 import csv
 import importlib
