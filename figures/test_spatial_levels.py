@@ -228,12 +228,12 @@ def test_documented_chain_signature_holds_for_every_instance(released):
             )
 
 
-def test_s4_swap_is_one_of_the_derived_chains(released):
+def test_s4_swap_heads_the_long_chain(released):
     for inst in released["S4"]:
         swap = swap_pair(inst)
         assert swap is not None
         chains = dependency_chains(inst["start_positions"], inst["target_positions"])
-        assert list(swap) in chains
+        assert chains[0][:2] == list(swap)
 
 
 def test_s4_outer_target_is_the_dead_end(released):

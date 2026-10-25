@@ -26,7 +26,7 @@ from typing import Dict, List, Optional, Sequence, Tuple
 Cell = Tuple[int, int]
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-INSTANCES = os.path.join(REPO_ROOT, "matrixgame_covered_comm", "in", "instances.json")
+INSTANCES = os.path.join(REPO_ROOT, "matrixgame_covered_comm_grid_final", "in", "instances.json")
 OUT_DIR = os.path.join(REPO_ROOT, "figures", "out")
 
 LEVELS = ("S1", "S2", "S3", "S4")

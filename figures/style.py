@@ -21,6 +21,7 @@ import matplotlib.pyplot as plt  # noqa: E402
 from matplotlib.colors import to_rgba  # noqa: E402
 from matplotlib.font_manager import FontProperties  # noqa: E402
 from matplotlib.lines import Line2D  # noqa: E402
+from matplotlib.patheffects import withStroke  # noqa: E402
 from matplotlib.patches import (  # noqa: E402
     Circle,
     FancyArrowPatch,
@@ -45,6 +46,9 @@ WALL = "#4A5361"
 WALL_HI = "#5C6675"
 OBJECT = "#1C5C9E"  # every object, on the plain level boards
 OWNER = {"A": "#1C5C9E", "B": "#B45A15"}
+# The dyad's seats by their game names. Blue-green rather than green, so Green
+# stays apart from Orange under red-green colour blindness.
+SEAT = {"Green": "#0F7B5F", "Orange": "#B45A15"}
 HIDDEN = "#96A0AB"  # a teammate's object, seen only as X
 MOVE = "#2E7D46"  # the move played this turn
 CUE = "#B8860B"  # what the caption wants the eye to land on
@@ -165,7 +169,8 @@ def draw_grid(ax, size: int, walls: Iterable[Cell], *, labels: float = 6.2) -> N
 
 
 def draw_target(ax, cell: Cell, label: str, colour: str, *, nested: bool,
-                letter: float = 8.0, lw: float = 1.1,
+                letter: float = 8.0, corner: Optional[float] = None,
+                lw: float = 1.1,
                 dashes: Tuple[float, float] = (2.2, 1.5)) -> None:
     """A target cell: dashed rounded outline, tinted unless something sits on it.
 
@@ -186,8 +191,10 @@ def draw_target(ax, cell: Cell, label: str, colour: str, *, nested: bool,
     )
     if nested:
         ax.text(cell[1] + 0.145, cell[0] + 0.175, label, ha="center",
-                va="center", fontsize=letter * 0.66, color=colour, zorder=8,
-                fontweight="bold")
+                va="center", fontsize=corner or letter * 0.66, color=colour, zorder=8,
+                fontweight="bold",
+                # a white halo breaks the dashed outline around the letter
+                path_effects=[withStroke(linewidth=1.8, foreground=PAPER)])
     else:
         ax.text(*centre(cell), label, ha="center", va="center",
                 fontsize=letter * 0.92, color=colour, zorder=7,
@@ -209,7 +216,8 @@ def draw_disc(ax, cell: Cell, label: str, colour: str, *, radius: float = 0.285,
 
 def draw_objects(ax, instance: dict, *, visible: Optional[Set[str]] = None,
                  colours: Optional[Dict[str, str]] = None,
-                 radius: float = 0.285, letter: float = 8.0) -> None:
+                 radius: float = 0.285, letter: float = 8.0,
+                 corner: Optional[float] = None) -> None:
     """Start cells as filled discs, target cells as dashed outlines.
 
     A letter appearing in both a disc and an outline is the only link drawn
@@ -227,7 +235,8 @@ def draw_objects(ax, instance: dict, *, visible: Optional[Set[str]] = None,
             continue  # a teammate's target is omitted, not masked
         blocking = occupied.get(cell)
         draw_target(ax, cell, obj, colour(obj),
-                    nested=bool(blocking) and blocking != obj, letter=letter)
+                    nested=bool(blocking) and blocking != obj, letter=letter,
+                    corner=corner)
 
     for obj, cell in sorted(start.items()):
         shown = visible is None or obj in visible
@@ -274,7 +283,7 @@ def clear_bend(src: Cell, dst: Cell, avoid: Iterable[Cell],
 
 
 def board_legend(fig, y: float, x: float = 0.085, *, masked: bool = False,
-                 walls: bool = True) -> None:
+                 walls: bool = True, size: float = 7.0) -> None:
     handles = [
         Line2D([], [], marker="o", linestyle="none", markersize=6.0,
                markerfacecolor=OBJECT, markeredgecolor=PAPER,
@@ -296,7 +305,7 @@ def board_legend(fig, y: float, x: float = 0.085, *, masked: bool = False,
         )
     fig.legend(
         handles=handles, loc="lower left", bbox_to_anchor=(x, y),
-        ncol=len(handles), frameon=False, fontsize=7.0, handletextpad=0.6,
+        ncol=len(handles), frameon=False, fontsize=size, handletextpad=0.6,
         columnspacing=2.0,
     )
 
