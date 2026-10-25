@@ -9,8 +9,8 @@ from analysis.messages import corpus
 
 @pytest.fixture(scope="module")
 def ep():
-    p = next(p for p in corpus.episode_paths("dev", "dsv41", "3p") if "/S3_hybrid_" in p)
-    return corpus.parse(p, "dev", "dsv41")
+    p = next(p for p in corpus.episode_paths("final", "dsv41", "3p") if "/S3_hybrid" in p)
+    return corpus.parse(p, "final", "dsv41")
 
 
 def test_real_episode_passes(ep):

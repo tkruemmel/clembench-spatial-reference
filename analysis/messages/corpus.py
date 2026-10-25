@@ -20,7 +20,7 @@ import sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.dirname(os.path.dirname(HERE))
 DIRS = {"up": (-1, 0), "down": (1, 0), "left": (0, -1), "right": (0, 1)}
-ROUNDS = 4  # matrixgame_covered_shared/history.py
+ROUNDS = 4  # matrixgame/utils/history.py
 FINAL_SEATS = tuple(f"Player {c}" for c in ("Green", "Orange", "Blue", "Yellow", "Red", "Purple"))
 DEV_SEATS = tuple(f"Player {c}" for c in "ABCDEF")
 MODELS = ("qwen38", "dsv41", "nemotron")
@@ -55,7 +55,7 @@ EXPOSED = ({("dsv41", "3p", "structured", "S2", g) for g in (1, 2, 3, 4, 5)}
 
 def _master_regexes():
     """The game's own protocol regexes (G-slot), read from the master's source."""
-    path = os.path.join(REPO, "matrixgame_covered_comm", "master.py")
+    path = os.path.join(REPO, "matrixgame", "master.py")
     names = {"COMM_MOVE_PATTERN", "COMM_DONE_PATTERN", "STRUCTURED_MSG_PATTERN", "HYBRID_MSG_PATTERN"}
     ns = {"re": re}
     for node in ast.parse(open(path).read()).body:
@@ -218,7 +218,7 @@ def visible(ep, idx, retry):
 
     dev  (matrixgame_covered_comm/master.py:332-349, nplayer master.py:672-693):
          every seat's latest message, own included; retry contexts carry none.
-    final (matrixgame_covered_shared/history.py): every message since the
+    final (matrixgame/utils/history.py): every message since the
          viewer's ROUNDS-th last own turn, first call and retries alike; a done
          turn whose message is just "done" shows as `declared done` only.
     """

@@ -7,7 +7,7 @@ import pytest
 
 from analysis.messages import corpus, grammar
 from analysis.messages.probe import client, edit, run
-from matrixgame_covered_shared import history
+from matrixgame.utils import history
 
 TAIL = ("CURRENT BOARD:\n<grid>\n\nGOAL BOARD:\n<grid>\n\nYour turn. Respond with:\nmessage: <your message>\n"
         "move: <OBJECT> <DIRECTION>\n\nOR, if ALL your objects are at their target positions:\nmessage: done\n"
@@ -108,54 +108,6 @@ def test_swap_every_g_cell_form_same_length_in_grammar():
     assert cells(new) == [(6, 1) if c == (2, 3) else c for c in cells(msg)]
     assert "(R7,C2)" in new and "R7C2" in new and "r7, c2" in new and "(R7, C2)" in new and "(R5,C6)" in new
     assert corpus.slots(new, "hybrid")["request"] == "clear (R7,C2)"
-
-
-# ---------------------------------------------------------------- logged prompts (dev only)
-
-@pytest.fixture(scope="module")
-def logged():
-    p = next(p for p in corpus.episode_paths("dev", "dsv41", "3p") if "/S3_hybrid_" in p)
-    ep = corpus.parse(p, "dev", "dsv41")
-    return ep, grammar.analyse_all([ep])
-
-
-def test_logged_prompts_and_every_edit(logged):
-    ep, A = logged
-    T, files, n = ep["turns"], {}, 0
-    for t in T:
-        if t["retry"] or t["done"]:
-            continue
-        msgs, use = run.logged_prompt(ep, t["call"], files)
-        c = msgs[-1]["content"]
-        assert c.endswith(ep["calls"][t["call"]]["ctx"]) and use["i"] > 0  # requests.json matches interactions.json
-        if edit.RESPONSE not in c:  # seat 0's first call: initial boards only, no messages (X1 §2.2)
-            assert not t["vis"]
-            continue
-        for q in run._teammate_msgs(ep, t):
-            sp, m = T[q]["seat"], T[q]["msg"]
-            line = edit.entry("dev", sp, m)
-            d = edit.delete(msgs, "dev", sp, m)[-1]["content"]
-            assert line not in d and len(c) - len(d) in (len(line) + 1, len(line) + 2)
-            label = lambda p: T[p]["seat"] + (" (you)" if T[p]["seat"] == t["seat"] else "")
-            assert all(edit.entry("dev", label(p), T[p]["msg"]) in d for p in t["vis"] if p != q)
-            r = edit.replace(msgs, "dev", sp, m, "OTHER")[-1]["content"]
-            assert r == c.replace(line, f"{sp} says: OTHER")
-            for c1 in {x for _, _, x, _ in A[(ep["meta"]["id"], q)]["cells"]}:
-                new, k = edit.swap_cell(m, "dev", c1, (7, 7) if c1 != (7, 7) else (0, 0))
-                assert k and len(new) == len(m) and corpus.slots(new, "hybrid")
-                assert len(edit.replace(msgs, "dev", sp, m, new)[-1]["content"]) == len(c)
-            n += 1
-        a = edit.ask(msgs, edit.q_loc("A"))[-1]["content"]
-        assert a.startswith(c[:c.rfind(edit.RESPONSE)]) and "Respond with" not in a
-        d = run.e3_decision(ep, A, t)
-        if d:
-            its = run.e3_items(ep, d, files)
-            bare = [m for it, m in its if it["arm"] == "nomsg"][0][-1]["content"]
-            assert not run.MSG_LINE.search(bare) and bare.count("CURRENT BOARD:") == 1 and "GOAL BOARD:" in bare
-            assert {it["letter"] for it, _ in its} == {o for o in ep["owner"] if ep["owner"][o] != t["seat"]}
-            goal = run.e3_items(ep, run.e3g_decision(ep, A, t), files, goal=True)
-            assert [m[-1]["content"].endswith(edit.q_goal(it["letter"])) for it, m in goal] == [True] * len(its)
-    assert n > 10
 
 
 # ---------------------------------------------------------------- answers

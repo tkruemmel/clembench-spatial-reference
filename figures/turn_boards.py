@@ -4,7 +4,7 @@
 
 Illustrative turns, not a recorded episode: four rounds of a freeform dyad
 game on S2 instance 15, the board of the board-model figure, played through
-the final arm's own game master, so the two boards are exactly what it sends
+the game's own master (matrixgame/master.py), so the two boards are exactly what it sends
 Player Green next. Shaded bands mark the rounds; they are not sent.
 """
 
@@ -13,13 +13,14 @@ from __future__ import annotations
 import importlib.util
 import json
 import os
+import sys
 from typing import List
 
 from spatial_levels import OUT_DIR, REPO_ROOT
 from style import INK, MONO, MUTED, plt, save
 
-PKG = os.path.join(REPO_ROOT, "matrixgame_covered_comm_grid_final")
-EXPERIMENT, GAME_ID = "S2_freeform_grid", 15
+PKG = os.path.join(REPO_ROOT, "matrixgame")
+EXPERIMENT, GAME_ID = "S2_freeform", 15
 BAND = "#F1F3F6"  # every other round, too light to read as data
 
 # Green owns A, C, D and moves first; Orange owns B, E, F.
@@ -46,25 +47,27 @@ def sent_boards() -> str:
     """Plays TURNS through the game master and returns Green's two boards."""
     from clemcore.clemgame.registry import GameSpec
 
+    sys.path.insert(0, PKG)  # the master imports its helpers as utils.*
     spec = importlib.util.spec_from_file_location(
-        "final_dyad_master", os.path.join(PKG, "master.py"))
+        "matrixgame_master", os.path.join(PKG, "master.py"))
     master = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(master)
 
-    with open(os.path.join(PKG, "in", "instances.json")) as fh:
+    with open(os.path.join(PKG, "in", "instances_dyad.json")) as fh:
         data = json.load(fh)
     instance, = [i for e in data["experiments"] if e["name"] == EXPERIMENT
                  for i in e["game_instances"] if i["game_id"] == GAME_ID]
-    gm = master.FinalMatrixGameMaster(
-        GameSpec(game_name="g", game_path=PKG, players=2), {"name": "x"},
+    gm = master.TeamMatrixGameMaster(
+        GameSpec(game_name="matrixgame_dyad", game_path=PKG, players=2), {"name": "x"},
         [_Silent(), _Silent()])
     gm._on_setup(**instance)
+    green, orange = gm.get_players()
     for k, (message, move) in enumerate(TURNS):
-        player = gm.player_a if k % 2 == 0 else gm.player_b
+        player = green if k % 2 == 0 else orange
         response = f"message: {message}\nmove: {move}"
         assert gm._validate_player_response(player, response), response
         gm._on_valid_player_response(player, gm._parse_response(player, response))
-    context = gm.get_context_for(gm.player_a)["content"]
+    context = gm.get_context_for(green)["content"]
     return context.split("CURRENT BOARD")[0]
 
 

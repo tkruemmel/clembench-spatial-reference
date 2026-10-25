@@ -1,86 +1,91 @@
-"""Instance generator for matrixgame.
+"""Instances of the four Matrixgame games: in/instances_{solo,dyad,3p,6p}.json.
 
-Generates game instances with randomised starting positions (row 1) and
-target patterns (row 4) across difficulty levels (fewer vs more objects /
-columns).
+Every game plays the same 15 boards per level (utils/boardgen.py, seed 42).
+Solo is played without messages; the team games once under each protocol.
+Ownership: the dyad takes the board's own split, 3p and 6p deal the objects
+round-robin (objects[j] -> player j % n), which keeps consecutive chain
+members on different players.
+
+The turn budget is four times the optimal move count of the board under the
+game's rules, max(4 * A, 20). A is the attainable optimum an A* search over
+the real turn order, ownership and `done` rules finds (utils/solver.py), read
+from resources/optimal_moves.json; recompute that table with
+
+    python3 matrixgame/utils/solver.py --table
+
+    python3 matrixgame/instancegenerator.py
 """
 
+import json
 import os
-import random
-from typing import List, Optional
 
 from clemcore.clemgame import GameInstanceGenerator
 
+from utils.boardgen import LEVELS, generate_board
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+SEED = 42
+BOARDS_PER_LEVEL = 15
+GRID_SIZE = 8
+OBJECTS = ["A", "B", "C", "D", "E", "F"]
+MAX_RETRIES = 2
+GAMES = {"solo": 1, "dyad": 2, "3p": 3, "6p": 6}
+PROTOCOLS = ("none", "structured", "hybrid", "freeform")
+# S2 board 10 comes from stream index 16: at index 9 the 6p player owning B
+# has no legal move on its first turn, so no 6p play-through exists in which
+# no player is enclosed (utils/solver.py finds none).
+REDRAWN = {("S2", 9): 16}
+
+
+def round_robin(objects, num_players):
+    return [[o for j, o in enumerate(objects) if j % num_players == i] for i in range(num_players)]
+
 
 class MatrixGameInstanceGenerator(GameInstanceGenerator):
+
     def __init__(self):
-        super().__init__(os.path.dirname(__file__))
+        super().__init__(HERE)
+        self.optimal_moves = self.load_json("resources/optimal_moves")
+        self.boards = {
+            (level, idx): generate_board(level, GRID_SIZE, OBJECTS, SEED, REDRAWN.get((level, idx), idx))
+            for level in LEVELS for idx in range(BOARDS_PER_LEVEL)
+        }
 
-    def on_generate(self, seed: int, **kwargs):
-        variant = kwargs.get("variant", "matrixgame")
-        variant_config = self.load_json("resources/config")[variant]
-        common_config = self.load_json("resources/common_config")
-
-        num_columns = variant_config["num_columns"]
-        num_objects = variant_config["num_objects"]
-        num_rows = common_config["num_rows"]
-        target_row = common_config["target_row"]
-        goal_row = common_config["goal_row"]
-        max_retries = common_config["max_retries"]
-        strict = common_config.get("strict", False)
-        start_row = common_config["start_row"]
-        all_objects = common_config["objects"][:num_objects]
-
-        prompt_template = self.load_template("resources/initial_prompts/en/player_prompt")
-
-        num_instances = kwargs.get("num_instances", 10)
-
-        experiment_name = f"{variant_config['name']}_{num_columns}cols_{num_objects}obj"
-        experiment = self.add_experiment(experiment_name)
-        experiment["common_config"] = common_config
-        experiment["variant_config"] = variant_config
-
-        rng = random.Random(seed)
-
-        for idx in range(num_instances):
-            game_instance = self.add_game_instance(experiment, idx + 1)
-
-            # Random starting positions in row 0
-            start_columns = rng.sample(range(num_columns), num_objects)
-            start_positions = {}
-            for obj, col in zip(all_objects, start_columns):
-                start_positions[obj] = [0, col]  # row 0
-
-            # Random target pattern in the target row (different ordering)
-            target_columns = rng.sample(range(num_columns), num_objects)
-            target_pattern: List[Optional[str]] = [None] * num_columns
-            for obj, col in zip(all_objects, target_columns):
-                target_pattern[col] = obj
-
-            game_instance["num_columns"] = num_columns
-            game_instance["num_rows"] = num_rows
-            game_instance["target_row"] = target_row
-            game_instance["goal_row"] = goal_row
-            game_instance["max_retries"] = max_retries
-            game_instance["strict"] = strict
-
-            # Compute max_turns as 4x minimum total Manhattan distance
-            min_total_distance = 0
-            for obj, start_col in zip(all_objects, start_columns):
-                target_col = target_columns[all_objects.index(obj)]
-                row_dist = abs(goal_row - start_row)
-                col_dist = abs(target_col - start_col)
-                min_total_distance += row_dist + col_dist
-            game_instance["min_manhattan_distance"] = min_total_distance
-            game_instance["max_turns"] = 4 * min_total_distance
-
-            game_instance["objects"] = all_objects
-            game_instance["start_positions"] = start_positions
-            game_instance["target_pattern"] = target_pattern
-            game_instance["player_prompt"] = prompt_template
+    def on_generate(self, seed: int, game: str):
+        self.instances = dict(experiments=list())
+        num_players = GAMES[game]
+        protocols = [None] if game == "solo" else PROTOCOLS
+        prompts = "solo" if game == "solo" else "dyad" if game == "dyad" else "nplayer"
+        for level in LEVELS:
+            for protocol in protocols:
+                name = f"resources/initial_prompts/en/{prompts}/player_prompt"
+                prompt = self.load_template(name if protocol is None else f"{name}_{protocol}")
+                experiment = self.add_experiment(level if protocol is None else f"{level}_{protocol}")
+                for idx in range(BOARDS_PER_LEVEL):
+                    board = self.boards[(level, idx)]
+                    optimal = self.optimal_moves[game][level][idx]
+                    instance = self.add_game_instance(experiment, idx + 1)
+                    instance["grid_size"] = GRID_SIZE
+                    instance["walls"] = board["walls"]
+                    instance["objects"] = OBJECTS
+                    if num_players == 2:
+                        instance["player_objects"] = list(board["dyad_split"])
+                    elif num_players > 2:
+                        instance["player_objects"] = round_robin(OBJECTS, num_players)
+                    instance["start_positions"] = board["start_positions"]
+                    instance["target_positions"] = board["target_positions"]
+                    instance["optimal_moves"] = optimal
+                    instance["max_turns"] = max(4 * optimal, 20)
+                    instance["max_retries"] = MAX_RETRIES
+                    instance["spatial_level"] = level
+                    if protocol is not None:
+                        instance["comm_protocol"] = protocol
+                    instance["player_prompt"] = prompt
+                    if board["device"]:
+                        instance["device"] = board["device"]
 
 
 if __name__ == "__main__":
-    MatrixGameInstanceGenerator().generate(
-        filename="instances.json", seed=42, variant="matrixgame", num_instances=10
-    )
+    generator = MatrixGameInstanceGenerator()
+    for game in GAMES:
+        print(generator.generate(filename=f"instances_{game}.json", seed=SEED, game=game))

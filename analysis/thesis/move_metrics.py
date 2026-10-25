@@ -25,11 +25,11 @@ Per-episode records are cached in move_metrics.final.jsonl, keyed by path and
 the mtime of interactions.json, so a rerun only solves new episodes, plus the
 episodes with a capped state when --cap is raised.  Build the solver once:
 
-    cc -O3 -o analysis/efficiency_baseline/hstar_c analysis/efficiency_baseline/hstar.c
+    cc -O3 -o analysis/thesis/hstar_c analysis/thesis/hstar.c
 
     python3 analysis/thesis/move_metrics.py            # report
     python3 analysis/thesis/move_metrics.py --tex      # also thesis/numbers/tab_move_metrics.final.tex
-    python3 analysis/thesis/move_metrics.py --check    # hstar_c against stuckfree.solve first
+    python3 analysis/thesis/move_metrics.py --check    # hstar_c against solver.solve first
 
 Exploratory: not one of the confirmatory contrasts.
 """
@@ -45,11 +45,11 @@ import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(os.path.dirname(HERE))
-sys.path[:0] = [HERE, os.path.join(ROOT, "analysis/efficiency_baseline"), ROOT]
-import stuckfree as SF                                        # noqa: E402
-from matrixgame_covered_shared.history import SEATS           # noqa: E402
+sys.path[:0] = [HERE, ROOT]
+from matrixgame.utils import solver as SF                     # noqa: E402
+from matrixgame.utils.history import SEATS                    # noqa: E402
 
-BINARY = os.path.join(ROOT, "analysis/efficiency_baseline/hstar_c")
+BINARY = os.path.join(HERE, "hstar_c")
 CACHE = os.path.join(HERE, "move_metrics.final.jsonl")
 TREE = re.compile(r"^results_(\w+?)_grid_final_n15_(solo|dyad|3p|6p)$")
 CHRONO = re.compile(r"^results_(\w+?)_grid_final_chrono_n15_(3p|6p)$")
@@ -90,7 +90,7 @@ def table(caption, label, spec, header, body, note=None, tight=False):
 
 SUITES = ("solo", "dyad", "3p", "6p")
 LEVELS = ("S1", "S2", "S3", "S4")
-LABEL = {"qwen38": "Qwen3.8", "dsv41": "DeepSeek-V4.1", "dsv41nt": "DeepSeek-V4.1 (no thinking)"}
+LABEL = {"dsv41": "DeepSeek-V4.1"}
 INF = float("inf")
 
 
@@ -463,12 +463,9 @@ def tex(R):
 
 # ------------------------------------------------------------------ self-check
 def selfcheck(cap):
-    """hstar_c against stuckfree.solve from random reachable states."""
+    """hstar_c against solver.solve from random reachable states."""
     rng = random.Random(0)
-    files = [("solo", "matrixgame_covered_solo_grid_final/in/instances.json"),
-             ("dyad", "matrixgame_covered_comm_grid_final/in/instances.json"),
-             ("3p", "matrixgame_covered_comm_nplayer_grid_final/in/instances_3p.json"),
-             ("6p", "matrixgame_covered_comm_nplayer_grid_final/in/instances_6p.json")]
+    files = [(suite, f"matrixgame/in/instances_{suite}.json") for suite in ("solo", "dyad", "3p", "6p")]
     n = 0
     for suite, f in files:
         boards = [gi for e in json.load(open(os.path.join(ROOT, f)))["experiments"]
@@ -493,7 +490,7 @@ def selfcheck(cap):
                 n += 1
             exact.close()
             bounded.close()
-    print(f"hstar_c agrees with stuckfree.solve on {n} random states")
+    print(f"hstar_c agrees with solver.solve on {n} random states")
 
 
 def main():

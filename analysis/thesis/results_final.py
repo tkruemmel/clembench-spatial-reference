@@ -19,7 +19,6 @@ import sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(os.path.dirname(HERE))
 sys.path.insert(0, HERE)
-sys.path.insert(0, os.path.join(ROOT, "analysis", "efficiency_baseline"))
 from move_metrics import MOVE, DONE, pool, trees  # noqa: E402
 
 SUITES = ["solo", "dyad", "3p", "6p"]

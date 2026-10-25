@@ -31,10 +31,10 @@ from results_final_figs import FS_LEGEND, FS_SMALL, FS_TICK, FS_TITLE, OUT_DIR, 
 from style import (INK, MOVE, MUTED, OPEN_DASH, OWNER, PAPER, WALL, at, draw_arrow, draw_grid, draw_target,
                    hatch_cells, marked, marker, outline, route, square_axes, tint, wrap_words)
 
-sys.path[:0] = [os.path.join(REPO_ROOT, "analysis", "thesis"), os.path.join(REPO_ROOT, "analysis", "efficiency_baseline")]
+sys.path[:0] = [os.path.join(REPO_ROOT, "analysis", "thesis"), REPO_ROOT]
 import move_metrics as mm  # noqa: E402
 import results_final as rf  # noqa: E402
-import stuckfree as SF  # noqa: E402
+from matrixgame.utils import solver as SF  # noqa: E402
 
 RUN = "results_dsv41_grid_final_chrono_n15_3p/DeepSeek-V4.1-Flash/matrixgame_covered_comm_3p_grid_final_chrono"
 EPISODES = {"freeform": f"{RUN}/S3_freeform_3p_grid/instance_00013",

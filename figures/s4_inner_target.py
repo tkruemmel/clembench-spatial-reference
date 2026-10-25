@@ -7,8 +7,8 @@ the other's target. (a) The start. (b) On its way out B stands on its own
 target while A waits beside the entrance. A done by B's owner there shuts A
 out of the dead end for good.
 
-The exact joint solver (analysis/efficiency_baseline/csolver.py) solves the
-whole modified board alone in 48 moves, against 44 before the change.
+The exact solver (matrixgame/utils/solver.py, solo rules) solves the whole
+modified board alone in 48 moves, against 44 before the change.
 
     python3 figures/s4_inner_target.py
 """

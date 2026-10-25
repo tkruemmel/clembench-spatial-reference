@@ -5,7 +5,7 @@ import re
 
 from analysis.messages import corpus, grammar
 from analysis.messages.measures import private_reference as pr
-from matrixgame_covered_shared import history
+from matrixgame.utils import history
 
 INF = math.inf
 

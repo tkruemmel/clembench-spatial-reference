@@ -45,7 +45,7 @@ CGEL = dict(
     negators=["not", "n't", "no", "none", "nobody", "nothing", "nowhere", "neither", "nor", "never"],
 )
 PROMPT = dict(
-    goal_nouns=["goal", "goals", "target", "targets"],  # prompt_final/ templates
+    goal_nouns=["goal", "goals", "target", "targets"],  # the prompt templates
     dirs=["up", "down", "left", "right", "upward", "upwards", "downward", "downwards",
           "leftward", "leftwards", "rightward", "rightwards"],
 )
@@ -91,7 +91,7 @@ def build_lists():
         verbnet_classes=VN_CLASSES, verbnet_dropped_multiword=dropped,
         wordnet=f"WordNet {wn.get_version()} via NLTK {nltk.__version__}",
         nltk=nltk.__version__, wordnet_version=wn.get_version(),
-        prompt="prompt_final/{dyad,nplayer}/*.template")
+        prompt="matrixgame/resources/initial_prompts/en/{dyad,nplayer}/*.template")
     with open(LISTS, "w") as f:
         json.dump(out, f, indent=1, sort_keys=True)
     return out

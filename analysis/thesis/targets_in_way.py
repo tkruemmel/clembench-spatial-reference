@@ -15,7 +15,7 @@ import statistics
 from collections import deque
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-INSTANCES = os.path.join(ROOT, "matrixgame_covered_solo_grid_final", "in", "instances.json")
+INSTANCES = os.path.join(ROOT, "matrixgame", "in", "instances_solo.json")
 
 
 def bfs(gi, src, blocked=None):
