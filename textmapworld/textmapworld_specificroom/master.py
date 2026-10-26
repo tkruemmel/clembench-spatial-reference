@@ -3,9 +3,11 @@ from clemcore.clemgame import GameMaster, GameBenchmark, Player, GameSpec
 from clemcore.clemgame.legacy.scorer import GameScorer
 from clemcore.clemgame.legacy.master import DialogueGameMaster
 from clemcore.clemgame.metrics import METRIC_ABORTED, METRIC_SUCCESS, METRIC_LOSE, BENCH_SCORE
+from clemcore.clemgame.master import GameState
 from clemcore.utils import file_utils, string_utils
 
-from typing import Dict, List
+from typing import Any, Dict, List, Tuple, Optional
+from dataclasses import dataclass
 import json
 import numpy as np
 import ast
@@ -115,146 +117,169 @@ class PathDescriber(Player):
         return utterance
 
 
+@dataclass
+class TextmapworldSpecificroomGameState(GameState):
+    graph_type: str
+    initial_position: str
+    playerA_initial_prompt: str
+    directions: List[Tuple[str, List[str]]]
+    ambiguity: Any
+    move_construction: str
+    stop_construction: str
+    reprompting_parameter: bool
+    loop_reprompting: str
+    maxturns_parameter: bool
+    max_turns_reprompting: str
+    initial_directions: List[str]
+    changed_initial_directions: str
+    nodes: List[str]
+    visited_nodes: List[str]
+    specific_room: str
+    steps_made: int = 0
+    max_turns: int = 20
+    game_error: Optional[List[Dict[str, str | int]]] = None
+    game_stop: bool = False
+    invalid_response: bool = False
+    limit_reached: bool = False
+
+    def __post_init__(self):
+        super().__init__()
+
+
 class textmapworld_specificroom(DialogueGameMaster):
     """
-    This class implements a graph traversal game in which player A (DecisionMaker). 
+    This class implements a graph traversal game in which player A (DecisionMaker).
     """
 
     def __init__(self, game_spec: GameSpec, experiment: Dict, player_models: List[Model]):
         super().__init__(game_spec, experiment, player_models)
-        self.steps_made = 0
-        self.max_turns = 20
-        self.game_error = None
-        self.game_stop = False
-        self.invalid_response = False
-        self.limit_reached = False
 
     def _on_setup(self, **game_instance):
-        self.graph_type = game_instance['Game_Type']
-        self.initial_position = game_instance["Current_Position"]
-        self.playerA_initial_prompt = game_instance["Prompt"]
-        self.directions = ast.literal_eval(game_instance['Directions'])
-        self.ambiguity = game_instance["Ambiguity"]
-        self.move_construction = game_instance["Move_Construction"]
-        self.stop_construction = game_instance["Stop_Construction"]
+        graph_type = game_instance['Game_Type']
+        playerA_initial_prompt = game_instance["Prompt"]
+        initial_position = game_instance["Current_Position"]
+        directions = ast.literal_eval(game_instance['Directions'])
+        ambiguity = game_instance["Ambiguity"]
+
+        if "$INITIAL_ROOM$" in playerA_initial_prompt:
+            initial_directions = initial_position
+            if ambiguity != None:
+                initial_directions = initial_position.split("_")[0]
+            playerA_initial_prompt = playerA_initial_prompt.replace("$INITIAL_ROOM$", initial_directions)
+        initial_directions = get_directions(initial_position, directions, initial_position)
+        changed_initial_directions = string_available_directions(initial_directions)
+        playerA_initial_prompt = playerA_initial_prompt.replace("$INITIAL_DIRECTIONS$", changed_initial_directions)
+        playerA_initial_prompt = playerA_initial_prompt.replace("$GOAL$", game_instance["Specific_Room"])
+
+        self.state = TextmapworldSpecificroomGameState(
+            graph_type=graph_type,
+            initial_position=initial_position,
+            playerA_initial_prompt=playerA_initial_prompt,
+            directions=directions,
+            ambiguity=ambiguity,
+            move_construction=game_instance["Move_Construction"],
+            stop_construction=game_instance["Stop_Construction"],
+            reprompting_parameter=game_instance["Loop_Reminder"],
+            loop_reprompting=game_instance["Loop_Reminder_Text"],
+            maxturns_parameter=game_instance["Max_Turns_Reminder"],
+            max_turns_reprompting=game_instance["Max_Turns_Reminder_Text"],
+            initial_directions=initial_directions,
+            changed_initial_directions=changed_initial_directions,
+            nodes=ast.literal_eval(game_instance['Graph_Nodes']),
+            visited_nodes=[initial_position],
+            specific_room=game_instance["Specific_Room"],
+        )
 
         self.guesser = PathGuesser(self.player_models[0])
         self.describer = PathDescriber(game_instance)
         self.add_player(self.guesser)
         self.add_player(self.describer)
 
-        self.reprompting_parameter = game_instance["Loop_Reminder"]
-        self.loop_reprompting = game_instance["Loop_Reminder_Text"]
-        self.maxturns_parameter = game_instance["Max_Turns_Reminder"]
-        self.max_turns_reprompting = game_instance["Max_Turns_Reminder_Text"]
-        self.specific_room = game_instance["Specific_Room"]
-
     def _on_before_game(self):
-        if "$INITIAL_ROOM$" in self.playerA_initial_prompt:
-            initial_directions = self.initial_position
-            if self.ambiguity != None:
-                initial_directions = self.initial_position.split("_")[0]
-            self.playerA_initial_prompt = self.playerA_initial_prompt.replace("$INITIAL_ROOM$", initial_directions)
-        self.initial_directions = get_directions(self.initial_position, self.directions, self.initial_position)
-        self.changed_initial_directions = string_available_directions(self.initial_directions)
-        self.playerA_initial_prompt = self.playerA_initial_prompt.replace("$INITIAL_DIRECTIONS$",
-                                                                          self.changed_initial_directions)
-        self.playerA_initial_prompt = self.playerA_initial_prompt.replace("$GOAL$", self.specific_room)
-        self.set_context_for(self.guesser, self.playerA_initial_prompt)
-        self.visited_nodes = []
-        self.visited_nodes.append(self.initial_position)
-
-    def _does_game_proceed(self):
-
-        "Proceed untill all nodes arent visited"
-        if self.invalid_response:
-            self.log_to_self("aborted", "abort game")
-            return False
-
-        if self.game_stop:
-            self.log_to_self("stop", "The guesser decided to stop the game")
-            return False
-
-        if self.game_error is not None:
-            error_type = self.game_error["type"]
-            if error_type == 0:
-                self.log_to_self("Direction not available", "The desired direction is not in available paths")
-            return False
-
-        if self.current_round >= self.max_turns:
-            self.log_to_self("turns_limit", str(self.max_turns))
-            self.limit_reached = True
-            return False
-
-        return True
+        self.set_context_for(self.guesser, self.state.playerA_initial_prompt)
 
     def _parse_response(self, player: Player, utterance: str) -> str:
         if player == self.guesser:
             found = None
             utterance = utterance.replace("\n", "").strip()
-            if re.search(self.stop_construction, utterance, re.IGNORECASE):
-                found = re.search(self.move_construction, utterance, re.IGNORECASE)
-            elif re.search(self.move_construction, utterance, re.IGNORECASE):
-                found = re.search(self.stop_construction, utterance, re.IGNORECASE)
+            if re.search(self.state.stop_construction, utterance, re.IGNORECASE):
+                found = re.search(self.state.move_construction, utterance, re.IGNORECASE)
+            elif re.search(self.state.move_construction, utterance, re.IGNORECASE):
+                found = re.search(self.state.stop_construction, utterance, re.IGNORECASE)
             if found:
                 utterance = found.group()
             self.log_to_self("parse", utterance)
         return utterance
 
     def _validate_player_response(self, player: Player, utterance: str) -> bool:
+        is_valid = True
         if player == self.guesser:
-            stop_action = re.search(self.stop_construction, utterance, re.IGNORECASE)
-            move_action = re.search(self.move_construction, utterance, re.IGNORECASE)
+            stop_action = re.search(self.state.stop_construction, utterance, re.IGNORECASE)
+            move_action = re.search(self.state.move_construction, utterance, re.IGNORECASE)
             if move_action and stop_action:
-                self.invalid_response = True
-                return False
-            if stop_action:
-                self.game_stop = True
-                return True
-            count_go = re.findall(self.move_construction, utterance, re.IGNORECASE)
-            if len(count_go) > 1:
-                self.invalid_response = True
-                return False
-            if move_action:
-                return True
-            if not move_action and not stop_action:
-                self.invalid_response = True
-                return False
-
-        if player == self.describer:
+                self.state.invalid_response = True
+                is_valid = False
+            else:
+                count_go = re.findall(self.state.move_construction, utterance, re.IGNORECASE)
+                if len(count_go) > 1:
+                    self.state.invalid_response = True
+                    is_valid = False
+                elif not move_action and not stop_action:
+                    self.state.invalid_response = True
+                    is_valid = False
+        elif player == self.describer:
             if utterance == "Game needs to be aborted":
-                self.invalid_response = True
-                return False
-
-        self.log_to_self("Valid format", "Continue")
-        return True
+                if self.state.game_error is not None:
+                    error_type = self.state.game_error["type"]
+                    if error_type == 0:
+                        self.log_to_self("Direction not available", "The desired direction is not in available paths")
+                self.state.invalid_response = True
+                is_valid = False
+        if is_valid:
+            self.log_to_self("Valid format", "Continue")
+        else:
+            self.log_to_self("aborted", "abort game")
+            self.state.abort()
+        return is_valid
 
     def _on_valid_player_response(self, player: Player, utterance: str):
         """Add the utterance to other player's history, if necessary.
         To do this use the method add_user_message(other_player,utterance)."""
         if player == self.guesser:
-            self.set_context_for(self.describer, utterance)
-        if player == self.describer:
-            if self.reprompting_parameter and loop_identification(self.visited_nodes, False):
+            stop_action = re.search(self.state.stop_construction, utterance, re.IGNORECASE)
+            if stop_action:
+                self.log_to_self("stop", "The guesser decided to stop the game")
+                if self.state.visited_nodes[-1].lower() == self.state.specific_room.lower():
+                    self.state.succeed()
+                else:
+                    self.state.failed()
+            else:
+                self.set_context_for(self.describer, utterance)
+        elif player == self.describer:
+            if self.state.reprompting_parameter and loop_identification(self.state.visited_nodes, False):
                 self.log_to_self("loop_detected", "Loop detected in the visited nodes list")
-                self.reprompting_parameter = False
-                utterance = self.loop_reprompting + "\n" + utterance
-            if self.maxturns_parameter and self.current_round == self.max_turns - 2:
-                self.maxturns_parameter = False
-                utterance = self.max_turns_reprompting + "\n" + utterance
+                self.state.reprompting_parameter = False
+                utterance = self.state.loop_reprompting + "\n" + utterance
+            if self.state.maxturns_parameter and self.current_round == self.state.max_turns - 2:
+                self.state.maxturns_parameter = False
+                utterance = self.state.max_turns_reprompting + "\n" + utterance
             self.set_context_for(self.guesser, utterance)
 
     def _on_after_round(self):
-        turn_dict = self.describer.turn_information()
-        old_node = turn_dict["from"]
-        new_node = turn_dict["to"]
-        if old_node != new_node:
-            if not self.game_stop and not self.invalid_response and not self.limit_reached and not self.game_error:
-                self.log_to_self(type_="move", value=json.dumps({"old": old_node, "new": new_node}))
-                self.visited_nodes.append(new_node)
-                if self.reprompting_parameter and loop_identification(self.visited_nodes, False):
-                    self.visited_nodes.clear()
-                    self.reprompting_parameter = True
+        if self.current_round + 1 >= self.state.max_turns:
+            self.log_to_self("turns_limit", str(self.state.max_turns))
+            self.state.abort()
+        else:
+            turn_dict = self.describer.turn_information()
+            old_node = turn_dict["from"]
+            new_node = turn_dict["to"]
+            if old_node != new_node:
+                if not self.state.game_stop and not self.state.invalid_response and not self.state.limit_reached and not self.state.game_error:
+                    self.log_to_self(type_="move", value=json.dumps({"old": old_node, "new": new_node}))
+                    self.state.visited_nodes.append(new_node)
+                    if self.state.reprompting_parameter and loop_identification(self.state.visited_nodes, False):
+                        self.state.visited_nodes.clear()
+                        self.state.reprompting_parameter = True
 
 
 class GraphGameScorer(GameScorer):
@@ -366,7 +391,7 @@ class GraphGameScorer(GameScorer):
                     turns_limit_reached = True
 
         for i, val in enumerate(good_move):
-            self.log_turn_score(i, "effiencient_move", val)
+            self.log_turn_score(i, "efficient_move", int(val))
         if aborted:
             self.log_episode_score(METRIC_ABORTED, 1)
             self.log_episode_score(METRIC_SUCCESS, 0)
@@ -390,18 +415,18 @@ class GraphGameScorer(GameScorer):
         exploration = (len(visited) / len(self.nodes) * 100) if len(self.nodes) else 0
         efficiency = (sum(good_move) / len(good_move) * 100) if good_move else 0
         bench_score = (2 * efficiency * exploration / (efficiency + exploration)) if (efficiency + exploration) else 0
-        self.log_episode_score('moves', valid_moves + invalid_moves if stopped else np.NaN)
-        self.log_episode_score('valid_moves', valid_moves if stopped else np.NaN)
-        self.log_episode_score('invalid_moves', invalid_moves if stopped else np.NaN)
-        self.log_episode_score('stopped', int(stopped) if stopped else np.NaN)
-        self.log_episode_score('turns_limit', int(turns_limit_reached) if stopped else np.NaN)
-        self.log_episode_score('loops', count_loops if stopped else np.NaN)
-        self.log_episode_score('number_visited', len(visited) if stopped else np.NaN)
-        self.log_episode_score('seen', len(seen) if stopped else np.NaN)
-        self.log_episode_score('efficiency', efficiency if stopped else np.NaN)
-        self.log_episode_score('exploration', exploration if stopped else np.NaN)
-        self.log_episode_score('old_benchscore', bench_score if stopped else np.NaN)
-        self.log_episode_score(BENCH_SCORE, success if stopped else np.NaN)
+        self.log_episode_score('moves', valid_moves + invalid_moves if stopped else np.nan)
+        self.log_episode_score('valid_moves', valid_moves if stopped else np.nan)
+        self.log_episode_score('invalid_moves', invalid_moves if stopped else np.nan)
+        self.log_episode_score('stopped', int(stopped) if stopped else np.nan)
+        self.log_episode_score('turns_limit', int(turns_limit_reached) if stopped else np.nan)
+        self.log_episode_score('loops', count_loops if stopped else np.nan)
+        self.log_episode_score('number_visited', len(visited) if stopped else np.nan)
+        self.log_episode_score('seen', len(seen) if stopped else np.nan)
+        self.log_episode_score('efficiency', efficiency if stopped else np.nan)
+        self.log_episode_score('exploration', exploration if stopped else np.nan)
+        self.log_episode_score('old_benchscore', bench_score if stopped else np.nan)
+        self.log_episode_score(BENCH_SCORE, success if stopped else np.nan)
 
 
 class GraphGameBenchmark(GameBenchmark):

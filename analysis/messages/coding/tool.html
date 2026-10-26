@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Author Check</title>
+<style>
+:root {
+  --bg: #f7f7f5; --card: #ffffff; --ink: #1d1d1b; --muted: #6b6b66; --line: #dddcd6;
+  --letter: #ffd866; --cell: #9fd4ff; --yes: #1f7a3f; --no: #a3262a; --focus: #2b5fd9;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #161615; --card: #20201e; --ink: #ecebe6; --muted: #a09f98; --line: #3a3a36;
+          --letter: #7a5f00; --cell: #1d4f78; --yes: #3fb26a; --no: #e0575c; --focus: #7aa2ff; }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.5 system-ui, sans-serif; }
+main { max-width: 860px; margin: 0 auto; padding: 16px; }
+header { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: baseline; justify-content: space-between; }
+h1 { font-size: 1.15rem; margin: 0; }
+.progress { color: var(--muted); font-variant-numeric: tabular-nums; }
+.bar { height: 6px; background: var(--line); border-radius: 3px; margin: 8px 0 16px; overflow: hidden; }
+.bar > div { height: 100%; background: var(--yes); width: 0; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 16px; }
+.question { font-size: 1.05rem; margin: 0 0 12px; }
+.question b { padding: 0 4px; border-radius: 3px; }
+.q-letter { background: var(--letter); }
+.q-cell { background: var(--cell); }
+.msg { white-space: pre-wrap; word-wrap: break-word; font-family: ui-monospace, Menlo, monospace; font-size: .95rem;
+       border-left: 3px solid var(--line); padding: 4px 0 4px 12px; margin: 0; }
+.msg .letter { background: var(--letter); border-radius: 2px; font-weight: 700; }
+.msg .cell { background: var(--cell); border-radius: 2px; font-weight: 700; }
+.state { margin: 12px 0 0; color: var(--muted); min-height: 1.5em; }
+.state .yes { color: var(--yes); font-weight: 700; }
+.state .no { color: var(--no); font-weight: 700; }
+.buttons { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
+button { font: inherit; padding: 8px 16px; border-radius: 6px; border: 1px solid var(--line);
+         background: var(--card); color: var(--ink); cursor: pointer; }
+button:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+button.yes { border-color: var(--yes); color: var(--yes); font-weight: 700; }
+button.no { border-color: var(--no); color: var(--no); font-weight: 700; }
+.help { color: var(--muted); font-size: .9rem; margin-top: 16px; }
+kbd { border: 1px solid var(--line); border-radius: 3px; padding: 0 4px; font-size: .85rem; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1 id="title">Author check (spec 9.6)</h1>
+    <span class="progress" id="progress" aria-live="polite"></span>
+  </header>
+  <div class="bar" aria-hidden="true"><div id="bar"></div></div>
+  <section class="card" aria-labelledby="question">
+    <p class="question" id="question"></p>
+    <p class="msg" id="msg"></p>
+    <p class="state" id="state" aria-live="polite"></p>
+    <div class="buttons">
+      <button class="yes" id="yes" type="button">Yes <kbd>Y</kbd></button>
+      <button class="no" id="no" type="button">No <kbd>N</kbd></button>
+      <button id="prev" type="button">Previous <kbd>&larr;</kbd></button>
+      <button id="next" type="button">Next <kbd>&rarr;</kbd></button>
+      <button id="todo" type="button">Next uncoded <kbd>U</kbd></button>
+      <button id="export" type="button">Export labels <kbd>E</kbd></button>
+    </div>
+  </section>
+  <p class="help" id="help">Yes if the message states the object's current position, that the lettered object is on the
+  highlighted cell now. No if it does not, for example a destination, a plan, a condition, a question, a negation,
+  someone else's report, or a different object. Labels are saved in this browser as you go. Export them when done
+  and pass the downloaded file to the importer.</p>
+</main>
+<script id="data" type="application/json">__DATA__</script>
+<script>
+"use strict";
+const DATA = JSON.parse(document.getElementById("data").textContent);
+const ITEMS = DATA.items;
+const STORE = "authorcheck:" + DATA.sha;
+const ASK = DATA.ask || ["Does the message state that object ", " is at ", " now?"];
+if (DATA.help) document.getElementById("help").textContent = DATA.help;
+if (DATA.title) { document.getElementById("title").textContent = DATA.title; document.title = DATA.title; }
+let labels = {};
+let saved = true;  // false once the browser refuses storage: then only an export keeps the labels
+try { labels = JSON.parse(localStorage.getItem(STORE) || "{}"); } catch (e) { labels = {}; saved = false; }
+let pos = Math.max(0, ITEMS.findIndex(it => !(it.id in labels)));
+const $ = id => document.getElementById(id);
+
+function save() {
+  try { localStorage.setItem(STORE, JSON.stringify(labels)); saved = true; } catch (e) { saved = false; }
+}
+
+function render() {
+  const it = ITEMS[pos];
+  const q = $("question");
+  q.textContent = ASK[0];
+  const b1 = document.createElement("b"); b1.className = "q-letter"; b1.textContent = it.letter;
+  const b2 = document.createElement("b"); b2.className = "q-cell"; b2.textContent = it.cell;
+  q.append(b1, ASK[1], b2, ASK[2]);
+  const msg = $("msg");
+  msg.textContent = "";
+  let at = 0;
+  for (const [i0, i1, kind] of it.marks) {
+    if (i0 < at) continue;
+    msg.append(it.text.slice(at, i0));
+    const s = document.createElement("span"); s.className = kind; s.textContent = it.text.slice(i0, i1);
+    msg.append(s);
+    at = i1;
+  }
+  msg.append(it.text.slice(at));
+  const lab = labels[it.id];
+  $("state").innerHTML = "";
+  $("state").append("Item " + it.id + ". ");
+  if (lab) { const s = document.createElement("span"); s.className = lab; s.textContent = "Coded " + lab + "."; $("state").append(s); }
+  else $("state").append("Not coded yet.");
+  if (!saved) $("state").append(" This browser does not save the labels: export before closing.");
+  const n = Object.keys(labels).filter(k => ITEMS.some(x => x.id === k)).length;
+  $("progress").textContent = n + " of " + ITEMS.length + " coded, showing " + (pos + 1);
+  $("bar").style.width = (100 * n / ITEMS.length) + "%";
+}
+
+function go(d) { pos = Math.min(ITEMS.length - 1, Math.max(0, pos + d)); render(); }
+function nextTodo() {
+  for (let k = 1; k <= ITEMS.length; k++) {
+    const j = (pos + k) % ITEMS.length;
+    if (!(ITEMS[j].id in labels)) { pos = j; break; }
+  }
+  render();
+}
+function mark(v) {
+  labels[ITEMS[pos].id] = v; save();
+  if (pos < ITEMS.length - 1) go(1); else render();
+}
+function exportLabels() {
+  const out = { items_sha256: DATA.sha, n_items: ITEMS.length, labels: labels, exported: new Date().toISOString() };
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([JSON.stringify(out, null, 1)], { type: "application/json" }));
+  a.download = "labels_" + DATA.sha.slice(0, 8) + ".json";
+  document.body.append(a); a.click(); a.remove();
+}
+
+$("yes").onclick = () => mark("yes");
+$("no").onclick = () => mark("no");
+$("prev").onclick = () => go(-1);
+$("next").onclick = () => go(1);
+$("todo").onclick = nextTodo;
+$("export").onclick = exportLabels;
+document.addEventListener("keydown", e => {
+  if (e.metaKey || e.ctrlKey || e.altKey) return;
+  const k = e.key.toLowerCase();
+  if (k === "y" || k === "1") mark("yes");
+  else if (k === "n" || k === "0") mark("no");
+  else if (k === "arrowleft" || k === "k") go(-1);
+  else if (k === "arrowright" || k === "j") go(1);
+  else if (k === "u") nextTodo();
+  else if (k === "e") exportLabels();
+  else return;
+  e.preventDefault();
+});
+render();
+</script>
+</body>
+</html>

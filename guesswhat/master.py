@@ -1,10 +1,12 @@
 from typing import Dict, List
+from dataclasses import dataclass, field
 import numpy as np
 import logging
 from clemcore.backends import Model
 from clemcore.clemgame import GameMaster, GameBenchmark, Player, GameSpec
 from clemcore.clemgame.legacy.scorer import GameScorer
 from clemcore.clemgame.legacy.master import DialogueGameMaster
+from clemcore.clemgame.master import GameState
 from clemcore.clemgame.metrics import METRIC_ABORTED, METRIC_SUCCESS, METRIC_LOSE, METRIC_REQUEST_COUNT, \
     METRIC_REQUEST_COUNT_VIOLATED, METRIC_REQUEST_COUNT_PARSED, METRIC_REQUEST_SUCCESS_RATIO, BENCH_SCORE
 from clemcore.utils import file_utils, string_utils
@@ -32,6 +34,31 @@ class Answerer(Player):
     def _custom_response(self, context):
         return "ANSWER: No."
 
+@dataclass
+class GuessWhatGameState(GameState):
+    target_word: str = None
+    candidate_list: List = field(default_factory=list)
+    guesser_initial_prompt: str = None
+    answerer_initial_prompt: str = None
+    guess_word: str = None
+    incorrect_guess: bool = False
+    correct_guess: bool = False
+    question_tag: str = None
+    answer_tag: str = None
+    guess_tag: str = None
+    answer_variations: List = field(default_factory=list)
+    letter_based_pattern: str = None
+    direct_guess_pattern: str = None
+    length_question_pattern: str = None
+    syllable_question_pattern: str = None
+    pos_question_pattern: str = None
+    invalid_format: bool = False
+    invalid_content: bool = False
+    max_turns: int = None
+
+    def __post_init__(self):
+        super().__init__()
+
 
 class GuessWhat(DialogueGameMaster):
     """
@@ -42,21 +69,6 @@ class GuessWhat(DialogueGameMaster):
     def __init__(self, game_spec: GameSpec, experiment: Dict, player_models: List[Model]):
         super().__init__(game_spec, experiment, player_models)
 
-        self.max_turns: int = experiment["max_turns"]
-        self.question_tag = experiment["question_tag"]
-        self.answer_tag = experiment["answer_tag"]
-        self.guess_tag = experiment["guess_tag"]
-        self.answer_variations = experiment["answer_variations"]
-        self.guesser_initial_prompt = experiment["guesser_initial_prompt"]
-        self.answerer_initial_prompt = experiment["answerer_initial_prompt"]
-        self.letter_based_pattern = experiment["letter_based_pattern"]
-        self.direct_guess_pattern = experiment["direct_guess_pattern"]
-        self.length_question_pattern = experiment["length_question_pattern"]
-        self.syllable_question_pattern = experiment["syllable_question_pattern"]
-        self.pos_question_pattern = experiment["pos_question_pattern"]
-        self.incorrect_guess = False
-        self.correct_guess = False
-
     def check_question(self, question: str, candidate_list: List[str]) -> List[Dict]:
         """
         Checks the questions content to see if they follow the rules of the game.
@@ -64,12 +76,12 @@ class GuessWhat(DialogueGameMaster):
         """
         errors = []
 
-        question_text = question.replace(self.question_tag, "").strip().lower()
-        letter_based_pattern = re.compile(r'{}'.format(self.letter_based_pattern, re.IGNORECASE))
-        direct_guess_pattern = re.compile(r'{}'.format(self.direct_guess_pattern, re.IGNORECASE))
-        length_question_pattern = re.compile(r'{}'.format(self.length_question_pattern, re.IGNORECASE))
-        syllable_question_pattern = re.compile(r'{}'.format(self.syllable_question_pattern, re.IGNORECASE))
-        pos_question_pattern = re.compile(r'{}'.format(self.pos_question_pattern, re.IGNORECASE))
+        question_text = question.replace(self.state.question_tag, "").strip().lower()
+        letter_based_pattern = re.compile(r'{}'.format(self.state.letter_based_pattern, re.IGNORECASE))
+        direct_guess_pattern = re.compile(r'{}'.format(self.state.direct_guess_pattern, re.IGNORECASE))
+        length_question_pattern = re.compile(r'{}'.format(self.state.length_question_pattern, re.IGNORECASE))
+        syllable_question_pattern = re.compile(r'{}'.format(self.state.syllable_question_pattern, re.IGNORECASE))
+        pos_question_pattern = re.compile(r'{}'.format(self.state.pos_question_pattern, re.IGNORECASE))
 
         if letter_based_pattern.search(question_text):
             errors.append({
@@ -105,14 +117,27 @@ class GuessWhat(DialogueGameMaster):
         return errors
 
     def _on_setup(self, **game_instance):
-        self.game_instance = game_instance
-
-        self.target_word = game_instance["target_word"]
-        self.candidate_list = game_instance["candidate_list"]
-
-        self.guesser_initial_prompt = self.guesser_initial_prompt.replace("$LIST$", str(self.candidate_list)).replace(
-            "$N$", str(self.max_turns - 1))
-        self.answerer_initial_prompt = self.answerer_initial_prompt.replace("$TARGET WORD$", str(self.target_word))
+        guesser_initial_prompt = self.experiment["guesser_initial_prompt"]
+        answerer_initial_prompt = self.experiment["answerer_initial_prompt"]
+        target_word = game_instance["target_word"]
+        candidate_list = game_instance["candidate_list"]
+        max_turns = self.experiment["max_turns"]
+        self.state = GuessWhatGameState(
+            target_word = target_word,
+            candidate_list = candidate_list,
+            guesser_initial_prompt = guesser_initial_prompt.replace("$LIST$", str(candidate_list)).replace("$N$", str(max_turns - 1)),
+            answerer_initial_prompt = answerer_initial_prompt.replace("$TARGET WORD$", str(target_word)),
+            question_tag = self.experiment["question_tag"],
+            answer_tag = self.experiment["answer_tag"],
+            guess_tag = self.experiment["guess_tag"],
+            answer_variations = self.experiment["answer_variations"],
+            letter_based_pattern = self.experiment["letter_based_pattern"],
+            direct_guess_pattern = self.experiment["direct_guess_pattern"],
+            length_question_pattern = self.experiment["length_question_pattern"],
+            syllable_question_pattern = self.experiment["syllable_question_pattern"],
+            pos_question_pattern = self.experiment["pos_question_pattern"],
+            max_turns = max_turns,
+        )
 
         self.guesser = Guesser(self.player_models[0])
         self.answerer = Answerer(self.player_models[1])
@@ -120,115 +145,87 @@ class GuessWhat(DialogueGameMaster):
         self.add_player(self.guesser)
         self.add_player(self.answerer)
 
-        # Two different variables for the errors
-        self.invalid_format = False
-        self.invalid_content = False
-
-        self.guess_word = None
 
     def _on_before_game(self):
-        self.set_context_for(self.guesser, self.guesser_initial_prompt)
+        self.set_context_for(self.guesser, self.state.guesser_initial_prompt)
 
-    def _does_game_proceed(self):
-        if self.invalid_format:
-            self.log_to_self("invalid format", "abort game")
-            return False
-        if self.invalid_content:
-            self.log_to_self("invalid content", "abort game")
-            return False
-        if self.correct_guess:
-            self.log_to_self("correct guess", "end game")
-            return False
-        if self.incorrect_guess:
-            self.log_to_self("incorrect guess", "end game")
-            return False
-        if self.current_round >= self.max_turns:
-            self.log_to_self("max turns reached", str(self.max_turns))
-            return False
-        return True
+    def _on_after_round(self):
+        if self.current_round + 1 >= self.state.max_turns:
+            self.log_to_self("max turns reached", str(self.state.max_turns))
+            self.state.failed()
 
     def _validate_player_response(self, player: Player, utterance: str) -> bool:
-
-        self.invalid_format = False  # Reset the flags at the beginning of validation
-        self.invalid_content = False
-
+        is_valid = True
         if player == self.guesser:
-
             # Check if the response is neither a valid question nor a valid guess format
-            if not (utterance.startswith(self.question_tag) or utterance.startswith(self.guess_tag)):
+            if not (utterance.startswith(self.state.question_tag) or utterance.startswith(self.state.guess_tag)):
                 self.log_to_self("invalid format",
                                  "Invalid format. Guesser must use the form 'QUESTION: ' or 'GUESS: '.")
-                self.invalid_format = True
-
-                return False
-
+                self.state.invalid_format = True
+                is_valid = False
             # Validate the question format
-            if utterance.startswith(self.question_tag):
-                question_text = utterance[len(self.question_tag):].strip()
-
+            elif utterance.startswith(self.state.question_tag):
+                question_text = utterance[len(self.state.question_tag):].strip()
+                parts = question_text.split("?")
                 # Check for multiple "QUESTION:" occurrences
-                if utterance.count(self.question_tag) > 1:
+                if utterance.count(self.state.question_tag) > 1:
                     self.log_to_self("invalid format", "Multiple questions detected in a single turn.")
-                    self.invalid_format = True
-                    return False
-
+                    self.state.invalid_format = True
+                    is_valid = False
                 # Check if there is text after the question mark
-                if "?" in question_text:
-                    parts = question_text.split("?")
-                    if len(parts) > 2 or parts[1].strip() != "":
-                        self.log_to_self("invalid format",
+                elif "?" in question_text and (len(parts) > 2 or parts[1].strip() != ""):
+                    self.log_to_self("invalid format",
                                          "Invalid format. Question must stop after the question mark.")
-                        self.invalid_format = True
-                        return False
-
-                # Check for specific content-related errors by calling check_question
-                errors = self.check_question(utterance, self.candidate_list)
-                if errors:
-                    # Log all errors as invalid content and return False
-                    for error in errors:
-                        self.log_to_self("invalid content", error["message"])
-                        self.invalid_content = True
-                    return False
-
+                    self.state.invalid_format = True
+                    is_valid = False
+                else:
+                    # Check for specific content-related errors by calling check_question
+                    errors = self.check_question(utterance, self.state.candidate_list)
+                    if errors:
+                        # Log all errors as invalid content and return False
+                        for error in errors:
+                            self.log_to_self("invalid content", error["message"])
+                            self.state.invalid_content = True
+                        is_valid = False
             # Validate the guess format
-            elif utterance.startswith(self.guess_tag):
-
-                guess_word = utterance[len(self.guess_tag):].strip().lower()
+            elif utterance.startswith(self.state.guess_tag):
+                guess_word = utterance[len(self.state.guess_tag):].strip().lower()
                 guess_word = string_utils.remove_punctuation(guess_word)
-                self.guess_word = guess_word
-
+                self.state.guess_word = guess_word
                 # Check if the guess contains more than one word
                 if len(guess_word.split()) > 1:
-                    self.invalid_format = True
-                    return False
-
+                    self.state.invalid_format = True
+                    is_valid = False
                 # Check correct and incorrect guess
-                if guess_word == self.target_word.lower():
-                    self.correct_guess = True
+                elif guess_word == self.state.target_word.lower():
+                    self.state.correct_guess = True
                     self.log_to_self("correct guess", guess_word)
+                    self.log_to_self("correct guess", "end game")
+                    self.state.succeed()
                 else:
-                    self.incorrect_guess = True
+                    self.state.incorrect_guess = True
                     self.log_to_self("incorrect guess", guess_word)
-
-                # If guess format is valid, allow it
-                return True
-
+                    self.log_to_self("incorrect guess", "end game")
+                    self.state.failed()
         elif player == self.answerer:
-            if utterance not in self.answer_variations:
-                self.invalid_format = True
-                return False
-        return True
+            if utterance not in self.state.answer_variations:
+                self.state.invalid_format = True
+                is_valid = False
+        if self.state.invalid_format or self.state.invalid_content:
+            self.log_to_self("invalid format" if self.state.invalid_format else "invalid content", "abort game")
+            self.state.abort()
+        return is_valid
 
     def _on_valid_player_response(self, player: Player, parsed_response: str):
         if player == self.guesser:
             if self.current_round == 0:
                 # Include first question in the prompt
-                prompt_with_first_question = f"{self.answerer_initial_prompt}\n\n{parsed_response}"
+                prompt_with_first_question = f"{self.state.answerer_initial_prompt}\n\n{parsed_response}"
                 self.set_context_for(self.answerer, prompt_with_first_question)
             else:
                 self.set_context_for(self.answerer, parsed_response)
         if player == self.answerer:
-            if not self.incorrect_guess and not self.correct_guess:  # Check if a guess has not been made
+            if not self.state.incorrect_guess and not self.state.correct_guess:  # Check if a guess has not been made
                 self.set_context_for(self.guesser, parsed_response)
 
 

@@ -1,7 +1,8 @@
+import logging
+import numpy as np
 import os
-
-from typing import List, Dict
-
+from typing import List, Dict, Optional
+from dataclasses import dataclass, field
 from clemcore import backends
 from clemcore.backends import Model
 from clemcore.utils import file_utils
@@ -9,10 +10,7 @@ import clemcore.clemgame.metrics as metrics
 from clemcore.clemgame import GameSpec, GameMaster, GameBenchmark, Player
 from clemcore.clemgame.legacy.scorer import GameScorer
 from clemcore.clemgame.legacy.master import DialogueGameMaster
-
-import logging
-
-import numpy as np
+from clemcore.clemgame.master import GameState, Outcome
 
 from if_wrapper import AdventureIFInterpreter
 
@@ -27,6 +25,24 @@ class Adventurer(Player):
     def _custom_response(self, context: Dict) -> str:
         return "Go"
 
+@dataclass
+class AdventureGameGameState(GameState):
+    invalid_format: str = ""
+    if_variant: str = None
+    if_interpreter: AdventureIFInterpreter = None
+    plan_history: Optional[List] = None
+    plan_success_ratio_history: Optional[List] = None
+    goals_required: set = field(default_factory=set)
+    goals_required_cnt: int = 0
+    goals_achieved: set = field(default_factory=set) # initially empty set of achieved goals
+    adventure_info: Dict[str,str|int] = field(default_factory=dict)
+    initial_room_desc: str = None
+    first_message: str = None
+    max_turns: int = None
+
+    def __post_init__(self):
+        super().__init__()
+
 
 class AdventureGameMaster(DialogueGameMaster):
     """
@@ -38,69 +54,71 @@ class AdventureGameMaster(DialogueGameMaster):
     def __init__(self, game_spec: GameSpec, experiment: Dict, player_models: List[Model]):
         super().__init__(game_spec, experiment, player_models)
         self.game_path = game_spec.game_path
-        self.success = True
-        self.invalid_format: str = ""  # to track responses with invalid format
-        self.finished: bool = False  # game finished successfully
-        self.model_done = False  # model used DONE action to end game
 
     def _on_setup(self, **game_instance):
-        self.game_instance = game_instance  # fetch game parameters here
         # check game variant; 'basic' or 'planning':
-        self.if_variant = self.game_instance['variant']
-        # initialize IF interpreter:
-        self.if_interpreter = AdventureIFInterpreter(self.game_path, self.game_instance)
+        if_variant = game_instance['variant']
+        # keep history of plans:
+        plan_history = [] if if_variant == 'plan' else None
+        plan_success_ratio_history = [] if if_variant == 'plan' else None # for 'bad' plan scoring
+        # initialize IF interpreter
+        if_interpreter = AdventureIFInterpreter(self.game_path, game_instance)
+        goals_required = set(game_instance['goal_state'])
+        initial_room_desc = if_interpreter.get_full_room_desc()
+        self.state = AdventureGameGameState(
+            if_variant = if_variant,
+            if_interpreter = if_interpreter,
+            plan_history = plan_history,
+            plan_success_ratio_history = plan_success_ratio_history,
+            # get goal data set from game instance:
+            goals_required = goals_required,
+            goals_required_cnt = len(goals_required),
+            # get and record adventure information:
+            adventure_info = {"variant": game_instance['variant'], "max_turns": game_instance['max_turns'],
+                              "optimal_turns": game_instance['optimal_turns'],
+                              "goal_count": len(goals_required)},
+            # get initial room description from IF interpreter:
+            initial_room_desc = initial_room_desc,
+            # combine prompt with initial room description as first message:
+            first_message = game_instance["prompt"] + initial_room_desc,
+            max_turns = game_instance["max_turns"]
+        )
         # create clem player:
         self.player = Adventurer(self.player_models[0])
         # Add the players: these will be logged to the records interactions.json
         # Note: During game play the players will be called in the order added here
         self.add_player(self.player)
-        # keep history of plans:
-        if self.if_variant == 'plan':
-            self.plan_history: list = list()
-            self.plan_success_ratio_history: list = list()  # for 'bad' plan scoring
-        # get goal data set from game instance:
-        self.goals_required = set(self.game_instance['goal_state'])
-        self.goals_required_cnt = len(self.goals_required)
-        # initially empty set of achieved goals:
-        self.goals_achieved = set()
 
     def _on_before_game(self):
-        # get and record adventure information:
-        adventure_info: dict = {"variant": self.game_instance['variant'], "max_turns": self.game_instance['max_turns'],
-                                "optimal_turns": self.game_instance['optimal_turns'],
-                                "goal_count": self.goals_required_cnt}
-        self.log_key("adventure_info", adventure_info)
-        # get initial room description from IF interpreter:
-        initial_room_desc = self.if_interpreter.get_full_room_desc()
-        # combine prompt with initial room description as first message:
-        first_message = self.game_instance["prompt"] + initial_room_desc
+        self.log_key("adventure_info", self.state.adventure_info)
         # add the initial prompts to the message history:
-        self.set_context_for(self.player, first_message)
+        self.set_context_for(self.player, self.state.first_message)
 
     def _validate_player_response(self, player: Player, utterance: str) -> bool:
+        is_valid = True
         self.log_to_self("metadata", f"Round: {self.current_round}")
-        # logger.info(f"Player response:\n{utterance}")
         # check player response:
         if player == self.player:
             # check rule: response must start with IF >
             if not utterance.startswith(">"):
-                self.success = False
                 # hallucinated finish heuristic:
                 hallucinated_finish_strs = ["complete", "finish", "done", "successfully"]
                 for hallucinated_finish_str in hallucinated_finish_strs:
                     if hallucinated_finish_str in utterance:
                         self.log_to_self("hallucinated_finish", utterance)
                         break
-                self.invalid_format = "command_tag_missing"
-                return False
-            if self.if_variant == 'plan':
+                self.state.invalid_format = "command_tag_missing"
+                is_valid = False
+            elif self.state.if_variant == 'plan':
                 # check rule: response must contain 'Next actions:' on its own line
                 # if utterance is DONE action, don't fail
                 if "\nNext actions:" not in utterance and "done" not in utterance:
-                    self.success = False
-                    self.invalid_format = "next_actions_missing"
-                    return False
-        return True
+                    self.state.invalid_format = "next_actions_missing"
+                    is_valid = False
+        if self.state.invalid_format:
+            self.state.abort()
+            self.log_to_self("invalid_format", self.state.invalid_format)
+        return is_valid
 
     def _parse_response(self, player: Player, utterance: str) -> str:
         """
@@ -114,7 +132,7 @@ class AdventureGameMaster(DialogueGameMaster):
         :return: The (modified) response and if to log the parse action (default: True)
         """
         # logger.info(f"AdventureGameMaster._on_parse_response() input utterance: {utterance}")
-        if self.if_variant == 'plan':
+        if self.state.if_variant == 'plan':
             # do not split for next actions plan if action is 'done'
             if utterance == "> done":
                 return utterance
@@ -125,51 +143,23 @@ class AdventureGameMaster(DialogueGameMaster):
                 # split by comma and strip to get assumed individual action commands:
                 plan_sequence = [command.strip() for command in new_plan.split(",")]
                 # add new plan sequence to plan history:
-                self.plan_history.append(plan_sequence)
+                self.state.plan_history.append(plan_sequence)
                 # record the new plan for processing:
                 self.log_to_self(f"turn_plan", plan_sequence)
         return utterance
 
-    def _does_game_proceed(self) -> bool:
-        """
-        Checks if game proceeds.
-        Game does NOT proceed due to: Invalid output format, reaching the turn limit or model performing DONE action.
-        Achieving all goal states is recorded here, but does not end the episode.
-        """
-        # record invalid format failures:
-        if self.invalid_format:
-            self.log_to_self("invalid_format", self.invalid_format)
-            return False
-        # check if all goal states have been achieved:
-        if self.goals_achieved == self.goals_required:
-            self.finished = True
-            self.log_to_self("adventure_finished", list(self.goals_achieved))  # can be JSON'd; for easier eval
-            # return False  # do not stop game when all goal states have been achieved
-        # stop game when turn limit is reached:
-        if self.current_round >= self.game_instance['max_turns']:
-            self.log_to_self("turn_limit_reached",
-                             f"Turn limit {self.game_instance['max_turns']} reached, end episode.")
-            return False
-        # stop game when model used DONE action:
-        if self.model_done:
-            self.log_to_self("model_done",
-                             f"Model produced DONE action at turn {self.current_round}, end episode.")
-            return False
-        # otherwise keep playing:
-        return True
-
     def _on_valid_player_response(self, player: Player, parsed_response: str):
+        model_done = False
         # IF INTERACTION
-        # logger.info(f"Raw last message:\n{last_action}")
         # strip player action to IF input; only first line action command is used:
         if_input: str = parsed_response[1:].split("\n")[0].strip()
         logger.debug("Stripped IF input: %s", if_input)
 
         # count achieved goals:
-        prior_goal_count = len(self.goals_achieved)
+        prior_goal_count = len(self.state.goals_achieved)
 
         # send to IF interpreter to process action:
-        goals_achieved, if_response, action_info = self.if_interpreter.process_action(if_input)
+        goals_achieved, if_response, action_info = self.state.if_interpreter.process_action(if_input)
         # IF interpreter returns: set of achieved goal states in string form,
         # textual feedback response, failure/action info dict
         logger.debug("IF response: %s", if_response)
@@ -184,32 +174,32 @@ class AdventureGameMaster(DialogueGameMaster):
         if 'done_action' in action_info:
             logger.debug("model_done: %s", action_info['done_action'])
             # self.log_to_self("model_done", if_input)
-            self.model_done = True
+            model_done = True
 
         # if 'exploration_info' in action_info:
         #    self.log_to_self("exploration_info", action_info['exploration_info'])
 
         # handle goals:
-        self.goals_achieved = goals_achieved
+        self.state.goals_achieved = goals_achieved
         # count goals achieved this turn:
-        post_goal_count = len(self.goals_achieved)
+        post_goal_count = len(self.state.goals_achieved)
         # calculate turn goal score; can be negative if a goal is 'unachieved':
         turn_score = post_goal_count - prior_goal_count
         # combine goal info into dict:
-        goal_status = {"goal_states_achieved": list(self.goals_achieved), "turn_goal_score": turn_score}
+        goal_status = {"goal_states_achieved": list(self.state.goals_achieved), "turn_goal_score": turn_score}
         # record goal status dict for scoring:
         self.log_to_self("goal_status", goal_status)  # can be JSON'd; for easier eval
 
-        if self.if_variant == 'plan':
+        if self.state.if_variant == 'plan':
             # current plan viability:
             # get latest/current plan from plan history:
-            cur_plan: list = self.plan_history[-1]
+            cur_plan: list = self.state.plan_history[-1]
             self.log_to_self("current_plan", f"{str(cur_plan)}")
             # get length of plan:
             cur_plan_command_count: int = len(cur_plan)
             self.log_to_self("plan_length", cur_plan_command_count)
             # pass plan to IF interpreter for execution:
-            cur_plan_results: list = self.if_interpreter.execute_plan_sequence(cur_plan)
+            cur_plan_results: list = self.state.if_interpreter.execute_plan_sequence(cur_plan)
             self.log_to_self("plan_results", cur_plan_results)
             # plan result sequences cut off after the first failed plan action
             # so the sequence at this point only contains one failed action
@@ -224,10 +214,10 @@ class AdventureGameMaster(DialogueGameMaster):
             cur_plan_success_ratio: float = len(cur_plan_successes) / cur_plan_command_count
             self.log_to_self("plan_command_success_ratio", cur_plan_success_ratio)
             # append success ratio to history for 'bad' plan scoring:
-            self.plan_success_ratio_history.append(cur_plan_success_ratio)
+            self.state.plan_success_ratio_history.append(cur_plan_success_ratio)
             # plan following:
-            if len(self.plan_history) >= 2:
-                prior_plan: list = self.plan_history[-2]
+            if len(self.state.plan_history) >= 2:
+                prior_plan: list = self.state.plan_history[-2]
                 first_prior_plan_command: str = prior_plan[0]
                 # check if this turn's action matches the next action planned in the turn before:
                 if first_prior_plan_command == if_input:
@@ -240,10 +230,25 @@ class AdventureGameMaster(DialogueGameMaster):
                 self.log_to_self("plan_followed", plan_followed)  # can be JSON'd; for easier eval
         # add IF response to dialog:
         self.set_context_for(self.player, if_response)
+        if self.state.goals_achieved == self.state.goals_required:
+            self.log_to_self("adventure_finished", list(self.state.goals_achieved))  # can be JSON'd; for easier eval
+        if model_done:
+            self.log_to_self("model_done",
+                             f"Model produced DONE action at turn {self.current_round}, end episode.")
+            if self.state.goals_achieved == self.state.goals_required:
+                self.state.succeed()
+            else:
+                self.state.failed()
+
+    def _on_after_round(self):
+        if self.current_round + 1 >= self.state.max_turns:
+            self.state.abort()
+            self.log_to_self("turn_limit_reached",
+                             f"Turn limit {self.state.max_turns} reached, end episode.")
 
     def _on_after_game(self):
         # record final results once game episode has ended:
-        game_result = {"goal_states_achieved": list(self.goals_achieved), "game_successfully_finished": self.finished}
+        game_result = {"goal_states_achieved": list(self.state.goals_achieved), "game_successfully_finished": self.state.outcome == Outcome.SUCCESS}
         self.log_to_self("game_result", game_result)
 
 

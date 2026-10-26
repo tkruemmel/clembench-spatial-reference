@@ -1,3 +1,45 @@
+# Matrixgame: coordination and spatial reasoning in clembench
+
+This fork of [clembench](https://github.com/clp-research/clembench) holds the code and data of the Master's thesis
+*Assessing Coordination and Spatial Reasoning in Large Language Models through Cooperative Object Rearrangement*.
+It adds one game, [Matrixgame](matrixgame/README.md), played as `matrixgame_solo`, `matrixgame_dyad`, `matrixgame_3p`
+and `matrixgame_6p`; the other games are clembench's.
+
+| path | contents |
+|---|---|
+| `matrixgame/` | the game: master, instance generator, prompts, board generator, A* solver, tests |
+| `deepseek_api.py` | the backend the runs used (DeepSeek API); `model_registry.json` lists `DeepSeek-V4.1-Flash` |
+| `results/DeepSeek-V4.1-Flash/` | the 780 episodes the thesis reports, scored (git-lfs) |
+| `analysis/thesis/` | the results tables, the spatial-efficiency metrics, Appendix A |
+| `analysis/messages/` | the message analysis (Communication section, Appendix B) |
+| `figures/` | the thesis figures; `figures/out/` holds the 20 the thesis includes |
+
+### Play and score
+
+```
+clem run -g matrixgame_dyad -m DeepSeek-V4.1-Flash -t 0.6    # needs a "deepseek" key in key.json
+clem score -g matrixgame_dyad
+clem eval
+python3 -m pytest matrixgame/test_matrixgame.py              # replays every episode in results/
+```
+
+### The thesis numbers and figures
+
+```
+cc -O3 -o analysis/thesis/hstar_c analysis/thesis/hstar.c
+python3 analysis/thesis/move_metrics.py --tex                          # spatial metrics (cached per episode)
+python3 analysis/thesis/results_final.py                               # clembench, outcome, spatial and cut tables
+python3 -m analysis.messages.run test --models dsv41 --out test_dsv41  # message analysis
+python3 analysis/thesis/results_messages.py                            # message tables
+python3 analysis/thesis/probe_targets.py                               # listener probe, target question
+python3 analysis/thesis/targets_in_way.py                              # targets in the way per level
+python3 analysis/thesis/appendix_prompts.py                            # Appendix A
+for f in render_levels turn_boards results_final_figs results_messages_figs res_cut_s3 res_cut_enclosure s4_inner_target; do
+    python3 figures/$f.py; done
+```
+
+---
+
 ## Collections of games to be run with the [clemcore framework](https://github.com/clp-research/clemcore)
 
 ## Installation (Python 3.10+)

@@ -1,10 +1,12 @@
 from typing import List, Dict
+from dataclasses import dataclass, field
 import logging
 
 from clemcore.backends import Model
 from clemcore.clemgame import GameMaster, GameBenchmark, metrics, Player, GameSpec
 from clemcore.clemgame.legacy.master import DialogueGameMaster
 from clemcore.clemgame.legacy.scorer import GameScorer
+from clemcore.clemgame.master import GameState
 from evaluator import evaluate, calculate_flipped_pixels
 
 import re
@@ -24,26 +26,27 @@ class InstructionGiver(Player):
     def _custom_response(self, context):
         return "Command: Put X in all cells"
 
+@dataclass
+class ImageGameGameState(GameState):
+    player_1_prompt_header: str = None
+    player_2_prompt_header: str = None
+    player_1_question: str = None
+    target_grid: str = None
+    grid_dimension: int = None
+    number_of_letters: int = None
+    fill_row: int = None
+    fill_column: int = None
+    player_1_response_pattern: str = None
+    player_1_terminate_pattern: str = None
+    player_2_response_pattern: str = None
+    context_for_player: Dict = field(default_factory=dict)
+    max_rounds: int = None
+    request_count: int = 0
+    parsed_request_count: int = 0
+    violated_request_count:int = 0
 
-class ImageGame:
-
-    def __init__(self, game_instance: Dict):
-        self.game_id = game_instance['game_id']
-        self.player_1_prompt_header = game_instance['player_1_prompt_header']
-        self.player_2_prompt_header = game_instance['player_2_prompt_header']
-        self.player_1_question = game_instance['player_1_question']
-        self.target_grid = game_instance['target_grid']
-        self.grid_dimension = game_instance['grid_dimension']
-        self.number_of_letters = game_instance['number_of_letters']
-        self.fill_row = game_instance['fill_row']
-        self.fill_column = game_instance['fill_column']
-        self.player_1_response_pattern = r'{}'.format(game_instance['player_1_response_pattern'])
-        self.player_1_terminate_pattern = r'{}'.format(game_instance['player_1_terminate_pattern'])
-        self.player_2_response_pattern = r'{}'.format(game_instance['player_2_response_pattern'])
-        self.context_for_player: Dict[str, Dict] = {}
-        self.current_turn = 0
-        self.max_rounds = self.grid_dimension * self.grid_dimension * 2
-        self.terminate = False
+    def __post_init__(self):
+        super().__init__()
 
 
 class ImageGameMaster(DialogueGameMaster):
@@ -55,19 +58,30 @@ class ImageGameMaster(DialogueGameMaster):
         self.request_count = 0
         self.parsed_request_count = 0
         self.violated_request_count = 0
-        self.aborted_ratio = 0
 
-        self.game_instance = game_instance
-        self.game = ImageGame(self.game_instance)
+        self.state = ImageGameGameState(
+            player_1_prompt_header = game_instance['player_1_prompt_header'],
+            player_2_prompt_header = game_instance['player_2_prompt_header'],
+            player_1_question = game_instance['player_1_question'],
+            target_grid = game_instance['target_grid'],
+            grid_dimension = game_instance['grid_dimension'],
+            number_of_letters = game_instance['number_of_letters'],
+            fill_row = game_instance['fill_row'],
+            fill_column = game_instance['fill_column'],
+            player_1_response_pattern = r'{}'.format(game_instance['player_1_response_pattern']),
+            player_1_terminate_pattern = r'{}'.format(game_instance['player_1_terminate_pattern']),
+            player_2_response_pattern = r'{}'.format(game_instance['player_2_response_pattern']),
+            max_rounds = game_instance['grid_dimension'] * game_instance['grid_dimension'] * 2,
+        )
         self.instruction_giver = InstructionGiver(self.player_models[0],
                                                   name="Player 1",
                                                   game_role="Instruction Giver")
         self.instruction_follower = InstructionFollower(self.player_models[1],
                                                         name="Player 2",
                                                         game_role="Instruction Follower")
-        p1_initial_prompt = self.game.player_1_prompt_header + '\n' + self.game.target_grid + '\n' + self.game.player_1_question
+        p1_initial_prompt = self.state.player_1_prompt_header + '\n' + self.state.target_grid + '\n' + self.state.player_1_question
         self.add_player(self.instruction_giver, initial_context=p1_initial_prompt)
-        self.add_player(self.instruction_follower, initial_prompt=self.game.player_2_prompt_header)
+        self.add_player(self.instruction_follower, initial_prompt=self.state.player_2_prompt_header)
 
     def _validate_player_response(self, player: Player, response: str) -> bool:
         """
@@ -81,23 +95,23 @@ class ImageGameMaster(DialogueGameMaster):
             True, if the response is fine. Otherwise, False.
         """
         if player == self.instruction_giver:
-            match = re.compile(self.game.player_1_terminate_pattern, re.IGNORECASE).match(response)
+            match = re.compile(self.state.player_1_terminate_pattern, re.IGNORECASE).match(response)
             if match:
                 return True
             else:
-                match = re.compile(self.game.player_1_response_pattern, re.IGNORECASE).match(response)
+                match = re.compile(self.state.player_1_response_pattern, re.IGNORECASE).match(response)
                 if match:
                     return True
                 else:
-                    self.game.terminate = True
+                    self.state.abort()
                     self.log_to_self("invalid format", "Invalid instruction format")
                     return False
         else:
-            match = re.compile(self.game.player_2_response_pattern).match(response)
+            match = re.compile(self.state.player_2_response_pattern).match(response)
             if match:
                 return True
             else:
-                self.game.terminate = True
+                self.state.abort()
                 self.log_to_self("invalid format", "Invalid grid format")
                 return False
 
@@ -111,13 +125,13 @@ class ImageGameMaster(DialogueGameMaster):
             The parsed response
         """
         if player == self.instruction_giver:
-            match = re.compile(self.game.player_1_terminate_pattern, re.IGNORECASE).match(response)
+            match = re.compile(self.state.player_1_terminate_pattern, re.IGNORECASE).match(response)
             if match:
-                self.game.terminate = True
+                self.state.succeed()
                 self.log_to_self("found terminate pattern", response)
                 return None
             # check if the Player 1 message follows the rule => start with "Instruction:"
-            match = re.compile(self.game.player_1_response_pattern, re.IGNORECASE).match(response)
+            match = re.compile(self.state.player_1_response_pattern, re.IGNORECASE).match(response)
             if match:
                 if '\n' in response:
                     parsed_instruction = response.split('\n')[0]
@@ -126,7 +140,7 @@ class ImageGameMaster(DialogueGameMaster):
                 self.log_to_self("found instruction", parsed_instruction)
                 return parsed_instruction
         elif player == self.instruction_follower:
-            match = re.compile(self.game.player_2_response_pattern).match(response)
+            match = re.compile(self.state.player_2_response_pattern).match(response)
             if match:
                 self.log_to_self("found grid", response)
                 return response
@@ -143,22 +157,12 @@ class ImageGameMaster(DialogueGameMaster):
         if player == self.instruction_giver:
             self.set_context_for(self.instruction_follower, parsed_response)
         else:
-            self.set_context_for(self.instruction_giver, self.game.player_1_question)
+            self.set_context_for(self.instruction_giver, self.state.player_1_question)
 
-    def _does_game_proceed(self) -> bool:
-        """Check if game should proceed.
-        This method is called after each turn to check if the game should continue or stop.
-        It returns False if `self.game.terminate` is True or if the maximum number of rounds has been reached.
-        
-        Returns:
-            A bool, True if game continues, False if game should stop.
-        """
-        if self.game.terminate:
-            return False
-        if self.current_round >= self.game.max_rounds:
+    def _on_after_round(self):
+        if self.current_round + 1 >= self.state.max_rounds:
             self.log_to_self("game end", "turn limit reached")
-            return False
-        return True
+            self.state.failed()
 
 class ImageGameScorer(GameScorer):
 
@@ -188,7 +192,6 @@ class ImageGameScorer(GameScorer):
         number_of_turns = 0
 
         # loop over each turn and calculate the metrics for both Player 1 and 2.
-
         for t_index, turn in enumerate(episode_interactions["turns"]):
 
             turn_request_count = 0
@@ -297,15 +300,15 @@ class ImageGameScorer(GameScorer):
             self.log_episode_score(metrics.BENCH_SCORE, f1)
 
             # average of flipped pixel counts
-            flipped_count_sum = round(flipped_count_sum / float(number_of_turns), 4)
+            flipped_count_sum = round(flipped_count_sum / float(number_of_turns), 4) if number_of_turns > 0 else 0
             self.log_episode_score('Average Changed Cell Count', flipped_count_sum)
 
             # average of expression length
-            expression_length_sum = round(expression_length_sum / float(number_of_turns), 4)
+            expression_length_sum = round(expression_length_sum / float(number_of_turns), 4) if number_of_turns > 0 else 0
             self.log_episode_score('Average Generated Instruction Length', expression_length_sum)
 
             # average of number of tokens in generated expression
-            expression_number_of_tokens = round(expression_number_of_tokens / float(number_of_turns), 4)
+            expression_number_of_tokens = round(expression_number_of_tokens / float(number_of_turns), 4) if number_of_turns > 0 else 0
             self.log_episode_score('Average Generated Expression Number of Tokens', expression_number_of_tokens)
 
             # the last turn scores are also the scores for the episode
