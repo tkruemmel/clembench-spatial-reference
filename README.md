@@ -8,10 +8,10 @@ and `matrixgame_6p`; the other games are clembench's.
 | path | contents |
 |---|---|
 | `matrixgame/` | the game: master, instance generator, prompts, board generator, A* solver, tests |
-| `deepseek_api.py` | the backend the runs used (DeepSeek API); `model_registry.json` lists `DeepSeek-V4.1-Flash` |
+| `deepseek_api.py` | the backend the runs used (DeepSeek API). `model_registry.json` lists `DeepSeek-V4.1-Flash` |
 | `results/DeepSeek-V4.1-Flash/` | the 780 episodes the thesis reports, scored (git-lfs) |
-| `analysis/thesis/` | the results tables, the spatial-efficiency metrics, Appendix A |
-| `analysis/messages/` | the message analysis (Communication section, Appendix B) |
+| `analysis/thesis/` | the results tables, the spatial-efficiency metrics |
+| `analysis/messages/` | the message analysis |
 | `figures/` | the thesis figures; `figures/out/` holds the 20 the thesis includes |
 
 ### Play and score
@@ -33,10 +33,6 @@ python3 -m analysis.messages.run test --models dsv41 --out test_dsv41  # message
 python3 analysis/thesis/results_messages.py                            # message tables
 python3 analysis/thesis/probe_targets.py                               # listener probe, target question
 python3 analysis/thesis/targets_in_way.py                              # targets in the way per level
-python3 analysis/thesis/appendix_prompts.py                            # Appendix A
-for f in render_levels turn_boards results_final_figs results_messages_figs res_cut_s3 res_cut_enclosure s4_inner_target; do
-    python3 figures/$f.py; done
-```
 
 ---
 
