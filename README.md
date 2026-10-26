@@ -3,7 +3,7 @@
 This fork of [clembench](https://github.com/clp-research/clembench) holds the code and data of the Master's thesis
 *Assessing Coordination and Spatial Reasoning in Large Language Models through Cooperative Object Rearrangement*.
 It adds one game, [Matrixgame](matrixgame/README.md), played as `matrixgame_solo`, `matrixgame_dyad`, `matrixgame_3p`
-and `matrixgame_6p`; the other games are clembench's.
+and `matrixgame_6p`.
 
 | path | contents |
 |---|---|
