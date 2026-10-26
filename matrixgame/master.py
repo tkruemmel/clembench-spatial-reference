@@ -383,7 +383,7 @@ class SoloMatrixGameMaster(_MatrixGameMaster):
     def _state_block(self, player: Player = None) -> str:
         """MOVE BOARD, current and goal boards: the tail of every turn and retry context."""
         return (
-            history.boards(self.record, self.player.role_name, "")
+            history.boards(self.record, self.player.role_name)
             + f"CURRENT BOARD:\n{self.board.render()}\n\n"
             f"GOAL BOARD:\n{self.board.render_targets()}"
         )
@@ -440,12 +440,6 @@ class TeamMatrixGameMaster(_MatrixGameMaster):
         self.num_players = len(self.player_objects)
         self.player_done: List[bool] = [False] * self.num_players
         self.role_names = history.SEATS[:self.num_players]
-        # The dyad was played with the teammate's lines of a round in seeded
-        # random order. A dyad round holds one teammate turn, so this can only
-        # put a done declaration before its message (once in the 240 played
-        # episodes); the 3p and 6p games list every line in the order sent.
-        self.seed = str(game_instance["game_id"])
-        self.shuffle = self.num_players == 2
         # The dyad's prompts address one teammate, the 3p/6p prompts several.
         dyad = self.num_players == 2
         self.mates = "teammate" if dyad else "teammates"
@@ -479,7 +473,7 @@ class TeamMatrixGameMaster(_MatrixGameMaster):
     def _state_block(self, player: Player) -> str:
         """MESSAGE and MOVE BOARD, current and goal boards: the tail of every turn and retry context."""
         return (
-            history.boards(self.record, player.role_name, self.seed, self.with_message, self.shuffle)
+            history.boards(self.record, player.role_name, self.with_message)
             + f"CURRENT BOARD:\n{self._render_for(player)}\n\n"
             f"GOAL BOARD:\n{self._render_targets_for(player)}"
         )

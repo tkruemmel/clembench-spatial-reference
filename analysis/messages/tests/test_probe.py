@@ -24,7 +24,7 @@ def dev_prompt(lines, merged=True):
 
 def final_prompt(record, viewer):
     """As the final masters build it, from history.boards (the game's own code)."""
-    return [{"role": "user", "content": PRE + "\n\n" + history.boards(record, viewer, "7", True) + TAIL}]
+    return [{"role": "user", "content": PRE + "\n\n" + history.boards(record, viewer, True) + TAIL}]
 
 
 REC = [dict(turn=1, player="Player Green", message="I go first, A to (R2,C3).", object="A", direction="down",

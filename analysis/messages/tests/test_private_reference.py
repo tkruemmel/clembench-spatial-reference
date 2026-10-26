@@ -318,7 +318,7 @@ def rendered(ep, idx):
     for t in ep["turns"][:idx]:
         history.capture(rec, t["seat"], dict(message=t["msg"], is_done=t["done"], object=t["obj"], direction=t["dir"]),
                         type("B", (), {"object_positions": t["board"]})(), corpus.DIRS)
-    text = history.boards(rec, ep["turns"][idx]["seat"], seed="7", messages=True)
+    text = history.boards(rec, ep["turns"][idx]["seat"], messages=True)
     block = lambda name: text.split(name, 1)[1].split("\n\n", 1)[0].splitlines()[1:] if name in text else []
     moves, msgs = [[]], [[]]
     for line in block("MOVE BOARD"):

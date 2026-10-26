@@ -13,6 +13,7 @@ import glob
 import json
 import math
 import os
+import re
 import sys
 import unittest
 
@@ -28,6 +29,11 @@ SPECS = {s["game_name"]: s for s in json.load(open(os.path.join(HERE, "clemgame.
 
 sys.path.insert(0, HERE)
 from utils.history import ROUNDS  # noqa: E402
+
+# The dyad was played with a round's teammate lines in seeded random order. In
+# this one episode that put Player Green's done before its message; the game
+# now lists every line in the order sent.
+REORDERED = {os.path.join("matrixgame_dyad", "S4_freeform", "instance_00006")}
 
 
 class ReplayModel(Model):
@@ -48,6 +54,17 @@ class ReplayModel(Model):
 def _first_diff(a, b):
     i = next((k for k, (x, y) in enumerate(zip(a, b)) if x != y), min(len(a), len(b)))
     return f"replayed: ...{a[max(0, i - 80):i + 80]!r}\nrecorded: ...{b[max(0, i - 80):i + 80]!r}"
+
+
+def _in_order(x):
+    """x with every `P declared done` line moved after the message of P that follows it."""
+    if isinstance(x, str):
+        return re.sub(r'(Player \w+) declared done\n(\1 said "[^\n]*")', r"\2\n\1 declared done", x)
+    if isinstance(x, list):
+        return [_in_order(v) for v in x]
+    if isinstance(x, dict):
+        return {k: _in_order(v) for k, v in x.items()}
+    return x
 
 
 def _events(turns):
@@ -75,13 +92,14 @@ def episodes(game):
 def replay(benchmark, game, path, insts):
     """Replay one recorded episode; returns the replayed interactions."""
     episode_dir = os.path.dirname(path)
-    recorded = json.load(open(path))
+    fix = _in_order if any(episode_dir.endswith(e) for e in REORDERED) else (lambda x: x)
+    recorded = fix(json.load(open(path)))
     experiment_name = os.path.basename(os.path.dirname(episode_dir))
     game_id = int(os.path.basename(episode_dir).split("_")[1])
     experiment, instance = insts[(experiment_name, game_id)]
     models = []
     for n in range(1, SPECS[f"matrixgame_{game}"]["players"] + 1):
-        calls = json.load(open(os.path.join(episode_dir, f"player_{n}.requests.json")))["calls"]
+        calls = fix(json.load(open(os.path.join(episode_dir, f"player_{n}.requests.json")))["calls"])
         said = [e["action"]["content"] for t in recorded["turns"] for e in t
                 if e["from"] == f"Player {n}" and e["action"]["type"] == "get message"]
         models.append(ReplayModel([c["call"]["manipulated_prompt_obj"] for c in calls], said))

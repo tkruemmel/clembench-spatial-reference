@@ -6,7 +6,6 @@ with its sender; absent under `none` and in solo) and a MOVE BOARD (every
 move, no player named).
 """
 
-import random
 from typing import Dict, List
 
 # K: rounds of play kept in view. Every prompt states this number
@@ -36,7 +35,7 @@ def capture(record: List[Dict], player: str, parsed: Dict, board, directions) ->
     record.append(entry)
 
 
-def boards(record: List[Dict], viewer: str, seed: str, messages: bool = False, shuffle: bool = False) -> str:
+def boards(record: List[Dict], viewer: str, messages: bool = False) -> str:
     """The MESSAGE BOARD and MOVE BOARD over the viewer's last ROUNDS rounds.
 
     A round is one of the viewer's turns and the teammates' turns that follow it,
@@ -51,34 +50,23 @@ def boards(record: List[Dict], viewer: str, seed: str, messages: bool = False, s
     MESSAGE BOARD in place of its "done" message, and that line is the only
     finish signal the masters give, so under `none` a finish is not announced.
     An empty board is left out, so "" before the first turn. In solo every turn
-    is the viewer's, so a round is one turn. `shuffle` lists the teammates'
-    lines between two of the viewer's own turns in a random order, seeded by
-    `seed`.
+    is the viewer's, so a round is one turn.
     """
-    rng = random.Random(f"{seed}-{len(record)}-{viewer}")
     own_turns = [i for i, e in enumerate(record) if e["player"] == viewer]
     start = own_turns[-ROUNDS] if len(own_turns) >= ROUNDS else 0
-    msgs, moves, block = [], [], []
+    msgs, moves = [], []
     for e in record[start:]:
         own = e["player"] == viewer
         msg = " ".join((e["message"] or "").split())
-        if own:
-            if shuffle:
-                rng.shuffle(block)
-            msgs += block
-            block = []
-        lines, who = (msgs if own else block), f'{e["player"]}{" (you)" if own else ""}'
+        who = f'{e["player"]}{" (you)" if own else ""}'
         if msg and not (e.get("done") and msg.lower() == "done"):
-            lines.append(f'{who} said "{msg}"')
+            msgs.append(f'{who} said "{msg}"')
         if e.get("done"):
             if messages:
-                lines.append(f"{who} declared done")
+                msgs.append(f"{who} declared done")
         else:
             cells = f"from {_cell(e['src'])} to {_cell(e['dst'])}"
             moves.append(f"You moved {e['object']} {cells}" if own else f"X moved {cells}")
-    if shuffle:
-        rng.shuffle(block)
-    msgs += block
     return "".join(
         f"{name} (the last {ROUNDS} rounds, oldest first):\n" + "\n".join(lines) + "\n\n"
         for name, lines in (("MESSAGE BOARD", msgs), ("MOVE BOARD", moves)) if lines
